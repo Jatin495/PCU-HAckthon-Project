@@ -293,14 +293,14 @@
             }
         }
         
-        function startLiveMonitoring() {
+        async function startLiveMonitoring() {
             window.SmartClassMonitor.startMonitoring();
             
-            // Show face detection overlays
-            const overlays = document.querySelectorAll('.face-overlay');
-            overlays.forEach(overlay => {
-                overlay.style.display = 'block';
-            });
+            if (window.SmartClassAPI && window.SmartClassAPI.backendConnected()) {
+                // Ensure a session is running
+                await window.SmartClassAPI.startSession('CS101', 'Computer Science', '0');
+                window.SmartClassAPI.startLiveMonitoring();
+            }
             
             // Show recording indicator
             const recordingIndicator = document.querySelector('.video-container > div:last-child');
@@ -310,7 +310,7 @@
             
             // Update video placeholder
             const videoPlaceholder = document.querySelector('.video-placeholder');
-            if (videoPlaceholder) {
+            if (videoPlaceholder && (!window.SmartClassAPI || !window.SmartClassAPI.backendConnected())) {
                 videoPlaceholder.innerHTML = `
                     <div style="text-align: center;">
                         <div style="font-size: 3rem; margin-bottom: 1rem;">📹</div>
@@ -318,14 +318,23 @@
                         <p style="font-size: 0.875rem; opacity: 0.8; margin-top: 0.5rem;">AI monitoring active...</p>
                     </div>
                 `;
+            } else if (videoPlaceholder && window.SmartClassAPI.backendConnected()) {
+                 videoPlaceholder.style.display = 'none';
             }
             
-            // Start real-time updates
-            startLiveUpdates();
+            // Start real-time updates (fallback)
+            if (!window.SmartClassAPI || !window.SmartClassAPI.backendConnected()) {
+                startLiveUpdates();
+            }
         }
         
-        function stopLiveMonitoring() {
+        async function stopLiveMonitoring() {
             window.SmartClassMonitor.stopMonitoring();
+            
+            if (window.SmartClassAPI && window.SmartClassAPI.backendConnected()) {
+                window.SmartClassAPI.stopLiveMonitoring();
+                await window.SmartClassAPI.endSession();
+            }
             
             // Hide face detection overlays
             const overlays = document.querySelectorAll('.face-overlay');
@@ -337,6 +346,19 @@
             const recordingIndicator = document.querySelector('.video-container > div:last-child');
             if (recordingIndicator) {
                 recordingIndicator.style.display = 'none';
+            }
+            
+            // Show placeholder again
+            const videoPlaceholder = document.querySelector('.video-placeholder');
+            if (videoPlaceholder) {
+                videoPlaceholder.style.display = 'flex';
+                videoPlaceholder.innerHTML = `
+                    <div style="text-align: center;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📹</div>
+                        <p>Camera Feed - CS101 Classroom</p>
+                        <p style="font-size: 0.875rem; opacity: 0.8; margin-top: 0.5rem;">Click "Start Monitoring" to begin live analysis</p>
+                    </div>
+                `;
             }
             
             // Stop real-time updates

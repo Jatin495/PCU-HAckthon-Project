@@ -601,7 +601,7 @@ function logout() {
 }
 
 // Export functions for use in other scripts
-window.SmartClassMonitor = {
+window.SmartClassMonitor = Object.assign(window.SmartClassMonitor || {}, {
     currentUser,
     classroomData,
     isMonitoring,
@@ -615,4 +615,4 @@ window.SmartClassMonitor = {
     showAlert,
     downloadPDF,
     logout
-};
+});
