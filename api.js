@@ -179,7 +179,7 @@ async function startLiveBackendMonitoring(sessionData) {
     // Connect video feed
     const videoImg = document.getElementById('liveCameraFeed');
     if (videoImg) {
-        videoImg.src = MJPEG_URL;
+        videoImg.src = `${MJPEG_URL}?t=${new Date().getTime()}`;
         videoImg.onerror = () => {
             videoImg.style.display = 'none';
             const placeholder = document.getElementById('videoPlaceholder');

@@ -267,7 +267,12 @@ def start_session(request):
         class_name = data.get('class_name', 'CS101')
         subject = data.get('subject', 'Computer Science')
         camera_source = data.get('camera_source', '0')
-        teacher_id = data.get('teacher_id', 1)
+        teacher_id_raw = data.get('teacher_id', 1)
+        teacher_id = 1
+        try:
+            teacher_id = int(str(teacher_id_raw).replace('teacher', ''))
+        except (ValueError, TypeError):
+            teacher_id = 1
 
         teacher = Teacher.objects.filter(id=teacher_id).first()
         if not teacher:
