@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - SmartClass Monitor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">SC</div>
+                <div>
+                    <h3 style="font-size: 1rem; margin: 0;">SmartClass</h3>
+                    <p style="font-size: 0.75rem; opacity: 0.8; margin: 0;">Monitor</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item active">
+                    <span class="nav-icon">📊</span>
+                    Dashboard
+                </a>
+                <a href="live_class.html" class="nav-item">
+                    <span class="nav-icon">📹</span>
+                    Live Classroom
+                </a>
+                <a href="attendance.html" class="nav-item">
+                    <span class="nav-icon">✓</span>
+                    Attendance
+                </a>
+                <a href="student.html" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    Students
+                </a>
+                <a href="reports.html" class="nav-item">
+                    <span class="nav-icon">📄</span>
+                    Reports
+                </a>
+                <a href="analytics.html" class="nav-item">
+                    <span class="nav-icon">📈</span>
+                    Analytics
+                </a>
+                <a href="settings.html" class="nav-item">
+                    <span class="nav-icon">⚙️</span>
+                    Settings
+                </a>
+                <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <span class="nav-icon">🚪</span>
+                    Logout
+                </a>
+            </nav>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navbar -->
+            <header class="top-navbar">
+                <div class="navbar-left">
+                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">☰</button>
+                    <h1 style="font-size: 1.5rem; font-weight: 600;">Dashboard</h1>
+                    <span id="backendStatus" style="font-size: 0.7rem; margin-left: 1rem; padding: 0.2rem 0.6rem; background: rgba(255,255,255,0.05); border-radius: 20px;">⏳ Connecting...</span>
+                </div>
+                
+                <div class="navbar-right">
+                    <div class="search-bar">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" placeholder="Search students..." id="studentSearch">
+                    </div>
+                    
+                    <div class="notification-bell">
+                        <span style="font-size: 1.25rem;">🔔</span>
+                        <span class="notification-badge">3</span>
+                    </div>
+                    
+                    <div class="user-menu">
+                        <div class="user-avatar" id="userAvatar">T</div>
+                        <div>
+                            <div id="userName" style="font-size: 0.875rem; font-weight: 500;">Teacher</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Online</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Stats Overview -->
+                <div class="grid grid-cols-4" style="margin-bottom: 2rem;">
+                    <div class="stat-card success">
+                        <div class="stat-label">Total Students</div>
+                        <div class="stat-value" id="totalStudents">24</div>
+                        <div class="stat-change positive">↑ 2 from last week</div>
+                    </div>
+                    
+                    <div class="stat-card info">
+                        <div class="stat-label">Present Today</div>
+                        <div class="stat-value" id="presentStudents">22</div>
+                        <div class="stat-change positive">↑ 91.7% attendance</div>
+                    </div>
+                    
+                    <div class="stat-card warning">
+                        <div class="stat-label">Avg Engagement</div>
+                        <div class="stat-value" id="averageEngagement">78%</div>
+                        <div class="stat-change positive">↑ 5% improvement</div>
+                    </div>
+                    
+                    <div class="stat-card danger">
+                        <div class="stat-label">Active Alerts</div>
+                        <div class="stat-value">5</div>
+                        <div class="stat-change negative">↑ 2 new alerts</div>
+                    </div>
+                </div>
+                
+                <!-- Main Dashboard Grid -->
+                <div class="grid grid-cols-3" style="gap: 1.5rem;">
+                    <!-- Student Cards -->
+                    <div class="card" style="grid-column: span 2;">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Student Engagement</h2>
+                                <p class="card-subtitle">Real-time engagement monitoring</p>
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="window.location.href='live_class.html'">
+                                View Live
+                            </button>
+                        </div>
+                        
+                        <div id="studentCardsContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                            <!-- Student cards will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <!-- Alerts Panel -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Recent Alerts</h2>
+                                <p class="card-subtitle">Student attention alerts</p>
+                            </div>
+                            <span class="badge badge-danger">5</span>
+                        </div>
+                        
+                        <div id="alertsContainer" style="max-height: 400px; overflow-y: auto;">
+                            <!-- Alerts will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Charts Row -->
+                <div class="grid grid-cols-2" style="gap: 1.5rem; margin-top: 1.5rem;">
+                    <!-- Emotion Distribution -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Emotion Distribution</h2>
+                                <p class="card-subtitle">Current classroom emotions</p>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="emotionChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Engagement Timeline -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Engagement Timeline</h2>
+                                <p class="card-subtitle">Last hour engagement trend</p>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="engagementChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Classroom Heatmap -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Classroom Heatmap</h2>
+                            <p class="card-subtitle">Student engagement by seating position</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; font-size: 0.75rem;">
+                            <span style="display: flex; align-items: center; gap: 0.25rem;">
+                                <span style="width: 12px; height: 12px; background: var(--success-color); border-radius: 2px;"></span>
+                                High
+                            </span>
+                            <span style="display: flex; align-items: center; gap: 0.25rem;">
+                                <span style="width: 12px; height: 12px; background: var(--warning-color); border-radius: 2px;"></span>
+                                Medium
+                            </span>
+                            <span style="display: flex; align-items: center; gap: 0.25rem;">
+                                <span style="width: 12px; height: 12px; background: var(--danger-color); border-radius: 2px;"></span>
+                                Low
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div id="heatmapContainer" class="heatmap-container">
+                        <!-- Heatmap will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Student Details Modal -->
+    <div id="studentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="studentModalTitle">Student Details</h2>
+                <button class="modal-close">×</button>
+            </div>
+            <div id="studentModalContent">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+    
+    <script src="api.js"></script>
+    <script src="main.js"></script>
+    <script src="charts.js"></script>
+    <script>
+        // Initialize charts when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check authentication
+            const currentUser = localStorage.getItem('currentUser');
+            if (!currentUser) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            // Initialize charts
+            setTimeout(() => {
+                ChartUtils.createEmotionChart();
+                ChartUtils.createEngagementChart();
+            }, 100);
+        });
+    </script>
+</body>
+</html>

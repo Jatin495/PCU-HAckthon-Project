@@ -1,0 +1,9 @@
+django>=4.0
+djangorestframework
+django-cors-headers
+opencv-python
+mediapipe
+fer
+tensorflow
+numpy
+pandas

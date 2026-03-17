@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Students - SmartClass Monitor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">SC</div>
+                <div>
+                    <h3 style="font-size: 1rem; margin: 0;">SmartClass</h3>
+                    <p style="font-size: 0.75rem; opacity: 0.8; margin: 0;">Monitor</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item">
+                    <span class="nav-icon">📊</span>
+                    Dashboard
+                </a>
+                <a href="live_class.html" class="nav-item">
+                    <span class="nav-icon">📹</span>
+                    Live Classroom
+                </a>
+                <a href="attendance.html" class="nav-item">
+                    <span class="nav-icon">✓</span>
+                    Attendance
+                </a>
+                <a href="student.html" class="nav-item active">
+                    <span class="nav-icon">👥</span>
+                    Students
+                </a>
+                <a href="reports.html" class="nav-item">
+                    <span class="nav-icon">📄</span>
+                    Reports
+                </a>
+                <a href="analytics.html" class="nav-item">
+                    <span class="nav-icon">📈</span>
+                    Analytics
+                </a>
+                <a href="settings.html" class="nav-item">
+                    <span class="nav-icon">⚙️</span>
+                    Settings
+                </a>
+                <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <span class="nav-icon">🚪</span>
+                    Logout
+                </a>
+            </nav>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navbar -->
+            <header class="top-navbar">
+                <div class="navbar-left">
+                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">☰</button>
+                    <h1 style="font-size: 1.5rem; font-weight: 600;">Student Management</h1>
+                </div>
+                
+                <div class="navbar-right">
+                    <div class="search-bar">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" placeholder="Search students..." id="studentSearch">
+                    </div>
+                    
+                    <div class="notification-bell">
+                        <span style="font-size: 1.25rem;">🔔</span>
+                        <span class="notification-badge">3</span>
+                    </div>
+                    
+                    <div class="user-menu">
+                        <div class="user-avatar" id="userAvatar">T</div>
+                        <div>
+                            <div id="userName" style="font-size: 0.875rem; font-weight: 500;">Teacher</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Online</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Student Stats Overview -->
+                <div class="grid grid-cols-4" style="margin-bottom: 2rem;">
+                    <div class="stat-card success">
+                        <div class="stat-label">Total Students</div>
+                        <div class="stat-value">24</div>
+                        <div class="stat-change positive">↑ 2 new this semester</div>
+                    </div>
+                    
+                    <div class="stat-card info">
+                        <div class="stat-label">Active Today</div>
+                        <div class="stat-value">22</div>
+                        <div class="stat-change positive">91.7% present</div>
+                    </div>
+                    
+                    <div class="stat-card warning">
+                        <div class="stat-label">At Risk</div>
+                        <div class="stat-value">3</div>
+                        <div class="stat-change negative">Need attention</div>
+                    </div>
+                    
+                    <div class="stat-card danger">
+                        <div class="stat-label">Low Engagement</div>
+                        <div class="stat-value">2</div>
+                        <div class="stat-change negative">Below 60% average</div>
+                    </div>
+                </div>
+                
+                <!-- Controls Bar -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <select class="form-select" style="width: 150px;" id="classFilter">
+                            <option>All Classes</option>
+                            <option>CS101</option>
+                            <option>CS102</option>
+                            <option>CS201</option>
+                        </select>
+                        
+                        <select class="form-select" style="width: 150px;" id="statusFilter">
+                            <option>All Status</option>
+                            <option>Present</option>
+                            <option>Absent</option>
+                            <option>At Risk</option>
+                            <option>High Performer</option>
+                        </select>
+                        
+                        <select class="form-select" style="width: 150px;" id="sortBy">
+                            <option>Sort by Name</option>
+                            <option>Sort by Engagement</option>
+                            <option>Sort by Attendance</option>
+                            <option>Sort by Performance</option>
+                        </select>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="btn btn-primary" onclick="addStudent()">
+                            <span>➕</span> Add Student
+                        </button>
+                        <button class="btn btn-secondary" onclick="exportStudentData()">
+                            <span>📥</span> Export
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Student Grid -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Student Directory</h2>
+                            <p class="card-subtitle">Click on any student to view detailed information</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-sm btn-secondary" onclick="toggleView('grid')">Grid</button>
+                            <button class="btn btn-sm btn-secondary" onclick="toggleView('list')">List</button>
+                        </div>
+                    </div>
+                    
+                    <div id="studentGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <!-- Student cards will be populated by JavaScript -->
+                    </div>
+                </div>
+                
+                <!-- Top Performers Section -->
+                <div class="grid grid-cols-2" style="gap: 1.5rem; margin-bottom: 2rem;">
+                    <!-- Top Performers -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Top Performers</h2>
+                                <p class="card-subtitle">Students with highest engagement scores</p>
+                            </div>
+                        </div>
+                        
+                        <div id="topPerformersList">
+                            <!-- Top performers will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <!-- At Risk Students -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">At Risk Students</h2>
+                                <p class="card-subtitle">Students requiring attention and support</p>
+                            </div>
+                            <span class="badge badge-warning">3</span>
+                        </div>
+                        
+                        <div id="atRiskList">
+                            <!-- At risk students will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Attendance Overview -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Attendance Overview</h2>
+                            <p class="card-subtitle">Student attendance patterns this month</p>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container chart-large">
+                        <canvas id="attendanceOverviewChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Performance Distribution -->
+                <div class="grid grid-cols-2" style="gap: 1.5rem;">
+                    <!-- Engagement Distribution -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Engagement Distribution</h2>
+                                <p class="card-subtitle">Student engagement levels across the class</p>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container">
+                            <canvas id="engagementDistributionChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Class Performance -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Class Performance</h2>
+                                <p class="card-subtitle">Overall class performance metrics</p>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container">
+                            <canvas id="classPerformanceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Student Details Modal -->
+    <div id="studentDetailsModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="studentModalTitle">Student Details</h2>
+                <button class="modal-close">×</button>
+            </div>
+            <div id="studentModalContent">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Student Modal -->
+    <div id="addStudentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Add New Student</h2>
+                <button class="modal-close">×</button>
+            </div>
+            <form id="addStudentForm">
+                <div class="grid grid-cols-2" style="gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">First Name</label>
+                        <input type="text" class="form-input" name="firstName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name</label>
+                        <input type="text" class="form-input" name="lastName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Student ID</label>
+                        <input type="text" class="form-input" name="studentId" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-input" name="email">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Class</label>
+                        <select class="form-select" name="class">
+                            <option>CS101</option>
+                            <option>CS102</option>
+                            <option>CS201</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-input" name="phone">
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addStudentModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Student</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="main.js"></script>
+    <script src="charts.js"></script>
+    <script>
+        // Initialize student page
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentUser = localStorage.getItem('currentUser');
+            if (!currentUser) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            // Load student data
+            loadStudentGrid();
+            loadTopPerformers();
+            loadAtRiskStudents();
+            
+            // Initialize charts
+            setTimeout(() => {
+                createAttendanceOverviewChart();
+                createEngagementDistributionChart();
+                createClassPerformanceChart();
+            }, 100);
+            
+            // Setup search
+            document.getElementById('studentSearch').addEventListener('input', filterStudents);
+            
+            // Setup filters
+            document.getElementById('classFilter').addEventListener('change', filterStudents);
+            document.getElementById('statusFilter').addEventListener('change', filterStudents);
+            document.getElementById('sortBy').addEventListener('change', sortStudents);
+            
+            // Setup add student form
+            document.getElementById('addStudentForm').addEventListener('submit', handleAddStudent);
+        });
+        
+        function loadStudentGrid() {
+            if (!window.SmartClassMonitor.classroomData) return;
+            
+            const container = document.getElementById('studentGrid');
+            const students = window.SmartClassMonitor.classroomData.students;
+            
+            container.innerHTML = '';
+            
+            students.forEach(student => {
+                const card = createStudentCard(student);
+                container.appendChild(card);
+            });
+        }
+        
+        function createStudentCard(student) {
+            const div = document.createElement('div');
+            div.className = 'student-card fade-in';
+            div.onclick = () => showStudentDetails(student.id);
+            
+            const engagementColor = student.engagement >= 80 ? 'success' : student.engagement >= 60 ? 'warning' : 'danger';
+            const statusColor = student.present ? 'success' : 'danger';
+            
+            div.innerHTML = `
+                <div class="student-avatar" style="width: 60px; height: 60px; font-size: 1.2rem; margin: 0 auto 1rem;">
+                    ${student.name.split(' ').map(n => n[0]).join('')}
+                </div>
+                <div class="student-name" style="font-size: 1rem; text-align: center; margin-bottom: 0.5rem;">
+                    ${student.name}
+                </div>
+                <div class="student-id" style="text-align: center; margin-bottom: 1rem;">${student.id}</div>
+                <div style="text-align: center; margin-bottom: 1rem;">
+                    <span class="badge badge-${statusColor}" style="font-size: 0.75rem;">
+                        ${student.present ? 'Present' : 'Absent'}
+                    </span>
+                </div>
+                <div class="engagement-score" style="margin-bottom: 0.5rem;">
+                    <div class="engagement-bar">
+                        <div class="engagement-fill" style="width: ${student.engagement}%"></div>
+                    </div>
+                    <span class="engagement-text">${student.engagement}%</span>
+                </div>
+                <div style="text-align: center;">
+                    <span class="badge badge-${engagementColor}" style="font-size: 0.75rem;">${student.emotion}</span>
+                </div>
+            `;
+            
+            return div;
+        }
+        
+        function loadTopPerformers() {
+            if (!window.SmartClassMonitor.classroomData) return;
+            
+            const container = document.getElementById('topPerformersList');
+            const students = [...window.SmartClassMonitor.classroomData.students]
+                .sort((a, b) => b.engagement - a.engagement)
+                .slice(0, 5);
+            
+            container.innerHTML = '';
+            
+            students.forEach((student, index) => {
+                const div = document.createElement('div');
+                div.className = 'alert alert-success';
+                div.style.marginBottom = '0.5rem';
+                div.style.cursor = 'pointer';
+                div.onclick = () => showStudentDetails(student.id);
+                
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅';
+                
+                div.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">${medal}</span>
+                            <div>
+                                <strong>${student.name}</strong>
+                                <p style="font-size: 0.75rem; margin: 0.25rem 0;">${student.id}</p>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.25rem; font-weight: bold;">${student.engagement}%</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Engagement</div>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(div);
+            });
+        }
+        
+        function loadAtRiskStudents() {
+            if (!window.SmartClassMonitor.classroomData) return;
+            
+            const container = document.getElementById('atRiskList');
+            const students = window.SmartClassMonitor.classroomData.students
+                .filter(student => student.engagement < 60 || !student.present);
+            
+            container.innerHTML = '';
+            
+            if (students.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No at-risk students at the moment.</p>';
+                return;
+            }
+            
+            students.forEach(student => {
+                const div = document.createElement('div');
+                div.className = 'alert alert-warning';
+                div.style.marginBottom = '0.5rem';
+                div.style.cursor = 'pointer';
+                div.onclick = () => showStudentDetails(student.id);
+                
+                div.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>${student.name}</strong>
+                            <p style="font-size: 0.75rem; margin: 0.25rem 0;">${student.id}</p>
+                            <p style="font-size: 0.75rem; margin: 0;">
+                                ${!student.present ? 'Absent today' : `Low engagement: ${student.engagement}%`}
+                            </p>
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); contactStudent('${student.id}')">
+                            Contact
+                        </button>
+                    </div>
+                `;
+                
+                container.appendChild(div);
+            });
+        }
+        
+        function showStudentDetails(studentId) {
+            if (!window.SmartClassMonitor.classroomData) return;
+            
+            const student = window.SmartClassMonitor.classroomData.students.find(s => s.id === studentId);
+            if (!student) return;
+            
+            const modalTitle = document.getElementById('studentModalTitle');
+            const modalContent = document.getElementById('studentModalContent');
+            
+            modalTitle.textContent = student.name;
+            
+            modalContent.innerHTML = `
+                <div class="grid grid-cols-3" style="gap: 1.5rem; margin-bottom: 2rem;">
+                    <div style="text-align: center;">
+                        <div class="student-avatar" style="width: 80px; height: 80px; font-size: 2rem; margin: 0 auto 1rem;">
+                            ${student.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.25rem;">${student.name}</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem;">${student.id}</p>
+                    </div>
+                    
+                    <div>
+                        <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Current Status</h4>
+                        <div style="space-y: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                                <span style="font-size: 0.875rem;">Status:</span>
+                                <span class="badge badge-${student.present ? 'success' : 'danger'}">
+                                    ${student.present ? 'Present' : 'Absent'}
+                                </span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                                <span style="font-size: 0.875rem;">Engagement:</span>
+                                <strong>${student.engagement}%</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                                <span style="font-size: 0.875rem;">Emotion:</span>
+                                <span class="badge badge-info">${student.emotion}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="font-size: 0.875rem;">Attention:</span>
+                                <strong>${student.attention}%</strong>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Performance Metrics</h4>
+                        <div style="space-y: 0.75rem;">
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span style="font-size: 0.875rem;">Attendance Rate:</span>
+                                    <strong>92%</strong>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill progress-success" style="width: 92%"></div>
+                                </div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span style="font-size: 0.875rem;">Participation:</span>
+                                    <strong>${student.engagement - 5}%</strong>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill progress-info" style="width: ${student.engagement - 5}%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span style="font-size: 0.875rem;">Assignment Completion:</span>
+                                    <strong>88%</strong>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill progress-warning" style="width: 88%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 2rem;">
+                    <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Engagement History (Last 7 Days)</h4>
+                    <div class="chart-container">
+                        <canvas id="studentEngagementChart"></canvas>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button class="btn btn-secondary" onclick="closeModal('studentDetailsModal')">Close</button>
+                    <button class="btn btn-primary" onclick="generateStudentReport('${student.id}')">
+                        Generate Report
+                    </button>
+                    <button class="btn btn-success" onclick="contactStudent('${student.id}')">
+                        Contact Student
+                    </button>
+                </div>
+            `;
+            
+            openModal('studentDetailsModal');
+            
+            // Draw student engagement chart
+            setTimeout(() => {
+                ChartUtils.drawStudentEngagementChart();
+            }, 100);
+        }
+        
+        function createAttendanceOverviewChart() {
+            const ctx = document.getElementById('attendanceOverviewChart');
+            if (!ctx) return;
+            
+            ChartUtils.createAttendanceChart();
+        }
+        
+        function createEngagementDistributionChart() {
+            const ctx = document.getElementById('engagementDistributionChart');
+            if (!ctx) return;
+            
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['90-100%', '80-89%', '70-79%', '60-69%', 'Below 60%'],
+                    datasets: [{
+                        label: 'Number of Students',
+                        data: [8, 10, 4, 1, 1],
+                        backgroundColor: ['#10b981', '#6366f1', '#f59e0b', '#fb923c', '#ef4444'],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 2
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createClassPerformanceChart() {
+            const ctx = document.getElementById('classPerformanceChart');
+            if (!ctx) return;
+            
+            ChartUtils.createClassPerformanceChart();
+        }
+        
+        function filterStudents() {
+            const searchTerm = document.getElementById('studentSearch').value.toLowerCase();
+            const classFilter = document.getElementById('classFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const cards = document.querySelectorAll('#studentGrid .student-card');
+            
+            cards.forEach(card => {
+                const name = card.querySelector('.student-name').textContent.toLowerCase();
+                const id = card.querySelector('.student-id').textContent.toLowerCase();
+                const status = card.querySelector('.badge').textContent.toLowerCase();
+                
+                const matchesSearch = name.includes(searchTerm) || id.includes(searchTerm);
+                const matchesClass = classFilter === 'All Classes' || true; // Simplified for demo
+                const matchesStatus = statusFilter === 'All Status' || status.includes(statusFilter.toLowerCase());
+                
+                if (matchesSearch && matchesClass && matchesStatus) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+        
+        function sortStudents() {
+            const sortBy = document.getElementById('sortBy').value;
+            // Implementation for sorting would go here
+            showAlert(`Sorting students by ${sortBy}`, 'info');
+        }
+        
+        function toggleView(view) {
+            const grid = document.getElementById('studentGrid');
+            if (view === 'list') {
+                grid.style.gridTemplateColumns = '1fr';
+            } else {
+                grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
+            }
+        }
+        
+        function addStudent() {
+            openModal('addStudentModal');
+        }
+        
+        function handleAddStudent(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            // Add student logic would go here
+            showAlert('Student added successfully!', 'success');
+            closeModal('addStudentModal');
+            loadStudentGrid();
+        }
+        
+        function contactStudent(studentId) {
+            showAlert(`Opening contact options for student ${studentId}...`, 'info');
+        }
+        
+        function generateStudentReport(studentId) {
+            showAlert(`Generating report for student ${studentId}...`, 'info');
+            setTimeout(() => {
+                showAlert('Student report generated successfully!', 'success');
+            }, 1500);
+        }
+        
+        function exportStudentData() {
+            showAlert('Exporting student data...', 'info');
+            setTimeout(() => {
+                showAlert('Student data exported successfully!', 'success');
+            }, 1500);
+        }
+    </script>
+</body>
+</html>

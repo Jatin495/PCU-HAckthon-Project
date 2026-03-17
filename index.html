@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartClass Monitor - AI Classroom Engagement System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card fade-in" style="max-width: 500px;">
+            <div class="login-header">
+                <div class="logo" style="margin: 0 auto 1rem;">SC</div>
+                <h1 class="login-title">SmartClass Monitor</h1>
+                <p class="login-subtitle">AI-Powered Classroom Engagement Monitoring</p>
+            </div>
+            
+            <div style="text-align: center; margin: 2rem 0;">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 2rem;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎯</div>
+                        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Real-time Monitoring</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-secondary);">Track student engagement live</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+                        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Advanced Analytics</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-secondary);">Comprehensive insights & reports</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🤖</div>
+                        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">AI-Powered</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-secondary);">Emotion detection & analysis</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📱</div>
+                        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Mobile Friendly</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-secondary);">Access anywhere, anytime</p>
+                    </div>
+                </div>
+                
+                <div style="background: var(--hover-bg); border-radius: 8px; padding: 1rem; margin-bottom: 2rem;">
+                    <h3 style="font-size: 1rem; margin-bottom: 1rem; color: var(--text-primary);">Key Features</h3>
+                    <div style="text-align: left; display: inline-block;">
+                        <div style="margin-bottom: 0.5rem; font-size: 0.875rem;">
+                            ✅ Face detection & emotion recognition
+                        </div>
+                        <div style="margin-bottom: 0.5rem; font-size: 0.875rem;">
+                            ✅ Real-time engagement scoring
+                        </div>
+                        <div style="margin-bottom: 0.5rem; font-size: 0.875rem;">
+                            ✅ Automatic attendance tracking
+                        </div>
+                        <div style="margin-bottom: 0.5rem; font-size: 0.875rem;">
+                            ✅ Interactive classroom heatmap
+                        </div>
+                        <div style="margin-bottom: 0.5rem; font-size: 0.875rem;">
+                            ✅ Detailed performance analytics
+                        </div>
+                        <div style="font-size: 0.875rem;">
+                            ✅ PDF report generation
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: center;">
+                    <a href="login.html" class="btn btn-primary btn-lg">
+                        Teacher Login
+                    </a>
+                    <button class="btn btn-secondary btn-lg" onclick="showDemo()">
+                        View Demo
+                    </button>
+                </div>
+            </div>
+            
+            <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); text-align: center;">
+                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                    Transform your classroom with AI-powered insights
+                </p>
+                <p style="font-size: 0.75rem; color: var(--text-secondary);">
+                    © 2024 SmartClass Monitor. All rights reserved.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showDemo() {
+            // Redirect to dashboard with demo mode
+            localStorage.setItem('demoMode', 'true');
+            localStorage.setItem('currentUser', JSON.stringify({
+                id: 'demo001',
+                name: 'Demo Teacher',
+                email: 'demo@smartclass.com',
+                role: 'teacher'
+            }));
+            window.location.href = 'dashboard.html';
+        }
+        
+        // Check if user is already logged in
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentUser = localStorage.getItem('currentUser');
+            if (currentUser) {
+                window.location.href = 'dashboard.html';
+            }
+        });
+    </script>
+</body>
+</html>
