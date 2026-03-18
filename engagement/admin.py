@@ -2,8 +2,15 @@
 SmartClass Monitor - Django Admin Configuration
 """
 from django.contrib import admin
-from .models import Teacher, Student, ClassSession, Attendance, EngagementRecord, ClassEngagementSnapshot, Alert
-
+from .models import (
+    Teacher,
+    Student,
+    ClassSession,
+    Attendance,
+    EngagementRecord,
+    ClassEngagementSnapshot,
+    Alert,
+)
 
 @admin.register(Teacher)
 class TeacherAdmin(admin.ModelAdmin):
@@ -53,7 +60,7 @@ class AlertAdmin(admin.ModelAdmin):
     list_filter = ('alert_type', 'severity', 'is_resolved')
     actions = ['mark_resolved']
 
+    @admin.action(description="Mark selected alerts as resolved")
     def mark_resolved(self, request, queryset):
         from django.utils import timezone
         queryset.update(is_resolved=True, resolved_at=timezone.now())
-    mark_resolved.short_description = "Mark selected alerts as resolved"

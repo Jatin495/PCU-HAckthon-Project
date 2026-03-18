@@ -88,6 +88,16 @@
                 </div>
             </header>
             
+            <!-- Backend Status Indicator -->
+            <div id="backendStatus" style="text-align: center; padding: 0.5rem; background: #f3f4f6; border-radius: 8px; margin-bottom: 1rem; font-weight: 500;">
+                Checking backend connection...
+            </div>
+            
+            <!-- Data Test Indicator -->
+            <div id="dataTest" style="text-align: center; padding: 0.5rem; background: #e0f2fe; border-radius: 8px; margin-bottom: 1rem; font-weight: 500; color: #1f2937;">
+                Waiting for data...
+            </div>
+            
             <!-- Page Content -->
             <div class="page-content">
                 <!-- Student Stats Overview -->
@@ -271,35 +281,58 @@
                 <h2 class="modal-title">Add New Student</h2>
                 <button class="modal-close">×</button>
             </div>
-            <form id="addStudentForm">
+            <form id="addStudentForm" enctype="multipart/form-data">
                 <div class="grid grid-cols-2" style="gap: 1rem;">
                     <div class="form-group">
-                        <label class="form-label">First Name</label>
-                        <input type="text" class="form-input" name="firstName" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Last Name</label>
-                        <input type="text" class="form-input" name="lastName" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Student ID</label>
-                        <input type="text" class="form-input" name="studentId" required>
+                        <label class="form-label">Full Name</label>
+                        <input type="text" class="form-input" name="name" required placeholder="Enter student's full name">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Email</label>
-                        <input type="email" class="form-input" name="email">
+                        <input type="email" class="form-input" name="email" placeholder="student@email.com">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Class</label>
-                        <select class="form-select" name="class">
-                            <option>CS101</option>
-                            <option>CS102</option>
-                            <option>CS201</option>
-                        </select>
+                        <label class="form-label">Seat Row</label>
+                        <input type="number" class="form-input" name="seat_row" min="1" max="10" value="1">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Phone</label>
-                        <input type="tel" class="form-input" name="phone">
+                        <label class="form-label">Seat Column</label>
+                        <input type="number" class="form-input" name="seat_col" min="1" max="10" value="1">
+                    </div>
+                </div>
+                
+                <!-- Face Registration Section -->
+                <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
+                    <h3 style="margin-bottom: 1rem; color: var(--text-primary);">📸 Face Registration</h3>
+                    <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+                        Upload a clear photo of the student's face for automatic identification during live monitoring.
+                    </p>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Student Photo</label>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <input type="file" id="faceImage" name="face_image" accept="image/*" class="form-input" style="flex: 1;">
+                            <button type="button" class="btn btn-secondary" onclick="captureFromCamera()">
+                                📷 Camera
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Image Preview -->
+                    <div id="imagePreview" style="display: none; margin-top: 1rem;">
+                        <img id="previewImg" style="width: 200px; height: 200px; object-fit: cover; border-radius: 8px; border: 2px solid var(--border-color);">
+                        <div style="margin-top: 0.5rem;">
+                            <span id="faceStatus" style="font-size: 0.875rem;"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Camera Capture (hidden by default) -->
+                    <div id="cameraCapture" style="display: none; margin-top: 1rem;">
+                        <video id="cameraVideo" style="width: 100%; max-width: 400px; border-radius: 8px;" autoplay></video>
+                        <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                            <button type="button" class="btn btn-primary" onclick="takePhoto()">📸 Capture Photo</button>
+                            <button type="button" class="btn btn-secondary" onclick="stopCamera()">Cancel</button>
+                        </div>
                     </div>
                 </div>
                 
@@ -311,9 +344,30 @@
         </div>
     </div>
     
+    <script src="api.js"></script>
     <script src="main.js"></script>
     <script src="charts.js"></script>
     <script>
+        // ─────────────────────────────────────────────────────────────────────
+        // Student page charts powered by backend
+        // ─────────────────────────────────────────────────────────────────────
+        let _attendanceOverviewChartInstance = null;
+        let _engagementDistributionChartInstance = null;
+        let _classPerformanceChartInstance = null;
+
+        async function fetchStudentOverview() {
+            try {
+                const res = await fetch('http://127.0.0.1:8000/api/students/overview/', {
+                    credentials: 'include'
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return await res.json();
+            } catch (e) {
+                console.error('❌ Failed to load /api/students/overview/:', e);
+                return null;
+            }
+        }
+
         // Initialize student page
         document.addEventListener('DOMContentLoaded', function() {
             const currentUser = localStorage.getItem('currentUser');
@@ -321,74 +375,217 @@
                 window.location.href = 'login.html';
                 return;
             }
-            
-            // Load student data
-            loadStudentGrid();
-            loadTopPerformers();
-            loadAtRiskStudents();
-            
-            // Initialize charts
-            setTimeout(() => {
-                createAttendanceOverviewChart();
-                createEngagementDistributionChart();
-                createClassPerformanceChart();
-            }, 100);
-            
-            // Setup search
-            document.getElementById('studentSearch').addEventListener('input', filterStudents);
-            
-            // Setup filters
-            document.getElementById('classFilter').addEventListener('change', filterStudents);
-            document.getElementById('statusFilter').addEventListener('change', filterStudents);
-            document.getElementById('sortBy').addEventListener('change', sortStudents);
-            
-            // Setup add student form
-            document.getElementById('addStudentForm').addEventListener('submit', handleAddStudent);
+
+            // Check backend connection and initialize page
+            async function initPage() {
+                console.log('🚀 Initializing student page...');
+                
+                // Wait for DOM to be fully ready
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Check backend connection first
+                if (window.SmartClassAPI) {
+                    try {
+                        await window.SmartClassAPI.checkConnection();
+                        console.log('🔍 Backend connection result:', window.SmartClassAPI.backendConnected());
+                    } catch (error) {
+                        console.error('❌ Backend connection error:', error);
+                    }
+                }
+
+                // Always load data regardless of connection status
+                console.log('📊 Loading all student data...');
+                
+                // Add delay to ensure DOM is ready
+                setTimeout(() => {
+                    loadStudentGrid();
+                    loadTopPerformers();
+                    loadAtRiskStudents();
+                    updateStudentStats();
+
+                    // Initialize charts
+                    setTimeout(() => {
+                        createAttendanceOverviewChart();
+                        createEngagementDistributionChart();
+                        createClassPerformanceChart();
+                    }, 300);
+                }, 200);
+            }
+
+            // Wait for api.js to finish initializing then load data
+            if (window.SmartClassAPI) {
+                initPage();
+            } else {
+                const poller = setInterval(() => {
+                    if (window.SmartClassAPI) {
+                        clearInterval(poller);
+                        initPage();
+                    }
+                }, 100);
+            }
         });
         
+        // Setup search and filters
+        document.getElementById('studentSearch').addEventListener('input', filterStudents);
+        document.getElementById('classFilter').addEventListener('change', filterStudents);
+        document.getElementById('statusFilter').addEventListener('change', filterStudents);
+        document.getElementById('sortBy').addEventListener('change', sortStudents);
+
+        // Setup add student form
+        document.getElementById('addStudentForm').addEventListener('submit', handleAddStudent);
+
+        function updateStudentStats() {
+            console.log('📊 Starting updateStudentStats...');
+            
+            // Update data test indicator
+            const dataTest = document.getElementById('dataTest');
+            if (dataTest) {
+                dataTest.textContent = 'Loading student statistics...';
+                dataTest.style.background = '#fef3c7';
+            }
+            
+            // Always try to load real data from API
+            fetch('http://127.0.0.1:8000/api/students/')
+                .then(r => {
+                    console.log('📡 Response status:', r.status);
+                    return r.json();
+                })
+                .then(data => {
+                    console.log('📊 Real student data loaded:', data);
+                    const students = data.students || [];
+                    console.log('📊 Students array:', students);
+                    const total = students.length;
+                    const present = students.filter(s => s.present_today).length;
+                    const atRisk = students.filter(s => (s.current_engagement || 0) < 60).length;
+                    const lowEng = students.filter(s => (s.current_engagement || 0) < 40).length;
+                    
+                    console.log('📊 Stats calculated:', { total, present, atRisk, lowEng });
+                    
+                    // Update data test indicator
+                    if (dataTest) {
+                        dataTest.innerHTML = `✅ <strong>${total}</strong> students loaded<br>Present: <strong>${present}</strong><br>At-Risk: <strong>${atRisk}</strong>`;
+                        dataTest.style.background = '#10b981';
+                        dataTest.style.color = 'white';
+                        dataTest.style.fontSize = '1rem';
+                        dataTest.style.padding = '1rem';
+                    }
+                    
+                    // Update stat cards with REAL data
+                    const statCards = document.querySelectorAll('.stat-card .stat-value');
+                    console.log('📊 Stat cards found:', statCards.length);
+                    console.log('📊 Stat cards elements:', statCards);
+                    
+                    // Force update with direct text content
+                    statCards[0].innerHTML = total;
+                    statCards[1].innerHTML = present;
+                    statCards[2].innerHTML = atRisk;
+                    statCards[3].innerHTML = lowEng;
+                    
+                    // Force styling
+                    statCards.forEach(card => {
+                        card.style.color = '#1f2937';
+                        card.style.fontWeight = 'bold';
+                        card.style.fontSize = '2rem';
+                    });
+                    
+                    console.log('✅ All stat cards updated with innerHTML');
+                })
+                .catch(error => {
+                    console.error('❌ Failed to load real student data:', error);
+                    if (dataTest) {
+                        dataTest.innerHTML = '❌ <strong>Error loading data</strong>';
+                        dataTest.style.background = '#ef4444';
+                    }
+                    const statCards = document.querySelectorAll('.stat-card .stat-value');
+                    statCards.forEach(card => card.textContent = 'Error');
+                });
+        }
+
+        
         function loadStudentGrid() {
-            if (!window.SmartClassMonitor.classroomData) return;
-            
+            console.log('👥 Starting loadStudentGrid...');
             const container = document.getElementById('studentGrid');
-            const students = window.SmartClassMonitor.classroomData.students;
+            container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem;">Loading students...</div>';
             
+            // Always try to load real students from API
+            fetch('http://127.0.0.1:8000/api/students/')
+                .then(r => {
+                    console.log('📡 Student grid response status:', r.status);
+                    return r.json();
+                })
+                .then(data => {
+                    console.log('👥 Real students loaded for grid:', data);
+                    const students = data.students || [];
+                    console.log('👥 Students array for grid:', students);
+                    if (students.length > 0) {
+                        displayStudents(students);
+                    } else {
+                        container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem;">No students registered yet</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error loading real students:', error);
+                    container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem;">Error loading students. Check backend connection.</div>';
+                });
+        }
+        
+        function displayStudents(students) {
+            console.log('🎨 Starting displayStudents with:', students);
+            const container = document.getElementById('studentGrid');
             container.innerHTML = '';
             
-            students.forEach(student => {
+            if (!students || students.length === 0) {
+                console.log('❌ No students to display');
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem;">No students registered yet</div>';
+                return;
+            }
+            
+            console.log(`🎨 Displaying ${students.length} students`);
+            students.forEach((student, index) => {
+                console.log(`🎨 Creating card for student ${index + 1}:`, student);
                 const card = createStudentCard(student);
                 container.appendChild(card);
             });
+            console.log('✅ All student cards displayed');
         }
         
         function createStudentCard(student) {
             const div = document.createElement('div');
             div.className = 'student-card fade-in';
-            div.onclick = () => showStudentDetails(student.id);
+            div.onclick = () => showStudentDetails(student.student_id || student.id);
             
-            const engagementColor = student.engagement >= 80 ? 'success' : student.engagement >= 60 ? 'warning' : 'danger';
-            const statusColor = student.present ? 'success' : 'danger';
+            // Handle real API data structure
+            const studentId = student.student_id || student.id;
+            const studentName = student.name || 'Unknown';
+            const engagement = student.current_engagement || student.avg_engagement || 75;
+            const emotion = student.current_emotion || student.last_emotion || 'neutral';
+            const faceRegistered = student.face_registered || false;
+            
+            const engagementColor = engagement >= 80 ? 'success' : engagement >= 60 ? 'warning' : 'danger';
+            const statusColor = 'info'; // Default status for registered students
             
             div.innerHTML = `
-                <div class="student-avatar" style="width: 60px; height: 60px; font-size: 1.2rem; margin: 0 auto 1rem;">
-                    ${student.name.split(' ').map(n => n[0]).join('')}
+                <div class="student-avatar" style="width: 60px; height: 60px; font-size: 1.2rem; margin: 0 auto 1rem; position: relative;">
+                    ${studentName.split(' ').map(n => n[0]).join('')}
+                    ${faceRegistered ? '<div style="position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; background: #10b981; border-radius: 50%; border: 2px solid white;"></div>' : ''}
                 </div>
                 <div class="student-name" style="font-size: 1rem; text-align: center; margin-bottom: 0.5rem;">
-                    ${student.name}
+                    ${studentName}
                 </div>
-                <div class="student-id" style="text-align: center; margin-bottom: 1rem;">${student.id}</div>
+                <div class="student-id" style="text-align: center; margin-bottom: 1rem;">${studentId}</div>
                 <div style="text-align: center; margin-bottom: 1rem;">
                     <span class="badge badge-${statusColor}" style="font-size: 0.75rem;">
-                        ${student.present ? 'Present' : 'Absent'}
+                        ${faceRegistered ? 'Face Registered' : 'Registered'}
                     </span>
                 </div>
                 <div class="engagement-score" style="margin-bottom: 0.5rem;">
                     <div class="engagement-bar">
-                        <div class="engagement-fill" style="width: ${student.engagement}%"></div>
+                        <div class="engagement-fill" style="width: ${engagement}%"></div>
                     </div>
-                    <span class="engagement-text">${student.engagement}%</span>
+                    <span class="engagement-text">${Math.round(engagement)}%</span>
                 </div>
                 <div style="text-align: center;">
-                    <span class="badge badge-${engagementColor}" style="font-size: 0.75rem;">${student.emotion}</span>
+                    <span class="badge badge-${engagementColor}" style="font-size: 0.75rem;">${emotion}</span>
                 </div>
             `;
             
@@ -396,94 +593,139 @@
         }
         
         function loadTopPerformers() {
-            if (!window.SmartClassMonitor.classroomData) return;
-            
             const container = document.getElementById('topPerformersList');
-            const students = [...window.SmartClassMonitor.classroomData.students]
-                .sort((a, b) => b.engagement - a.engagement)
-                .slice(0, 5);
+            container.innerHTML = '<p>Loading top performers...</p>';
             
-            container.innerHTML = '';
-            
-            students.forEach((student, index) => {
-                const div = document.createElement('div');
-                div.className = 'alert alert-success';
-                div.style.marginBottom = '0.5rem';
-                div.style.cursor = 'pointer';
-                div.onclick = () => showStudentDetails(student.id);
-                
-                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅';
-                
-                div.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <span style="font-size: 1.5rem;">${medal}</span>
-                            <div>
-                                <strong>${student.name}</strong>
-                                <p style="font-size: 0.75rem; margin: 0.25rem 0;">${student.id}</p>
-                            </div>
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 1.25rem; font-weight: bold;">${student.engagement}%</div>
-                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Engagement</div>
-                        </div>
-                    </div>
-                `;
-                
-                container.appendChild(div);
-            });
+            // Always load real students from API
+            fetch('http://127.0.0.1:8000/api/students/')
+                .then(r => r.json())
+                .then(data => {
+                    console.log('🏆 Real top performers data:', data);
+                    if (data && data.students) {
+                        // Sort by engagement score and get top 5
+                        const topStudents = data.students
+                            .sort((a, b) => (b.current_engagement || 0) - (a.current_engagement || 0))
+                            .slice(0, 5);
+                        
+                        container.innerHTML = '';
+                        topStudents.forEach((student, index) => {
+                            const engagement = student.current_engagement || 0;
+                            const card = document.createElement('div');
+                            card.className = 'student-card';
+                            card.style.cssText = 'display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.5rem;';
+                            
+                            card.innerHTML = `
+                                <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #10b981, #059669); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                                    ${index + 1}
+                                </div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: #1f2937;">${student.name}</div>
+                                    <div style="font-size: 0.875rem; color: #6b7280;">${student.student_id}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-weight: 600; color: #10b981;">${engagement}%</div>
+                                    <div style="font-size: 0.75rem; color: #6b7280;">Engagement</div>
+                                </div>
+                            `;
+                            container.appendChild(card);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error loading real top performers:', error);
+                    container.innerHTML = '<p>Error loading top performers</p>';
+                });
         }
         
         function loadAtRiskStudents() {
-            if (!window.SmartClassMonitor.classroomData) return;
-            
             const container = document.getElementById('atRiskList');
-            const students = window.SmartClassMonitor.classroomData.students
-                .filter(student => student.engagement < 60 || !student.present);
+            container.innerHTML = '<p>Loading at-risk students...</p>';
             
-            container.innerHTML = '';
-            
-            if (students.length === 0) {
-                container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No at-risk students at the moment.</p>';
-                return;
-            }
-            
-            students.forEach(student => {
-                const div = document.createElement('div');
-                div.className = 'alert alert-warning';
-                div.style.marginBottom = '0.5rem';
-                div.style.cursor = 'pointer';
-                div.onclick = () => showStudentDetails(student.id);
-                
-                div.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong>${student.name}</strong>
-                            <p style="font-size: 0.75rem; margin: 0.25rem 0;">${student.id}</p>
-                            <p style="font-size: 0.75rem; margin: 0;">
-                                ${!student.present ? 'Absent today' : `Low engagement: ${student.engagement}%`}
-                            </p>
-                        </div>
-                        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); contactStudent('${student.id}')">
-                            Contact
-                        </button>
-                    </div>
-                `;
-                
-                container.appendChild(div);
-            });
+            // Always load real students from API
+            fetch('http://127.0.0.1:8000/api/students/')
+                .then(r => r.json())
+                .then(data => {
+                    console.log('⚠️ Real at-risk students data:', data);
+                    if (data && data.students) {
+                        // Filter students with low engagement (<60%) and get top 3
+                        const atRiskStudents = data.students
+                            .filter(s => (s.current_engagement || 0) < 60)
+                            .sort((a, b) => (a.current_engagement || 0) - (b.current_engagement || 0))
+                            .slice(0, 3);
+
+                        // Update badge count in header (all at-risk, not just top 3)
+                        const badge = document.querySelector('.card-header .badge.badge-warning');
+                        if (badge) {
+                            const atRiskCount = data.students.filter(s => (s.current_engagement || 0) < 60).length;
+                            badge.textContent = String(atRiskCount);
+                        }
+                        
+                        container.innerHTML = '';
+                        atRiskStudents.forEach((student, index) => {
+                            const engagement = student.current_engagement || 0;
+                            const card = document.createElement('div');
+                            card.className = 'student-card';
+                            card.style.cssText = 'display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.5rem;';
+                            
+                            card.innerHTML = `
+                                <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #ef4444, #dc2626); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                                    ⚠️
+                                </div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: #1f2937;">${student.name}</div>
+                                    <div style="font-size: 0.875rem; color: #6b7280;">${student.student_id}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-weight: 600; color: #ef4444;">${engagement}%</div>
+                                    <div style="font-size: 0.75rem; color: #6b7280;">Engagement</div>
+                                </div>
+                            `;
+                            container.appendChild(card);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error loading real at-risk students:', error);
+                    container.innerHTML = '<p>Error loading at-risk students</p>';
+                });
         }
         
         function showStudentDetails(studentId) {
-            if (!window.SmartClassMonitor.classroomData) return;
-            
-            const student = window.SmartClassMonitor.classroomData.students.find(s => s.id === studentId);
-            if (!student) return;
-            
+            // Load real student data from API
+            if (window.SmartClassAPI && window.SmartClassAPI.backendConnected()) {
+                window.SmartClassAPI.loadStudents()
+                    .then(students => {
+                        if (!students || students.length === 0) {
+                            alert('No students available');
+                            return;
+                        }
+                        
+                        const student = students.find(s => s.student_id === studentId);
+                        if (!student) {
+                            alert('Student not found');
+                            return;
+                        }
+                        
+                        displayStudentDetails(student);
+                    })
+                    .catch(error => {
+                        console.error('Error loading student details:', error);
+                        alert('Error loading student details');
+                    });
+            } else {
+                alert('Backend not connected');
+            }
+        }
+        
+        function displayStudentDetails(student) {
             const modalTitle = document.getElementById('studentModalTitle');
             const modalContent = document.getElementById('studentModalContent');
             
             modalTitle.textContent = student.name;
+            
+            const engagement = student.current_engagement || 0;
+            const emotion = student.current_emotion || 'neutral';
+            const present = student.present_today || false;
             
             modalContent.innerHTML = `
                 <div class="grid grid-cols-3" style="gap: 1.5rem; margin-bottom: 2rem;">
@@ -492,7 +734,7 @@
                             ${student.name.split(' ').map(n => n[0]).join('')}
                         </div>
                         <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.25rem;">${student.name}</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.875rem;">${student.id}</p>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem;">${student.student_id}</p>
                     </div>
                     
                     <div>
@@ -500,53 +742,41 @@
                         <div style="space-y: 0.75rem;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
                                 <span style="font-size: 0.875rem;">Status:</span>
-                                <span class="badge badge-${student.present ? 'success' : 'danger'}">
-                                    ${student.present ? 'Present' : 'Absent'}
+                                <span class="badge badge-${present ? 'success' : 'danger'}">
+                                    ${present ? 'Present' : 'Absent'}
                                 </span>
                             </div>
                             <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
                                 <span style="font-size: 0.875rem;">Engagement:</span>
-                                <strong>${student.engagement}%</strong>
+                                <strong>${Math.round(engagement)}%</strong>
                             </div>
                             <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
                                 <span style="font-size: 0.875rem;">Emotion:</span>
-                                <span class="badge badge-info">${student.emotion}</span>
+                                <span class="badge badge-info">${emotion}</span>
                             </div>
                             <div style="display: flex; justify-content: space-between;">
-                                <span style="font-size: 0.875rem;">Attention:</span>
-                                <strong>${student.attention}%</strong>
+                                <span style="font-size: 0.875rem;">Email:</span>
+                                <strong>${student.email || 'Not provided'}</strong>
                             </div>
                         </div>
                     </div>
                     
                     <div>
-                        <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Performance Metrics</h4>
+                        <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Registration Info</h4>
                         <div style="space-y: 0.75rem;">
                             <div style="margin-bottom: 0.75rem;">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                                    <span style="font-size: 0.875rem;">Attendance Rate:</span>
-                                    <strong>92%</strong>
+                                    <span style="font-size: 0.875rem;">Face Registered:</span>
+                                    <strong>${student.face_registered ? 'Yes' : 'No'}</strong>
                                 </div>
                                 <div class="progress-bar">
-                                    <div class="progress-fill progress-success" style="width: 92%"></div>
+                                    <div class="progress-fill progress-${student.face_registered ? 'success' : 'warning'}" style="width: ${student.face_registered ? '100' : '0'}%"></div>
                                 </div>
                             </div>
                             <div style="margin-bottom: 0.75rem;">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                                    <span style="font-size: 0.875rem;">Participation:</span>
-                                    <strong>${student.engagement - 5}%</strong>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill progress-info" style="width: ${student.engagement - 5}%"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                                    <span style="font-size: 0.875rem;">Assignment Completion:</span>
-                                    <strong>88%</strong>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill progress-warning" style="width: 88%"></div>
+                                    <span style="font-size: 0.875rem;">Seat:</span>
+                                    <strong>Row ${student.seat_row || 1}, Col ${student.seat_col || 1}</strong>
                                 </div>
                             </div>
                         </div>
@@ -554,78 +784,178 @@
                 </div>
                 
                 <div style="margin-bottom: 2rem;">
-                    <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Engagement History (Last 7 Days)</h4>
-                    <div class="chart-container">
-                        <canvas id="studentEngagementChart"></canvas>
+                    <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Performance Metrics</h4>
+                    <div style="space-y: 0.75rem;">
+                        <div style="margin-bottom: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                <span style="font-size: 0.875rem;">Current Engagement:</span>
+                                <strong>${Math.round(engagement)}%</strong>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill progress-${engagement >= 80 ? 'success' : engagement >= 60 ? 'warning' : 'danger'}" style="width: ${engagement}%"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
                 <div style="display: flex; gap: 1rem; justify-content: flex-end;">
                     <button class="btn btn-secondary" onclick="closeModal('studentDetailsModal')">Close</button>
-                    <button class="btn btn-primary" onclick="generateStudentReport('${student.id}')">
-                        Generate Report
-                    </button>
-                    <button class="btn btn-success" onclick="contactStudent('${student.id}')">
+                    <button class="btn btn-success" onclick="contactStudent('${student.student_id}')">
                         Contact Student
                     </button>
                 </div>
             `;
             
             openModal('studentDetailsModal');
-            
-            // Draw student engagement chart
-            setTimeout(() => {
-                ChartUtils.drawStudentEngagementChart();
-            }, 100);
         }
         
         function createAttendanceOverviewChart() {
             const ctx = document.getElementById('attendanceOverviewChart');
             if (!ctx) return;
-            
-            ChartUtils.createAttendanceChart();
+
+            fetchStudentOverview().then(overview => {
+                const labels = overview?.attendance_overview?.labels || ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+                const present = overview?.attendance_overview?.present || [0, 0, 0, 0];
+                const absent = overview?.attendance_overview?.absent || [0, 0, 0, 0];
+
+                const attendanceData = {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Present',
+                            data: present,
+                            backgroundColor: '#10b981',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Absent',
+                            data: absent,
+                            backgroundColor: '#ef4444',
+                            borderRadius: 6
+                        }
+                    ]
+                };
+
+                if (_attendanceOverviewChartInstance) {
+                    _attendanceOverviewChartInstance.destroy();
+                }
+
+                _attendanceOverviewChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: attendanceData,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Monthly Attendance Overview'
+                            },
+                            legend: {
+                                position: 'top'
+                            }
+                        },
+                        scales: {
+                            x: { stacked: true },
+                            y: {
+                                stacked: true,
+                                beginAtZero: true,
+                                title: { display: true, text: 'Number of Attendance Records' }
+                            }
+                        }
+                    }
+                });
+            });
         }
         
         function createEngagementDistributionChart() {
             const ctx = document.getElementById('engagementDistributionChart');
             if (!ctx) return;
-            
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['90-100%', '80-89%', '70-79%', '60-69%', 'Below 60%'],
-                    datasets: [{
-                        label: 'Number of Students',
-                        data: [8, 10, 4, 1, 1],
-                        backgroundColor: ['#10b981', '#6366f1', '#f59e0b', '#fb923c', '#ef4444'],
-                        borderRadius: 6
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
+
+            fetchStudentOverview().then(overview => {
+                const labels = overview?.engagement_distribution?.labels || ['90-100%', '80-89%', '70-79%', '60-69%', 'Below 60%'];
+                const counts = overview?.engagement_distribution?.counts || [0, 0, 0, 0, 0];
+
+                if (_engagementDistributionChartInstance) {
+                    _engagementDistributionChartInstance.destroy();
+                }
+
+                _engagementDistributionChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Number of Students',
+                            data: counts,
+                            backgroundColor: ['#10b981', '#6366f1', '#f59e0b', '#fb923c', '#ef4444'],
+                            borderRadius: 6
+                        }]
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 2
-                            }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { stepSize: 1 } }
                         }
                     }
-                }
+                });
             });
         }
         
         function createClassPerformanceChart() {
             const ctx = document.getElementById('classPerformanceChart');
             if (!ctx) return;
-            
-            ChartUtils.createClassPerformanceChart();
+
+            fetchStudentOverview().then(overview => {
+                const labels = overview?.class_performance?.labels || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                const engagement = overview?.class_performance?.avg_engagement || [0, 0, 0, 0, 0, 0, 0];
+                const attention = overview?.class_performance?.avg_attention || [0, 0, 0, 0, 0, 0, 0];
+
+                const performanceData = {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Average Engagement',
+                            data: engagement,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Average Attention',
+                            data: attention,
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                };
+
+                if (_classPerformanceChartInstance) {
+                    _classPerformanceChartInstance.destroy();
+                }
+
+                _classPerformanceChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: performanceData,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: { display: true, text: 'Weekly Class Performance' },
+                            legend: { position: 'top' }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: { display: true, text: 'Score (%)' }
+                            }
+                        }
+                    }
+                });
+            });
         }
         
         function filterStudents() {
@@ -674,10 +1004,277 @@
             e.preventDefault();
             const formData = new FormData(e.target);
             
-            // Add student logic would go here
-            showAlert('Student added successfully!', 'success');
-            closeModal('addStudentModal');
-            loadStudentGrid();
+            // Show loading state
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '⏳ Adding Student...';
+            submitBtn.disabled = true;
+            
+            // Call API to add student
+            fetch('http://127.0.0.1:8000/api/students/add/', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(`Student "${data.student.name}" added successfully!${data.student.face_registered ? ' Face registered for identification.' : ''}`, 'success');
+                    closeModal('addStudentModal');
+                    loadStudentGrid();
+                    resetStudentForm();
+                } else {
+                    showAlert(data.error || 'Failed to add student', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding student:', error);
+                showAlert('Failed to add student. Please try again.', 'error');
+            })
+            .finally(() => {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+        }
+        
+        function resetStudentForm() {
+            document.getElementById('addStudentForm').reset();
+            document.getElementById('imagePreview').style.display = 'none';
+            document.getElementById('cameraCapture').style.display = 'none';
+            stopCamera();
+        }
+        
+        // Face registration functions
+        let cameraStream = null;
+
+        async function attachBackendFrameAsPhoto() {
+            try {
+                const res = await fetch('http://127.0.0.1:8000/api/live/frame/', {
+                    credentials: 'include'
+                });
+                if (!res.ok) {
+                    return false;
+                }
+
+                const data = await res.json();
+                if (!data || !data.frame) {
+                    return false;
+                }
+
+                const response = await fetch(`data:image/jpeg;base64,${data.frame}`);
+                const blob = await response.blob();
+
+                const file = new File([blob], `student_photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+
+                const fileInput = document.getElementById('faceImage');
+                fileInput.files = dataTransfer.files;
+
+                showImagePreview(blob);
+                return true;
+            } catch (e) {
+                console.warn('Backend frame fallback failed:', e);
+                return false;
+            }
+        }
+        
+        async function captureFromCamera() {
+            const cameraDiv = document.getElementById('cameraCapture');
+            const video = document.getElementById('cameraVideo');
+            
+            cameraDiv.style.display = 'block';
+            video.setAttribute('playsinline', 'true');
+            video.muted = true;
+
+            // Stop any old browser stream first.
+            if (cameraStream) {
+                try {
+                    cameraStream.getTracks().forEach(track => track.stop());
+                } catch (e) {}
+                cameraStream = null;
+                video.srcObject = null;
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showAlert('Camera API is not available in this browser. Please upload photo file.', 'error');
+                cameraDiv.style.display = 'none';
+                return;
+            }
+
+            // Ensure backend MJPEG/OpenCV stream is released before browser webcam request.
+            try {
+                if (window.SmartClassAPI && window.SmartClassAPI.API) {
+                    await window.SmartClassAPI.API.post('/live/stop/');
+                } else {
+                    await fetch('http://127.0.0.1:8000/api/live/stop/', {
+                        method: 'POST',
+                        credentials: 'include'
+                    });
+                }
+            } catch (e) {}
+
+            const preferredConstraints = {
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'user'
+                },
+                audio: false
+            };
+            const fallbackConstraints = {
+                video: true,
+                audio: false
+            };
+
+            // Try multiple times because webcam release can take a moment on Windows.
+            let lastError = null;
+            let backendReleased = false;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia(preferredConstraints);
+                    cameraStream = stream;
+                    video.srcObject = stream;
+
+                    try {
+                        await video.play();
+                    } catch (playErr) {
+                        console.warn('Video play warning:', playErr);
+                    }
+
+                    showAlert('Camera ready. Capture the student photo.', 'success');
+                    return;
+                } catch (error) {
+                    // Fallback to generic constraints for devices that reject facingMode/size hints.
+                    if (attempt === 1 && (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError')) {
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                            cameraStream = stream;
+                            video.srcObject = stream;
+                            try {
+                                await video.play();
+                            } catch (playErr) {
+                                console.warn('Video play warning:', playErr);
+                            }
+                            showAlert('Camera ready. Capture the student photo.', 'success');
+                            return;
+                        } catch (fallbackError) {
+                            error = fallbackError;
+                        }
+                    }
+
+                    lastError = error;
+                    console.warn(`Camera open attempt ${attempt} failed:`, error);
+
+                    // Release backend stream only when camera appears busy/locked.
+                    if (!backendReleased && (error.name === 'NotReadableError' || error.name === 'TrackStartError')) {
+                        try {
+                            if (window.SmartClassAPI && window.SmartClassAPI.API) {
+                                await window.SmartClassAPI.API.post('/live/stop/');
+                            } else {
+                                await fetch('http://127.0.0.1:8000/api/live/stop/', {
+                                    method: 'POST',
+                                    credentials: 'include'
+                                });
+                            }
+                            backendReleased = true;
+                        } catch (e) {}
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 700));
+                }
+            }
+
+            console.error('Camera access error:', lastError);
+            const errName = lastError && lastError.name ? lastError.name : 'UnknownError';
+            if (errName === 'NotAllowedError' || errName === 'SecurityError') {
+                showAlert('Camera permission denied. Allow camera in browser settings and try again.', 'error');
+            } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+                showAlert('Camera is busy (possibly used by Live Class/Zoom). Close other camera apps and try again.', 'error');
+            } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+                const attachedFromLive = await attachBackendFrameAsPhoto();
+                if (attachedFromLive) {
+                    showAlert('No local webcam found. Captured a frame from Live Class stream instead.', 'warning');
+                } else {
+                    showAlert('No camera device found. Start Live Class and try Camera again, or use file upload.', 'error');
+                }
+            } else {
+                showAlert('Unable to access camera. Please use file upload instead.', 'error');
+            }
+            cameraDiv.style.display = 'none';
+        }
+        
+        function stopCamera() {
+            const video = document.getElementById('cameraVideo');
+            const cameraDiv = document.getElementById('cameraCapture');
+            
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+                video.srcObject = null;
+            }
+            
+            cameraDiv.style.display = 'none';
+        }
+        
+        function takePhoto() {
+            const video = document.getElementById('cameraVideo');
+
+            if (!video || !video.srcObject || !video.videoWidth || !video.videoHeight) {
+                showAlert('Camera is not ready yet. Please wait and try again.', 'warning');
+                return;
+            }
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+            
+            // Convert to blob and set as file input
+            canvas.toBlob(blob => {
+                const file = new File([blob], 'student_photo.jpg', { type: 'image/jpeg' });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                
+                const fileInput = document.getElementById('faceImage');
+                fileInput.files = dataTransfer.files;
+                
+                // Show preview
+                showImagePreview(blob);
+                
+                // Stop camera
+                stopCamera();
+            }, 'image/jpeg');
+        }
+        
+        // Handle file input change
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('faceImage');
+            if (fileInput) {
+                fileInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        showImagePreview(file);
+                    }
+                });
+            }
+        });
+        
+        function showImagePreview(file) {
+            const preview = document.getElementById('imagePreview');
+            const img = document.getElementById('previewImg');
+            const status = document.getElementById('faceStatus');
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                img.src = e.target.result;
+                preview.style.display = 'block';
+                status.textContent = '✅ Photo ready for face registration';
+                status.style.color = 'var(--success)';
+            };
+            reader.readAsDataURL(file);
         }
         
         function contactStudent(studentId) {

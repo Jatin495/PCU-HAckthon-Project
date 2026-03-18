@@ -234,6 +234,92 @@ const ChartUtils = {
                 }
             }
         });
+    },
+
+    createTrendsChart() {
+        const canvas = document.getElementById('trendsChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const colors = this.getThemeColors();
+
+        // Use backend timeline data if available, otherwise use demo data
+        let labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        let engagementData = [72, 78, 85, 82, 79, 68, 74];
+        let attendanceData = [88, 91, 95, 92, 89, 83, 87];
+
+        if (window._backendTimeline && window._backendTimeline.length > 0) {
+            labels = window._backendTimeline.map(t => t.time);
+            engagementData = window._backendTimeline.map(t => t.engagement);
+            attendanceData = window._backendTimeline.map(t => Math.min(100, t.engagement + 10));
+        }
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Avg Engagement',
+                        data: engagementData,
+                        borderColor: colors.primary,
+                        backgroundColor: 'rgba(99,102,241,0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4
+                    },
+                    {
+                        label: 'Attendance Rate',
+                        data: attendanceData,
+                        borderColor: colors.success,
+                        backgroundColor: 'rgba(16,185,129,0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: false,
+                        pointRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top', labels: { color: colors.text, usePointStyle: true, boxWidth: 8 } }
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: colors.text } },
+                    y: {
+                        beginAtZero: true, max: 100,
+                        ticks: { color: colors.text, callback: v => v + '%' }
+                    }
+                }
+            }
+        });
+    },
+
+    createClassPerformanceChart() {
+        const canvas = document.getElementById('classPerformanceChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const colors = this.getThemeColors();
+        new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: ['Engagement', 'Attendance', 'Focus', 'Participation', 'Performance'],
+                datasets: [{
+                    label: 'Class Average',
+                    data: [78, 91, 82, 75, 85],
+                    borderColor: colors.primary,
+                    backgroundColor: 'rgba(99,102,241,0.2)',
+                    pointBackgroundColor: colors.primary
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { r: { beginAtZero: true, max: 100 } }
+            }
+        });
     }
 };
 

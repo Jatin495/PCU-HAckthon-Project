@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
     <div class="app-container">
         <!-- Sidebar -->
@@ -21,7 +23,7 @@
                     <p style="font-size: 0.75rem; opacity: 0.8; margin: 0;">Monitor</p>
                 </div>
             </div>
-            
+
             <nav class="sidebar-nav">
                 <a href="dashboard.html" class="nav-item">
                     <span class="nav-icon">📊</span>
@@ -51,33 +53,35 @@
                     <span class="nav-icon">⚙️</span>
                     Settings
                 </a>
-                <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                <a href="#" onclick="logout()" class="nav-item"
+                    style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
                     <span class="nav-icon">🚪</span>
                     Logout
                 </a>
             </nav>
         </aside>
-        
+
         <!-- Main Content -->
         <main class="main-content">
             <!-- Top Navbar -->
             <header class="top-navbar">
                 <div class="navbar-left">
-                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">☰</button>
+                    <button id="menuToggle"
+                        style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">☰</button>
                     <h1 style="font-size: 1.5rem; font-weight: 600;">Attendance Management</h1>
                 </div>
-                
+
                 <div class="navbar-right">
                     <div class="search-bar">
                         <span class="search-icon">🔍</span>
                         <input type="text" placeholder="Search students..." id="attendanceSearch">
                     </div>
-                    
+
                     <div class="notification-bell">
                         <span style="font-size: 1.25rem;">🔔</span>
                         <span class="notification-badge">1</span>
                     </div>
-                    
+
                     <div class="user-menu">
                         <div class="user-avatar" id="userAvatar">T</div>
                         <div>
@@ -87,7 +91,7 @@
                     </div>
                 </div>
             </header>
-            
+
             <!-- Page Content -->
             <div class="page-content">
                 <!-- Attendance Stats -->
@@ -97,26 +101,26 @@
                         <div class="stat-value" id="presentToday">22</div>
                         <div class="stat-change positive">91.7% attendance rate</div>
                     </div>
-                    
+
                     <div class="stat-card danger">
                         <div class="stat-label">Absent Today</div>
                         <div class="stat-value" id="absentToday">2</div>
                         <div class="stat-change negative">8.3% absent rate</div>
                     </div>
-                    
+
                     <div class="stat-card info">
                         <div class="stat-label">Weekly Average</div>
                         <div class="stat-value">89.3%</div>
                         <div class="stat-change positive">↑ 2.1% from last week</div>
                     </div>
-                    
+
                     <div class="stat-card warning">
                         <div class="stat-label">Late Arrivals</div>
                         <div class="stat-value">3</div>
                         <div class="stat-change">13.6% of present</div>
                     </div>
                 </div>
-                
+
                 <!-- Date Selection and Actions -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                     <div style="display: flex; gap: 1rem; align-items: center;">
@@ -128,7 +132,7 @@
                             <option>CS201</option>
                         </select>
                     </div>
-                    
+
                     <div style="display: flex; gap: 1rem;">
                         <button class="btn btn-primary" onclick="exportAttendance()">
                             <span>📥</span> Export CSV
@@ -138,7 +142,7 @@
                         </button>
                     </div>
                 </div>
-                
+
                 <!-- Main Grid -->
                 <div class="grid grid-cols-3" style="gap: 1.5rem;">
                     <!-- Attendance Table -->
@@ -157,7 +161,7 @@
                                 </button>
                             </div>
                         </div>
-                        
+
                         <div class="table" style="overflow-x: auto;">
                             <table style="width: 100%; border-collapse: collapse;">
                                 <thead>
@@ -176,7 +180,7 @@
                             </table>
                         </div>
                     </div>
-                    
+
                     <!-- Absent Students -->
                     <div class="card">
                         <div class="card-header">
@@ -186,13 +190,14 @@
                             </div>
                             <span class="badge badge-danger" id="absentCount">2</span>
                         </div>
-                        
+
                         <div id="absentStudentsList" style="max-height: 400px; overflow-y: auto;">
                             <!-- Absent students will be populated by JavaScript -->
                         </div>
-                        
+
                         <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-                            <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem;">Quick Actions</h3>
+                            <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem;">Quick Actions
+                            </h3>
                             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                                 <button class="btn btn-sm btn-secondary" style="justify-content: flex-start;">
                                     <span>📧</span> Send Absence Notices
@@ -207,7 +212,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Attendance Statistics Chart -->
                 <div class="card" style="margin-top: 1.5rem;">
                     <div class="card-header">
@@ -218,15 +223,16 @@
                         <div style="display: flex; gap: 0.5rem;">
                             <button class="btn btn-sm btn-secondary" onclick="changeChartPeriod('week')">Week</button>
                             <button class="btn btn-sm btn-secondary" onclick="changeChartPeriod('month')">Month</button>
-                            <button class="btn btn-sm btn-secondary" onclick="changeChartPeriod('semester')">Semester</button>
+                            <button class="btn btn-sm btn-secondary"
+                                onclick="changeChartPeriod('semester')">Semester</button>
                         </div>
                     </div>
-                    
+
                     <div class="chart-container chart-large">
                         <canvas id="attendanceChart"></canvas>
                     </div>
                 </div>
-                
+
                 <!-- Attendance History -->
                 <div class="card" style="margin-top: 1.5rem;">
                     <div class="card-header">
@@ -235,7 +241,7 @@
                             <p class="card-subtitle">Last 10 class sessions</p>
                         </div>
                     </div>
-                    
+
                     <div class="table">
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
@@ -257,104 +263,122 @@
             </div>
         </main>
     </div>
-    
+
     <script src="api.js"></script>
     <script src="main.js"></script>
     <script src="charts.js"></script>
     <script>
         // Initialize attendance page
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const currentUser = localStorage.getItem('currentUser');
             if (!currentUser) {
                 window.location.href = 'login.html';
                 return;
             }
-            
+
             // Set today's date
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('attendanceDate').value = today;
-            
+
             // Load attendance data
             loadAttendanceData();
             loadAttendanceHistory();
-            
+
             // Initialize chart
             setTimeout(() => {
                 ChartUtils.createAttendanceChart();
             }, 100);
-            
+
             // Setup search
             document.getElementById('attendanceSearch').addEventListener('input', filterAttendanceTable);
         });
-        
+
+        // Store students in memory for attendance page
+        let attendanceStudents = [];
+
         function loadAttendanceData() {
-            if (!window.SmartClassMonitor.classroomData) return;
-            
-            const students = window.SmartClassMonitor.classroomData.students;
             const tbody = document.getElementById('attendanceTableBody');
             const absentList = document.getElementById('absentStudentsList');
-            
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1rem;">Loading...</td></tr>';
+            absentList.innerHTML = '';
+
+            const apiBase = 'http://127.0.0.1:8000/api';
+            fetch(`${apiBase}/students/`)
+                .then(r => r.json())
+                .then(data => {
+                    attendanceStudents = data.students || [];
+                    renderAttendanceTable(attendanceStudents);
+                })
+                .catch(() => {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1rem;">Backend not connected. Students cannot be loaded.</td></tr>';
+                });
+        }
+
+        function renderAttendanceTable(students) {
+            const tbody = document.getElementById('attendanceTableBody');
+            const absentList = document.getElementById('absentStudentsList');
             tbody.innerHTML = '';
             absentList.innerHTML = '';
-            
-            let presentCount = 0;
-            let absentCount = 0;
-            
+            let presentCount = 0, absentCount = 0;
+
+            if (!students || students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1rem;">No students registered yet. <a href="student.html">Add students</a></td></tr>';
+                return;
+            }
+
             students.forEach(student => {
-                if (student.present) {
+                const present = student.present_today || false;
+                const eng = Math.round(student.current_engagement || 0);
+                const engColor = eng >= 80 ? 'progress-success' : eng >= 60 ? 'progress-warning' : 'progress-danger';
+
+                if (present) {
                     presentCount++;
-                    // Add to present table
                     const row = document.createElement('tr');
-                    const arrivalTime = new Date(Date.now() - Math.random() * 3600000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                    
+                    row.dataset.studentId = student.student_id;
                     row.innerHTML = `
-                        <td><strong>${student.id}</strong></td>
+                        <td><strong>${student.student_id}</strong></td>
                         <td>${student.name}</td>
                         <td><span class="badge badge-success">Present</span></td>
-                        <td>${arrivalTime}</td>
+                        <td>${student.last_updated ? new Date(student.last_updated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '--'}</td>
                         <td>
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <div class="progress-bar" style="flex: 1; height: 6px;">
-                                    <div class="progress-fill progress-success" style="width: ${student.engagement}%"></div>
+                            <div style="display:flex;align-items:center;gap:0.5rem;">
+                                <div class="progress-bar" style="flex:1;height:6px;">
+                                    <div class="progress-fill ${engColor}" style="width:${eng}%"></div>
                                 </div>
-                                <span style="font-size: 0.75rem; font-weight: 500;">${student.engagement}%</span>
+                                <span style="font-size:0.75rem;font-weight:500;">${eng}%</span>
                             </div>
                         </td>
-                        <td>
-                            <button class="btn btn-sm btn-secondary" onclick="markAbsent('${student.id}')">Mark Absent</button>
-                        </td>
+                        <td><button class="btn btn-sm btn-secondary" onclick="markAbsent('${student.student_id}')">Mark Absent</button></td>
                     `;
                     tbody.appendChild(row);
                 } else {
                     absentCount++;
-                    // Add to absent list
                     const absentDiv = document.createElement('div');
                     absentDiv.className = 'alert alert-danger';
                     absentDiv.style.marginBottom = '0.5rem';
                     absentDiv.innerHTML = `
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
                             <div>
                                 <strong>${student.name}</strong>
-                                <p style="font-size: 0.75rem; margin: 0.25rem 0;">${student.id}</p>
+                                <p style="font-size:0.75rem;margin:0.25rem 0;">${student.student_id}</p>
                             </div>
-                            <button class="btn btn-sm btn-success" onclick="markPresent('${student.id}')">Mark Present</button>
+                            <button class="btn btn-sm btn-success" onclick="markPresent('${student.student_id}')">Mark Present</button>
                         </div>
                     `;
                     absentList.appendChild(absentDiv);
                 }
             });
-            
-            // Update counts
+
             document.getElementById('presentToday').textContent = presentCount;
             document.getElementById('absentToday').textContent = absentCount;
             document.getElementById('absentCount').textContent = absentCount;
         }
-        
+
         function loadAttendanceHistory() {
             const tbody = document.getElementById('attendanceHistoryBody');
             const classes = ['CS101', 'CS102', 'CS201'];
             const history = [];
-            
+
             // Generate mock history for last 10 classes
             for (let i = 0; i < 10; i++) {
                 const date = new Date();
@@ -363,7 +387,7 @@
                 const present = Math.floor(Math.random() * 5) + 19;
                 const absent = 24 - present;
                 const rate = Math.round((present / 24) * 100);
-                
+
                 history.push({
                     date: date.toLocaleDateString(),
                     class: className,
@@ -373,7 +397,7 @@
                     notes: absent > 2 ? 'Some students absent' : 'Good attendance'
                 });
             }
-            
+
             tbody.innerHTML = '';
             history.forEach(record => {
                 const row = document.createElement('tr');
@@ -395,15 +419,15 @@
                 tbody.appendChild(row);
             });
         }
-        
+
         function filterAttendanceTable() {
             const searchTerm = document.getElementById('attendanceSearch').value.toLowerCase();
             const rows = document.querySelectorAll('#attendanceTableBody tr');
-            
+
             rows.forEach(row => {
                 const name = row.cells[1].textContent.toLowerCase();
                 const id = row.cells[0].textContent.toLowerCase();
-                
+
                 if (name.includes(searchTerm) || id.includes(searchTerm)) {
                     row.style.display = '';
                 } else {
@@ -411,60 +435,53 @@
                 }
             });
         }
-        
+
         function markPresent(studentId) {
-            if (!window.SmartClassMonitor.classroomData) return;
-            
-            const student = window.SmartClassMonitor.classroomData.students.find(s => s.id === studentId);
+            const student = attendanceStudents.find(s => s.student_id === studentId);
             if (student) {
-                student.present = true;
-                loadAttendanceData();
+                student.present_today = true;
+                renderAttendanceTable(attendanceStudents);
                 showAlert(`${student.name} marked as present`, 'success');
             }
         }
-        
+
         function markAbsent(studentId) {
-            if (!window.SmartClassMonitor.classroomData) return;
-            
-            const student = window.SmartClassMonitor.classroomData.students.find(s => s.id === studentId);
+            const student = attendanceStudents.find(s => s.student_id === studentId);
             if (student) {
-                student.present = false;
-                loadAttendanceData();
+                student.present_today = false;
+                renderAttendanceTable(attendanceStudents);
                 showAlert(`${student.name} marked as absent`, 'warning');
             }
         }
-        
+
         function markAllPresent() {
-            if (!window.SmartClassMonitor.classroomData) return;
-            
-            window.SmartClassMonitor.classroomData.students.forEach(student => {
-                student.present = true;
-            });
-            
-            loadAttendanceData();
+            attendanceStudents.forEach(s => s.present_today = true);
+            renderAttendanceTable(attendanceStudents);
             showAlert('All students marked as present', 'success');
         }
-        
+
         function exportAttendance() {
             showAlert('Exporting attendance data to CSV...', 'info');
             setTimeout(() => {
                 showAlert('Attendance data exported successfully!', 'success');
             }, 1500);
         }
-        
+
         function refreshAttendance() {
             loadAttendanceData();
+            loadAttendanceHistory();
             showAlert('Attendance data refreshed', 'success');
         }
-        
+
         function toggleManualMode() {
             showAlert('Manual attendance mode activated', 'info');
         }
-        
+
         function changeChartPeriod(period) {
             // Update chart based on period
             showAlert(`Showing ${period} attendance trends`, 'info');
         }
     </script>
 </body>
+
 </html>

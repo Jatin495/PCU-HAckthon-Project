@@ -519,45 +519,210 @@
             });
         }
         
-        function generateReport() {
+        async function generateReport() {
             const type = document.getElementById('reportType').value;
             const dateRange = document.getElementById('dateRange').value;
             const className = document.getElementById('reportClass').value;
             const format = document.getElementById('reportFormat').value;
             
-            showAlert(`Generating ${type} report for ${className} (${dateRange}) in ${format} format...`, 'info');
-            
-            setTimeout(() => {
-                showAlert('Report generated successfully! Check your downloads.', 'success');
-                loadRecentReports(); // Refresh the reports list
-            }, 2000);
-        }
-        
-        function scheduleReport() {
-            showAlert('Report scheduling feature coming soon!', 'info');
-        }
-        
-        function loadTemplates() {
-            showAlert('Loading report templates...', 'info');
-        }
-        
-        function viewAllReports() {
-            showAlert('Opening all reports...', 'info');
-        }
-        
-        function viewReport(reportName) {
-            showAlert(`Opening report: ${reportName}`, 'info');
-        }
-        
-        function downloadReport(reportName) {
-            showAlert(`Downloading report: ${reportName}`, 'info');
-        }
-        
-        function deleteReport(reportName) {
-            if (confirm(`Are you sure you want to delete "${reportName}"?`)) {
-                showAlert(`Report "${reportName}" deleted successfully`, 'success');
-                loadRecentReports();
+            try {
+                const response = await window.SmartClassAPI.API.post('/reports/generate/', {
+                    type: type,
+                    date_range: dateRange,
+                    class: className,
+                    format: format
+                });
+                
+                if (response && response.success) {
+                    showAlert('Report generated successfully! Check your downloads.', 'success');
+                    loadRecentReports(); // Refresh reports list
+                } else {
+                    showAlert('Report generation failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Error generating report', 'error');
             }
+        }
+        
+        async function scheduleReport() {
+            const type = document.getElementById('reportType').value;
+            const dateRange = document.getElementById('dateRange').value;
+            const className = document.getElementById('reportClass').value;
+            const format = document.getElementById('reportFormat').value;
+            
+            try {
+                const response = await window.SmartClassAPI.API.post('/reports/schedule/', {
+                    type: type,
+                    date_range: dateRange,
+                    class: className,
+                    format: format,
+                    schedule_time: new Date().toISOString()
+                });
+                
+                if (response && response.success) {
+                    showAlert(`Report scheduled for ${response.scheduled_time || 'later'}`, 'success');
+                } else {
+                    showAlert('Report scheduling failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Error scheduling report', 'error');
+            }
+        }
+        
+        async function loadTemplates() {
+            try {
+                const response = await window.SmartClassAPI.API.get('/reports/templates/');
+                
+                if (response && response.success) {
+                    const templates = response.templates || [];
+                    let templateHTML = '<div style="max-height: 400px; overflow-y: auto;">';
+                    
+                    templates.forEach(template => {
+                        templateHTML += `
+                            <div class="card" style="margin-bottom: 1rem; cursor: pointer;" onclick="useTemplate('${template.id}')">
+                                <div class="card-header">
+                                    <h3 style="margin: 0; font-size: 1rem;">${template.name}</h3>
+                                    <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem; color: var(--text-secondary);">${template.description}</p>
+                                </div>
+                                <div style="padding: 1rem;">
+                                    <strong>Sections:</strong> ${template.sections.join(', ')}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    templateHTML += '</div>';
+                    
+                    // Show in modal or replace page content
+                    const modal = document.createElement('div');
+                    modal.innerHTML = `
+                        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+                            <div style="background: white; padding: 2rem; border-radius: 8px; max-width: 600px; max-height: 80vh; overflow-y: auto;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                    <h2>Report Templates</h2>
+                                    <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">×</button>
+                                </div>
+                                ${templateHTML}
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+                } else {
+                    showAlert('Failed to load templates', 'error');
+                }
+            } catch (error) {
+                showAlert('Error loading templates', 'error');
+            }
+        }
+        
+        async function viewAllReports() {
+            try {
+                const response = await window.SmartClassAPI.API.get('/reports/list/');
+                
+                if (response && response.success) {
+                    const reports = response.reports || [];
+                    let reportsHTML = '<div style="max-height: 400px; overflow-y: auto;">';
+                    
+                    reports.forEach(report => {
+                        const statusColor = report.status === 'completed' ? 'success' : 'warning';
+                        reportsHTML += `
+                            <div class="card" style="margin-bottom: 1rem;">
+                                <div class="card-header">
+                                    <h3 style="margin: 0; font-size: 1rem;">${report.name}</h3>
+                                    <span class="badge badge-${statusColor}">${report.status}</span>
+                                </div>
+                                <div style="padding: 1rem;">
+                                    <p><strong>Type:</strong> ${report.type}</p>
+                                    <p><strong>Date:</strong> ${report.date}</p>
+                                    <p><strong>Format:</strong> ${report.format}</p>
+                                    <p><strong>Size:</strong> ${report.size}</p>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-sm btn-primary" onclick="viewReportDetails('${report.id}')">View</button>
+                                    <button class="btn btn-sm btn-secondary" onclick="downloadReportFromList('${report.id}')">Download</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteReportFromList('${report.id}')">Delete</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    reportsHTML += '</div>';
+                    
+                    // Replace the recent reports table
+                    const reportsContainer = document.querySelector('.page-content');
+                    if (reportsContainer) {
+                        reportsContainer.innerHTML = reportsHTML;
+                    }
+                } else {
+                    showAlert('Failed to load reports', 'error');
+                }
+            } catch (error) {
+                showAlert('Error loading reports', 'error');
+            }
+        }
+        
+        async function viewReportDetails(reportId) {
+            try {
+                const response = await window.SmartClassAPI.API.get(`/reports/list/`);
+                
+                if (response && response.success) {
+                    const reports = response.reports || [];
+                    const report = reports.find(r => r.id === reportId);
+                    
+                    if (report) {
+                        showAlert(`Opening report: ${report.name}`, 'info');
+                        // In a real app, this would open a detailed view
+                    } else {
+                        showAlert('Report not found', 'error');
+                    }
+                } else {
+                    showAlert('Failed to load report details', 'error');
+                }
+            } catch (error) {
+                showAlert('Error loading report details', 'error');
+            }
+        }
+        
+        async function downloadReportFromList(reportId) {
+            try {
+                const response = await window.SmartClassAPI.API.get(`/reports/download/${reportId}/`);
+                
+                if (response && response.success) {
+                    showAlert(`Downloading ${response.message}`, 'success');
+                    
+                    // Create download link
+                    const link = document.createElement('a');
+                    link.href = response.download_url || '#';
+                    link.download = `report_${reportId}.${response.format || 'pdf'}`;
+                    link.click();
+                } else {
+                    showAlert('Download failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Error downloading report', 'error');
+            }
+        }
+        
+        async function deleteReportFromList(reportId) {
+            if (confirm(`Are you sure you want to delete this report?`)) {
+                try {
+                    const response = await window.SmartClassAPI.API.delete(`/reports/delete/${reportId}/`);
+                    
+                    if (response && response.success) {
+                        showAlert(response.message || 'Report deleted successfully', 'success');
+                        await viewAllReports(); // Refresh the list
+                    } else {
+                        showAlert('Delete failed', 'error');
+                    }
+                } catch (error) {
+                    showAlert('Error deleting report', 'error');
+                }
+            }
+        }
+        
+        function useTemplate(templateId) {
+            showAlert(`Using template: ${templateId}`, 'info');
+            // In a real app, this would populate the form with template data
         }
         
         function downloadPDF() {

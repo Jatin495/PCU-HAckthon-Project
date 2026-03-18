@@ -49,6 +49,7 @@ urlpatterns = [
 
     # Serve HTML pages - both with .html extension AND without
     path('', serve_root_file('index.html'), name='home'),
+    path('simple_live_camera.html', serve_root_file('simple_live_camera.html'), name='simple_live_camera_html'),
     path('index.html', serve_root_file('index.html'), name='home_html'),
     path('login.html', serve_root_file('login.html'), name='login_html'),
     path('dashboard.html', serve_root_file('dashboard.html'), name='dashboard_html'),
@@ -58,5 +59,6 @@ urlpatterns = [
     path('reports.html', serve_root_file('reports.html'), name='reports_html'),
     path('analytics.html', serve_root_file('analytics.html'), name='analytics_html'),
     path('settings.html', serve_root_file('settings.html'), name='settings_html'),
+    path('alert_test.html', serve_root_file('alert_test.html'), name='alert_test_html'),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
