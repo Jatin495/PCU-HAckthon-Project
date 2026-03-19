@@ -39,6 +39,10 @@
                     <span class="nav-icon">👥</span>
                     Students
                 </a>
+                <a href="teacher.html" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    Teacher
+                </a>
                 <a href="reports.html" class="nav-item">
                     <span class="nav-icon">📄</span>
                     Reports
@@ -94,6 +98,21 @@
             
             <!-- Page Content -->
             <div class="page-content">
+                <!-- Session Info Banner -->
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <h2 id="currentClass" style="margin: 0 0 0.5rem 0; font-size: 1.375rem; font-weight: 600;">Class Loading...</h2>
+                            <p id="currentSubject" style="margin: 0; font-size: 0.875rem; opacity: 0.9;">Subject: --</p>
+                            <p id="currentTopicUnit" style="margin: 0.35rem 0 0 0; font-size: 0.8rem; opacity: 0.9;">Unit: -- | Topic: --</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p id="sessionTeacher" style="margin: 0 0 0.5rem 0; font-size: 0.875rem; opacity: 0.9;">Teacher: --</p>
+                            <p id="sessionTime" style="margin: 0; font-size: 0.75rem; opacity: 0.85;">Session started at --</p>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Controls Bar -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                     <div style="display: flex; gap: 1rem; align-items: center;">
@@ -336,6 +355,14 @@
             const cameraSelect = document.getElementById('cameraSource');
             const selectedCamera = cameraSelect ? String(cameraSelect.value || '0') : '0';
             
+            // Get class name and subject from session data or use defaults
+            const sessionData = JSON.parse(localStorage.getItem('sessionInfo') || '{}');
+            const className = sessionData.class_name || 'CS101';
+            const subject = sessionData.subject || 'Computer Science';
+            const unit = sessionData.unit || '';
+            const topicName = sessionData.topic_name || '';
+            const dailyPlanId = sessionData.daily_plan_id || null;
+            
             if (window.SmartClassAPI) {
                 try {
                     // Pre-cleanup to avoid stale handles when restarting quickly.
@@ -352,30 +379,37 @@
                         await window.SmartClassAPI.checkConnection();
                     }
 
-                    let sessionData = null;
-                    for (let attempt = 0; attempt < 2 && (!sessionData || !sessionData.id); attempt++) {
-                        sessionData = await window.SmartClassAPI.startSession('CS101', 'Computer Science', selectedCamera);
-                        if (!sessionData || !sessionData.id) {
+                    let backendSessionData = null;
+                    for (let attempt = 0; attempt < 2 && (!backendSessionData || !backendSessionData.id); attempt++) {
+                        backendSessionData = await window.SmartClassAPI.startSession(className, subject, selectedCamera, {
+                            unit: unit,
+                            topic_name: topicName,
+                            daily_plan_id: dailyPlanId,
+                        });
+                        if (!backendSessionData || !backendSessionData.id) {
                             await sleep(300);
                         }
                     }
 
                     // Fallback: start session directly if API bridge reports disconnected.
-                    if (!sessionData || !sessionData.id) {
+                    if (!backendSessionData || !backendSessionData.id) {
                         const teacherData = JSON.parse(localStorage.getItem('currentUser') || '{}');
                         const directStart = await window.SmartClassAPI.API.post('/sessions/start/', {
-                            class_name: 'CS101',
-                            subject: 'Computer Science',
+                            class_name: className,
+                            subject: subject,
+                            unit: unit,
+                            topic_name: topicName,
+                            daily_plan_id: dailyPlanId,
                             camera_source: selectedCamera,
                             teacher_id: teacherData.id || 1,
                         });
                         if (directStart && directStart.success && directStart.session) {
-                            sessionData = directStart.session;
+                            backendSessionData = directStart.session;
                         }
                     }
 
                     // Last-resort fallback: still try live feed so monitoring can continue.
-                    if (!sessionData || !sessionData.id) {
+                    if (!backendSessionData || !backendSessionData.id) {
                         console.warn('Session start failed; falling back to live feed-only mode.');
                         const videoImg = document.getElementById('liveCameraFeed');
                         if (videoImg) {
@@ -389,7 +423,7 @@
                             backendReady = false;
                         }
                     } else {
-                        activeSessionId = sessionData.id;
+                        activeSessionId = backendSessionData.id;
                         streamStarted = true;
                         cameraRunning = true;
 
@@ -402,7 +436,7 @@
 
                         startLiveAlertSystem();
                         startLiveUpdates();
-                        console.log('✅ Live monitoring started successfully with backend session', sessionData.id);
+                        console.log('✅ Live monitoring started successfully with backend session', backendSessionData.id);
                     }
                 } catch (e) {
                     console.error('Live monitoring start failed:', e);
@@ -705,6 +739,20 @@
                 avg_engagement: resolvedAvgEngagement,
                 present_count: resolvedPresentCount,
             };
+
+            // Update session information banner
+            if (data.session) {
+                document.getElementById('currentClass').textContent = data.session.class_name || 'Live Class';
+                document.getElementById('currentSubject').textContent = `Subject: ${data.session.subject || 'Computer Science'}`;
+                document.getElementById('currentTopicUnit').textContent = `Unit: ${data.session.unit || '--'} | Topic: ${data.session.topic_name || '--'}`;
+                document.getElementById('sessionTeacher').textContent = `Teacher: ${data.session.teacher_name || 'Teacher'}`;
+                if (data.session.start_time) {
+                    const startTime = new Date(data.session.start_time);
+                    const timeStr = startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+                    document.getElementById('sessionTime').textContent = `Session started at ${timeStr}`;
+                }
+            }
+
             const happy = Number(emotions.happy || 0);
             const neutral = Number(emotions.neutral || 0);
             const confused = Number(emotions.confused || 0);
@@ -755,6 +803,35 @@
                 return;
             }
 
+            const formatAlertTime12h = (alert) => {
+                const timeOptions = {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true,
+                };
+
+                if (alert && alert.timestamp) {
+                    const d = new Date(alert.timestamp);
+                    if (!Number.isNaN(d.getTime())) {
+                        return d.toLocaleTimeString('en-US', timeOptions);
+                    }
+                }
+
+                const raw = String((alert && alert.time) || '').trim();
+                const m = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+                if (m) {
+                    const hour24 = Number(m[1]);
+                    const minute = m[2];
+                    const second = m[3] || '00';
+                    const suffix = hour24 >= 12 ? 'PM' : 'AM';
+                    const hour12 = hour24 % 12 || 12;
+                    return `${hour12}:${minute}:${second} ${suffix}`;
+                }
+
+                return raw;
+            };
+
             if (!alerts || alerts.length === 0) {
                 container.innerHTML = '<p style="text-align:center;color:var(--text-secondary);padding:1rem 0;">No active alerts</p>';
                 const emptyBadge = document.getElementById('alertCount');
@@ -769,7 +846,7 @@
             alerts.slice(0, 8).forEach((alert) => {
                 const severity = alert.severity || 'medium';
                 const actor = alert.student_name || 'Classroom';
-                const timeText = alert.time || '';
+                const timeText = formatAlertTime12h(alert);
                 const toneClass = severity === 'high' ? 'danger' : severity === 'low' ? 'info' : 'warning';
                 const icon = severity === 'high' ? '⚠️' : '⚡';
 
@@ -1096,7 +1173,7 @@
                             <span>📊 ${alertData.percentage.toFixed(1)}% not engaged</span>
                         </div>
                         <div style="font-size: 0.75rem; color: #9ca3af; margin-top: 0.5rem;">
-                            ${new Date(alertData.timestamp).toLocaleTimeString()}
+                            ${new Date(alertData.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })}
                         </div>
                     </div>
                 </div>
@@ -1202,6 +1279,13 @@
             if (!currentUser) {
                 window.location.href = 'login.html';
                 return;
+            }
+
+            const sessionSeed = JSON.parse(localStorage.getItem('sessionInfo') || '{}');
+            if (sessionSeed.subject) {
+                document.getElementById('currentClass').textContent = sessionSeed.class_name || 'Live Class';
+                document.getElementById('currentSubject').textContent = `Subject: ${sessionSeed.subject}`;
+                document.getElementById('currentTopicUnit').textContent = `Unit: ${sessionSeed.unit || '--'} | Topic: ${sessionSeed.topic_name || '--'}`;
             }
             
             // Initialize live student grid

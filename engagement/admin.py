@@ -10,6 +10,12 @@ from .models import (
     EngagementRecord,
     ClassEngagementSnapshot,
     Alert,
+    Report,
+    SyllabusTopic,
+    DailyLectureTopic,
+    StudentTopicProgress,
+    ExtraLecturePlan,
+    LectureFeedback,
 )
 
 @admin.register(Teacher)
@@ -64,3 +70,51 @@ class AlertAdmin(admin.ModelAdmin):
     def mark_resolved(self, request, queryset):
         from django.utils import timezone
         queryset.update(is_resolved=True, resolved_at=timezone.now())
+
+
+@admin.register(Report)
+class ReportAdmin(admin.ModelAdmin):
+    list_display = ('name', 'report_type', 'format', 'status', 'created_at', 'generated_at')
+    list_filter = ('report_type', 'format', 'status')
+    search_fields = ('name',)
+    ordering = ('-created_at',)
+
+
+@admin.register(SyllabusTopic)
+class SyllabusTopicAdmin(admin.ModelAdmin):
+    list_display = ('topic', 'subject', 'unit', 'teacher', 'status', 'checkpoint_assigned', 'checkpoint_completion_rate', 'is_delayed')
+    list_filter = ('status', 'checkpoint_assigned', 'is_delayed', 'subject')
+    search_fields = ('topic', 'subject', 'unit', 'teacher__name')
+    ordering = ('subject', 'unit', 'topic')
+
+
+@admin.register(DailyLectureTopic)
+class DailyLectureTopicAdmin(admin.ModelAdmin):
+    list_display = ('topic', 'lecture_date', 'is_completed', 'completed_at')
+    list_filter = ('lecture_date', 'is_completed')
+    search_fields = ('topic__topic', 'topic__subject', 'topic__unit')
+    ordering = ('-lecture_date',)
+
+
+@admin.register(StudentTopicProgress)
+class StudentTopicProgressAdmin(admin.ModelAdmin):
+    list_display = ('student', 'topic', 'completion_percent', 'needs_extra_lecture', 'updated_at')
+    list_filter = ('needs_extra_lecture', 'topic__subject')
+    search_fields = ('student__student_id', 'student__name', 'topic__topic')
+    ordering = ('student__student_id', 'topic__topic')
+
+
+@admin.register(ExtraLecturePlan)
+class ExtraLecturePlanAdmin(admin.ModelAdmin):
+    list_display = ('student', 'topic', 'scheduled_date', 'status', 'created_at')
+    list_filter = ('status', 'scheduled_date', 'topic__subject')
+    search_fields = ('student__student_id', 'student__name', 'topic__topic')
+    ordering = ('-scheduled_date', '-created_at')
+
+
+@admin.register(LectureFeedback)
+class LectureFeedbackAdmin(admin.ModelAdmin):
+    list_display = ('lecture_title', 'rating', 'submitted_at')
+    list_filter = ('rating', 'submitted_at')
+    search_fields = ('lecture_title', 'comment')
+    ordering = ('-submitted_at',)

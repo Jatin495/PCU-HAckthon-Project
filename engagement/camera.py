@@ -8,6 +8,7 @@ import numpy as np
 import threading
 import time
 import logging
+import os
 from datetime import datetime
 from collections import deque
 
@@ -49,6 +50,18 @@ class CameraProcessor:
         self.current_emotions = {}
         self.faces_detected = 0
         self.avg_engagement = 0
+
+        # FER + DAiSEE-inspired fusion controls.
+        # NOTE: daisee component here is a proxy scorer unless you plug in a trained DAiSEE model.
+        self.fer_weight = float(os.getenv('FER_WEIGHT', '0.4'))
+        self.daisee_weight = float(os.getenv('DAISEE_WEIGHT', '0.6'))
+        weight_sum = self.fer_weight + self.daisee_weight
+        if weight_sum <= 0:
+            self.fer_weight, self.daisee_weight = 0.4, 0.6
+            weight_sum = 1.0
+        self.fer_weight /= weight_sum
+        self.daisee_weight /= weight_sum
+        self.fusion_enabled = True
         
     def start(self, source=0):
         """Start camera processing"""
@@ -150,6 +163,11 @@ class CameraProcessor:
             'engagement_score': round(self.avg_engagement, 1),
             'fps': round(len(self.fps_counter) / 30, 1) if self.fps_counter else 0,
             'demo_mode': self.demo_mode,
+            'fusion_enabled': self.fusion_enabled,
+            'fusion_weights': {
+                'fer': round(self.fer_weight, 3),
+                'daisee': round(self.daisee_weight, 3),
+            },
             'timestamp': datetime.now().isoformat(),
             'students': self.students_data,
             'recognized_students': self.recognized_students,
@@ -352,6 +370,7 @@ class CameraProcessor:
             for face_data in fer_results:
                 box = face_data['box']        # [x, y, w, h]
                 emotions = face_data['emotions']  # dict of emotion: score
+                x, y, bw, bh = box
                 
                 # Get dominant emotion
                 dominant_emotion = max(emotions, key=emotions.get)
@@ -372,17 +391,27 @@ class CameraProcessor:
                 }
                 mapped_emotion = emotion_map.get(dominant_emotion, 'neutral')
                 
-                # Calculate engagement score from emotions
+                # FER base engagement score from emotion/confidence.
                 engagement_weights = {
                     'happy': 85, 'focused': 90, 'neutral': 65,
                     'confused': 40, 'bored': 25
                 }
-                engagement_score = engagement_weights.get(mapped_emotion, 60)
-                # Add some variation based on confidence
-                engagement_score = min(100, engagement_score + (confidence * 15))
+                fer_engagement = engagement_weights.get(mapped_emotion, 60)
+                fer_engagement = min(100, fer_engagement + (confidence * 15))
+
+                face_roi = analysis_frame[max(0, y):max(0, y) + max(0, bh), max(0, x):max(0, x) + max(0, bw)] if bw > 0 and bh > 0 else None
+
+                # DAiSEE-inspired score (proxy unless a trained DAiSEE model is plugged in).
+                daisee_engagement = self._estimate_daissee_engagement(
+                    mapped_emotion=mapped_emotion,
+                    confidence=confidence,
+                    face_roi=face_roi,
+                )
+
+                # Final fused engagement.
+                engagement_score = self._fuse_engagement_scores(fer_engagement, daisee_engagement)
                 
                 # Draw bounding box and label on frame
-                x, y, bw, bh = box
                 color = (0, 255, 0) if engagement_score > 60 else (0, 0, 255)
                 cv2.rectangle(analysis_frame, (x, y), (x+bw, y+bh), color, 2)
 
@@ -460,6 +489,9 @@ class CameraProcessor:
                     'emotion': mapped_emotion,
                     'emotion_confidence': round(confidence, 2),
                     'engagement_score': round(engagement_score, 1),
+                    'fer_engagement_score': round(fer_engagement, 1),
+                    'daisee_engagement_score': round(daisee_engagement, 1),
+                    'engagement_source': 'fer+daisee-fusion',
                     'attention_score': round(engagement_score * 0.9, 1),
                     'posture_score': 70.0,
                     'is_looking_forward': mapped_emotion in ['focused', 'happy', 'neutral'],
@@ -471,6 +503,8 @@ class CameraProcessor:
                     'name': detected_student_name or 'Unknown Person',
                     'emotion': mapped_emotion,
                     'engagement': round(engagement_score, 1),
+                    'fer_engagement': round(fer_engagement, 1),
+                    'daisee_engagement': round(daisee_engagement, 1),
                     'confidence': round(float(match_confidence or confidence or 0.0), 3),
                     'face_registered': bool(detected_student_id),
                 })
@@ -580,16 +614,52 @@ class CameraProcessor:
             'angry': 0.2,
             'disgust': 0.3
         }
-        
+
         total_score = 0
         total_weight = 0
-        
+
         for emotion, confidence in emotions_dict.items():
             weight = engagement_weights.get(emotion, 0.5)
             total_score += confidence * weight
             total_weight += weight
-        
+
         return (total_score / total_weight * 100) if total_weight > 0 else 50
+
+    def _estimate_daissee_engagement(self, mapped_emotion, confidence, face_roi):
+        """
+        DAiSEE-inspired proxy score.
+        Replace this with a trained DAiSEE model output when available.
+        """
+        base_by_emotion = {
+            'focused': 90.0,
+            'happy': 84.0,
+            'neutral': 68.0,
+            'confused': 42.0,
+            'bored': 28.0,
+        }
+        base = base_by_emotion.get(mapped_emotion, 60.0)
+
+        # Confidence bump from FER certainty.
+        confidence_term = float(confidence or 0.0) * 10.0
+
+        # Lightweight visual alertness proxy from face texture variance.
+        texture_term = 0.0
+        try:
+            if face_roi is not None and getattr(face_roi, 'size', 0) > 0:
+                gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+                lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+                texture_term = min(10.0, lap_var / 60.0)
+        except Exception:
+            texture_term = 0.0
+
+        return max(0.0, min(100.0, base + confidence_term + texture_term))
+
+    def _fuse_engagement_scores(self, fer_score, daisee_score):
+        if not self.fusion_enabled:
+            return float(fer_score)
+
+        fused = (self.fer_weight * float(fer_score)) + (self.daisee_weight * float(daisee_score))
+        return max(0.0, min(100.0, fused))
 
 # Global camera processor instance
 camera_processor = CameraProcessor()

@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Teacher Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --sidebar-bg: #1e1e2e;
+      --sidebar-hover: #2b2b40;
+      --main-bg: #f4f6fb;
+      --card-bg: #ffffff;
+      --accent: #4f8ef7;
+      --accent-dark: #3a74d7;
+      --text-main: #25273a;
+      --text-muted: #747b96;
+      --success: #16a34a;
+      --warning: #f59e0b;
+      --danger: #dc2626;
+      --border: #e5e7eb;
+      --shadow: 0 12px 24px rgba(30, 30, 46, 0.08);
+      --radius: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Poppins, sans-serif;
+      background: var(--main-bg);
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: var(--sidebar-bg);
+      color: #fff;
+      padding: 24px 18px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      transition: transform 0.25s ease;
+      z-index: 20;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    .logo {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.35rem;
+    }
+
+    .nav-links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .nav-links a {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #eceef9;
+      text-decoration: none;
+      padding: 12px 12px;
+      border-radius: 10px;
+      transition: all 0.2s ease;
+      font-size: 0.94rem;
+      font-weight: 500;
+    }
+
+    .nav-links a:hover,
+    .nav-links a.active {
+      background: var(--sidebar-hover);
+      color: #fff;
+      transform: translateX(3px);
+    }
+
+    .main {
+      flex: 1;
+      padding: 24px;
+      overflow-x: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .topbar h1 {
+      font-size: 1.45rem;
+      font-weight: 700;
+    }
+
+    .topbar p {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      margin-top: 3px;
+    }
+
+    .menu-btn {
+      display: none;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid #eff1f6;
+      padding: 18px;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card p.small {
+      color: var(--text-muted);
+      font-size: 0.86rem;
+      margin-bottom: 12px;
+    }
+
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    .field-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+
+    input,
+    select,
+    textarea {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 11px;
+      outline: none;
+      background: #fff;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79, 142, 247, 0.15);
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: 0.2s ease;
+      font-weight: 600;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-dark);
+    }
+
+    .btn-soft {
+      background: #e8eefc;
+      color: #234f9c;
+    }
+
+    .btn-soft:hover {
+      background: #d9e5ff;
+    }
+
+    .topic-list,
+    .planner-list,
+    .feedback-list,
+    .warning-list {
+      list-style: none;
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .item-row {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fafbff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .item-main {
+      min-width: 180px;
+      flex: 1;
+    }
+
+    .item-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #1f2c44;
+    }
+
+    .item-sub {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin-top: 2px;
+    }
+
+    .status {
+      font-size: 0.74rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      padding: 5px 8px;
+      border-radius: 999px;
+    }
+
+    .status.pending { background: #fff7ed; color: #c2410c; }
+    .status.in-progress { background: #eff6ff; color: #1d4ed8; }
+    .status.completed { background: #ecfdf3; color: #166534; }
+
+    .badge-delay {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      padding: 4px 7px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .progress-wrap {
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 10px;
+      background: #e8ebf2;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--accent), #7db0ff);
+      transition: width 0.3s ease;
+    }
+
+    .progress-meta {
+      margin-top: 7px;
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 680px;
+      background: #fff;
+    }
+
+    th,
+    td {
+      padding: 10px;
+      border-bottom: 1px solid #edf0f5;
+      text-align: left;
+      font-size: 0.86rem;
+    }
+
+    th {
+      background: #f9faff;
+      color: #45506e;
+      font-weight: 600;
+    }
+
+    .report-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+    }
+
+    .student-kpi {
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 10px;
+      background: #fafbff;
+    }
+
+    .student-kpi h4 {
+      font-size: 0.88rem;
+      margin-bottom: 8px;
+    }
+
+    .kpi-item {
+      font-size: 0.8rem;
+      color: #516084;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .feedback-item {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .feedback-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.84rem;
+      color: #2a3551;
+      margin-bottom: 7px;
+      font-weight: 600;
+    }
+
+    .rating {
+      color: #f59e0b;
+      font-weight: 700;
+    }
+
+    .export-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .chart-area {
+      width: 100%;
+      height: 230px;
+      margin-top: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 0.75rem;
+      border: 1px solid #dbe3f3;
+      color: #4568a8;
+      background: #f4f7fe;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+
+    @media (max-width: 1100px) {
+      .span-4,
+      .span-5,
+      .span-6,
+      .span-7,
+      .span-8 {
+        grid-column: span 12;
+      }
+
+      .field-group {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .menu-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .sidebar {
+        position: fixed;
+        transform: translateX(-100%);
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .main {
+        padding: 18px;
+      }
+
+      .field-group {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+    <div class="logo">SC</div>
+    <div>
+      <div style="font-size: 1rem; font-weight: 700; line-height: 1.2;">SmartClass</div>
+      <div style="font-size: 0.8rem; opacity: 0.9;">Monitor</div>
+    </div>
+    </div>
+    <ul class="nav-links">
+    <li><a href="dashboard.html"><i class="fa-solid fa-chart-column"></i>Dashboard</a></li>
+    <li><a href="live_class.html"><i class="fa-solid fa-video"></i>Live Classroom</a></li>
+    <li><a href="attendance.html"><i class="fa-solid fa-user-check"></i>Attendance</a></li>
+    <li><a href="student.html"><i class="fa-solid fa-users"></i>Students</a></li>
+    <li><a href="teacher.html" class="active"><i class="fa-solid fa-chalkboard-user"></i>Teacher</a></li>
+    <li><a href="reports.html"><i class="fa-solid fa-file-lines"></i>Reports</a></li>
+    <li><a href="analytics.html"><i class="fa-solid fa-chart-line"></i>Analytics</a></li>
+    <li><a href="settings.html"><i class="fa-solid fa-gear"></i>Settings</a></li>
+    <li><a href="#" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i>Logout</a></li>
+    </ul>
+  </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h1>Teacher Dashboard</h1>
+          <p id="sessionSummary">Plan lectures, track progress, run checkpoints, and support lagging students.</p>
+        </div>
+        <button class="menu-btn" id="menuBtn" aria-label="Toggle Menu">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+      </div>
+
+      <section class="grid">
+        <article class="card span-8" id="syllabus">
+          <h2><i class="fa-solid fa-list-check"></i>1. Define Entire Syllabus</h2>
+          <p class="small">Add subjects, units, and topics, then track each topic status.</p>
+          <form id="syllabusForm" class="field-group">
+            <input type="text" id="subjectInput" placeholder="Subject (e.g. Mathematics)" required />
+            <input type="text" id="unitInput" placeholder="Unit (e.g. Algebra)" required />
+            <input type="text" id="topicInput" placeholder="Topic (e.g. Quadratic Equations)" required />
+            <button type="submit" class="btn-primary">Add Topic</button>
+          </form>
+
+          <ul id="topicList" class="topic-list"></ul>
+
+          <div class="progress-wrap">
+            <div class="progress-bar">
+              <div class="progress-fill" id="syllabusProgressFill"></div>
+            </div>
+            <div class="progress-meta">
+              <span>Overall Syllabus Completion</span>
+              <strong id="syllabusProgressText">0%</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="card span-4">
+          <h2><i class="fa-solid fa-chart-pie"></i>Syllabus Progress Chart</h2>
+          <p class="small">Visual status distribution of all topics.</p>
+          <div class="chart-area">
+            <canvas id="syllabusChart"></canvas>
+          </div>
+        </article>
+
+        <article class="card span-6">
+          <h2><i class="fa-solid fa-calendar-day"></i>2. Enter Topics for Today</h2>
+          <p class="small">Select planned topics and mark them after lecture completion.</p>
+          <div class="field-group" style="grid-template-columns: 1fr auto;">
+            <select id="dailyTopicSelect"></select>
+            <button id="addTodayTopic" class="btn-soft" type="button">Add to Today's Plan</button>
+          </div>
+          <ul id="plannerList" class="planner-list"></ul>
+        </article>
+
+        <article class="card span-6">
+          <h2><i class="fa-solid fa-circle-check"></i>3. Topic Checkpoints</h2>
+          <p class="small">Assign mini quizzes after completion and track checkpoint rates.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Topic #</th>
+                  <th>Topic</th>
+                  <th>Checkpoint Assigned</th>
+                  <th>Students Responded</th>
+                  <th>Completion Rate</th>
+                </tr>
+              </thead>
+              <tbody id="checkpointTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card span-5">
+          <h2><i class="fa-solid fa-rotate"></i>4. Auto-Healing in Syllabus</h2>
+          <p class="small">Delayed topics are flagged and auto-rescheduled.</p>
+          <ul id="warningList" class="warning-list"></ul>
+          <div style="margin-top: 12px;">
+            <strong style="font-size: 0.88rem;">Revised Schedule Suggestions</strong>
+            <div id="suggestionChips" style="margin-top: 8px;"></div>
+          </div>
+        </article>
+
+        <article class="card span-7">
+          <h2><i class="fa-solid fa-users-gear"></i>5. Extra Lectures / Topics Per Student</h2>
+          <p class="small">Identify lagging students and schedule targeted support sessions.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Lagging Topic</th>
+                  <th>Engagement</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="laggingTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card span-12">
+          <h2><i class="fa-solid fa-file-lines"></i>6. Individual Student Performance Reports</h2>
+          <p class="small">Track each student using attendance, engagement, and topic completion metrics.</p>
+          <div id="reportCards" class="report-cards"></div>
+          <div class="export-actions">
+            <button id="exportPdfBtn" class="btn-primary" type="button">
+              <i class="fa-solid fa-file-pdf"></i> Export PDF
+            </button>
+            <button id="exportExcelBtn" class="btn-soft" type="button">
+              <i class="fa-solid fa-file-excel"></i> Export Excel
+            </button>
+          </div>
+        </article>
+
+        <article class="card span-12" id="feedback">
+          <h2><i class="fa-solid fa-star-half-stroke"></i>7. Collect Student Feedback</h2>
+          <p class="small">Ratings and comments submitted after each lecture.</p>
+          <form id="feedbackForm" class="field-group" style="grid-template-columns: 1.2fr 0.6fr 1.8fr auto;">
+            <input type="text" id="feedbackLectureInput" placeholder="Lecture title" required />
+            <select id="feedbackRatingInput" required>
+              <option value="">Rating</option>
+              <option value="5">5</option>
+              <option value="4.5">4.5</option>
+              <option value="4">4</option>
+              <option value="3.5">3.5</option>
+              <option value="3">3</option>
+              <option value="2.5">2.5</option>
+              <option value="2">2</option>
+              <option value="1">1</option>
+            </select>
+            <input type="text" id="feedbackCommentInput" placeholder="Comment" required />
+            <button type="submit" class="btn-primary">Add Feedback</button>
+          </form>
+          <div style="margin-bottom: 10px;">
+            <strong style="font-size: 0.92rem;">Average Rating: <span id="avgRating" class="rating">0.0</span></strong>
+          </div>
+          <ul id="feedbackList" class="feedback-list"></ul>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    function resolveOrigin() {
+      if (window.location.protocol === 'file:') {
+        return localStorage.getItem('backendOrigin') || 'http://127.0.0.1:8000';
+      }
+      return window.location.origin;
+    }
+
+    const API_BASE = `${resolveOrigin()}/api`;
+
+    let syllabusTopics = [];
+    let plannerTopics = [];
+    let laggingStudents = [];
+    let studentReports = [];
+    let feedbackData = [];
+    let delayedTopics = [];
+    let averageRating = 0;
+    let syllabusChart;
+    let analyticsStudentMetrics = [];
+    let liveEmotionByStudent = {};
+    let checkpointRows = [];
+
+    const topicList = document.getElementById('topicList');
+    const dailyTopicSelect = document.getElementById('dailyTopicSelect');
+    const plannerList = document.getElementById('plannerList');
+    const checkpointTableBody = document.getElementById('checkpointTableBody');
+    const warningList = document.getElementById('warningList');
+    const suggestionChips = document.getElementById('suggestionChips');
+    const laggingTableBody = document.getElementById('laggingTableBody');
+    const reportCards = document.getElementById('reportCards');
+    const feedbackList = document.getElementById('feedbackList');
+    const avgRating = document.getElementById('avgRating');
+    const sessionSummary = document.getElementById('sessionSummary');
+
+    const syllabusForm = document.getElementById('syllabusForm');
+    const addTodayTopicBtn = document.getElementById('addTodayTopic');
+    const feedbackForm = document.getElementById('feedbackForm');
+
+    async function apiGet(endpoint) {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    async function apiPost(endpoint, payload = {}) {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    async function loadTeacherDashboardData() {
+      try {
+        const data = await apiGet('/teacher/dashboard-data/');
+
+        // Optional sources: do not block teacher page if these fail.
+        const [analyticsResult, emotionResult] = await Promise.allSettled([
+          apiGet('/analytics/?days=30'),
+          apiGet('/emotion_stats/'),
+        ]);
+
+        const analyticsData = analyticsResult.status === 'fulfilled' ? analyticsResult.value : {};
+        const emotionData = emotionResult.status === 'fulfilled' ? emotionResult.value : {};
+
+        if (!data || data.success === false) {
+          throw new Error(data?.error || 'Failed to load teacher data');
+        }
+
+        syllabusTopics = data.topics || [];
+        plannerTopics = data.planner || [];
+        laggingStudents = data.lagging || [];
+        studentReports = data.performance || [];
+        feedbackData = data.feedback || [];
+        delayedTopics = data.delayed || [];
+        checkpointRows = data.checkpoints || [];
+        averageRating = Number(data.avgRating || 0);
+
+        const currentSession = data.session || {};
+        const topicNames = Array.isArray(currentSession.topicNames) ? currentSession.topicNames : [];
+        const previewTopics = topicNames.slice(0, 3).join(', ');
+        const extraCount = topicNames.length > 3 ? ` +${topicNames.length - 3} more` : '';
+        if (currentSession.id) {
+          sessionSummary.textContent = `Session: ${currentSession.className || 'Active'} | Subject: ${currentSession.subject || '-'} | Topics: ${currentSession.topicCount || topicNames.length} ${previewTopics ? `(${previewTopics}${extraCount})` : ''}`;
+        } else {
+          sessionSummary.textContent = `No active session. Total syllabus topics: ${currentSession.topicCount || topicNames.length}.`;
+        }
+
+        analyticsStudentMetrics = Array.isArray(analyticsData?.student_metrics)
+          ? analyticsData.student_metrics
+          : [];
+
+        const emotionStudents = Array.isArray(emotionData?.students) ? emotionData.students : [];
+        liveEmotionByStudent = {};
+        emotionStudents.forEach((entry) => {
+          const sid = entry.student_id;
+          if (!sid) return;
+          liveEmotionByStudent[sid] = {
+            engagement: Number(entry.engagement_score || entry.engagement || 0),
+          };
+        });
+
+        // Section 6: Use analytics + emotion_stats to build real student performance data.
+        if (analyticsStudentMetrics.length > 0) {
+          const completionByStudent = {};
+          (data.performance || []).forEach((p) => {
+            completionByStudent[p.studentId] = Number(p.completion || 0);
+          });
+
+          studentReports = analyticsStudentMetrics.map((metric) => {
+            const sid = metric.student_id;
+            const liveEng = liveEmotionByStudent[sid]?.engagement;
+            const engagement = Number.isFinite(liveEng) && liveEng > 0
+              ? liveEng
+              : Number(metric.avg_engagement || 0);
+
+            return {
+              studentId: sid,
+              name: metric.name,
+              engagement: Math.round(engagement * 10) / 10,
+              attendance: Number(metric.attendance_rate || 0),
+              completion: Number(completionByStudent[sid] || 0),
+            };
+          });
+        }
+
+        // Section 5: Students with engagement below 60% from analytics API.
+        const laggingTopicByStudent = {};
+        (data.lagging || []).forEach((entry) => {
+          if (!laggingTopicByStudent[entry.studentId]) {
+            laggingTopicByStudent[entry.studentId] = {
+              topic: entry.topic,
+              topicId: entry.topicId,
+            };
+          }
+        });
+
+        laggingStudents = (analyticsStudentMetrics || [])
+          .filter((metric) => Number(metric.avg_engagement || 0) < 60)
+          .map((metric) => ({
+            studentId: metric.student_id,
+            name: metric.name,
+            topic: laggingTopicByStudent[metric.student_id]?.topic || 'General attention needed',
+            topicId: laggingTopicByStudent[metric.student_id]?.topicId || null,
+            engagement: Number(metric.avg_engagement || 0),
+          }));
+
+        refreshDashboardData();
+      } catch (error) {
+        console.error('Teacher dashboard load error:', error);
+        alert(`Failed to load teacher data: ${error.message || 'Unknown error'}`);
+      }
+    }
+
+    document.getElementById('menuBtn').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+
+    syllabusForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const subject = document.getElementById('subjectInput').value.trim();
+      const unit = document.getElementById('unitInput').value.trim();
+      const topic = document.getElementById('topicInput').value.trim();
+
+      if (!subject || !unit || !topic) return;
+
+      try {
+        await apiPost('/teacher/syllabus/topics/add/', { subject, unit, topic });
+        syllabusForm.reset();
+        await loadTeacherDashboardData();
+      } catch (error) {
+        console.error('Add topic error:', error);
+        alert('Could not add topic. Please try again.');
+      }
+    });
+
+    addTodayTopicBtn.addEventListener('click', async () => {
+      const selectedId = Number(dailyTopicSelect.value);
+      if (!selectedId) return;
+
+      try {
+        await apiPost('/teacher/planner/add/', { topic_id: selectedId });
+        await loadTeacherDashboardData();
+      } catch (error) {
+        console.error('Add daily topic error:', error);
+        alert('Could not add topic to today\'s plan.');
+      }
+    });
+
+    feedbackForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const lecture = document.getElementById('feedbackLectureInput').value.trim();
+      const rating = parseFloat(document.getElementById('feedbackRatingInput').value || '0');
+      const comment = document.getElementById('feedbackCommentInput').value.trim();
+      if (!lecture || !rating || !comment) return;
+
+      try {
+        await apiPost('/teacher/feedback/add/', { lecture, rating, comment });
+        feedbackForm.reset();
+        await loadTeacherDashboardData();
+      } catch (error) {
+        console.error('Add feedback error:', error);
+        alert('Could not save feedback.');
+      }
+    });
+
+    document.getElementById('exportPdfBtn').addEventListener('click', () => {
+      window.print();
+    });
+
+    document.getElementById('exportExcelBtn').addEventListener('click', () => {
+      const headers = ['Student', 'Engagement', 'Attendance', 'Topic Completion'];
+      const rows = studentReports.map((s) => [s.name, `${s.engagement}%`, `${s.attendance}%`, `${s.completion}%`]);
+      const csvContent = [headers, ...rows].map((row) => row.join(',')).join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'teacher_student_performance.csv';
+      link.click();
+    });
+
+    function refreshDashboardData() {
+      renderSyllabus();
+      renderPlannerSelector();
+      renderPlanner();
+      renderCheckpoints();
+      renderAutoHealing();
+      renderLaggingStudents();
+      renderReports();
+      renderFeedback();
+      updateSyllabusProgress();
+      updateSyllabusChart();
+    }
+
+    function renderSyllabus() {
+      topicList.innerHTML = '';
+
+      syllabusTopics.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = 'item-row';
+
+        li.innerHTML = `
+          <div class="item-main">
+            <div class="item-title">${item.topic}</div>
+            <div class="item-sub">${item.subject} | ${item.unit}</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;">
+            ${item.delayed ? '<span class="badge-delay">Delayed</span>' : ''}
+            <select aria-label="Status select for topic ${item.topic}" data-topic-id="${item.id}" class="topic-status-select">
+              <option value="pending" ${item.status === 'pending' ? 'selected' : ''}>Pending</option>
+              <option value="in-progress" ${item.status === 'in-progress' ? 'selected' : ''}>In Progress</option>
+              <option value="completed" ${item.status === 'completed' ? 'selected' : ''}>Completed</option>
+            </select>
+            <span class="status ${item.status}">${item.status}</span>
+          </div>
+        `;
+
+        topicList.appendChild(li);
+      });
+
+      document.querySelectorAll('.topic-status-select').forEach((select) => {
+        select.addEventListener('change', async (e) => {
+          const topicId = Number(e.target.dataset.topicId);
+          const status = e.target.value;
+          try {
+            await apiPost(`/teacher/syllabus/topics/${topicId}/status/`, { status });
+            await loadTeacherDashboardData();
+          } catch (error) {
+            console.error('Update topic status error:', error);
+            alert('Could not update topic status.');
+          }
+        });
+      });
+    }
+
+    function updateSyllabusProgress() {
+      const completed = syllabusTopics.filter((s) => s.status === 'completed').length;
+      const total = syllabusTopics.length || 1;
+      const pct = Math.round((completed / total) * 100);
+
+      document.getElementById('syllabusProgressFill').style.width = pct + '%';
+      document.getElementById('syllabusProgressText').textContent = pct + '%';
+    }
+
+    function renderPlannerSelector() {
+      dailyTopicSelect.innerHTML = '<option value="">Select topic</option>';
+      syllabusTopics.forEach((topic) => {
+        if (topic.status !== 'completed') {
+          const option = document.createElement('option');
+          option.value = String(topic.id);
+          option.textContent = `${topic.topic} (${topic.unit})`;
+          dailyTopicSelect.appendChild(option);
+        }
+      });
+    }
+
+    function renderPlanner() {
+      plannerList.innerHTML = '';
+      if (!plannerTopics.length) {
+        plannerList.innerHTML = '<li class="item-row"><span class="item-sub">No topics planned yet for today.</span></li>';
+        return;
+      }
+
+      plannerTopics.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = 'item-row';
+        li.innerHTML = `
+          <div class="item-main">
+            <div class="item-title">${item.topic}</div>
+            <div class="item-sub">${item.unit}</div>
+          </div>
+          <button class="${item.done ? 'btn-soft' : 'btn-primary'}" data-plan-id="${item.id}">
+            ${item.done ? 'Marked Done' : 'Mark Done'}
+          </button>
+        `;
+        plannerList.appendChild(li);
+      });
+
+      plannerList.querySelectorAll('button').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          const planId = Number(e.target.dataset.planId);
+          try {
+            const result = await apiPost(`/teacher/planner/${planId}/complete/`, {});
+            if (result?.nextTopicLaunched?.topic) {
+              alert(`Checkpoint cleared. Next topic launched: ${result.nextTopicLaunched.topic}`);
+            }
+            await loadTeacherDashboardData();
+          } catch (error) {
+            console.error('Complete plan error:', error);
+            alert('Could not mark topic as done.');
+          }
+        });
+      });
+    }
+
+    function renderCheckpoints() {
+      checkpointTableBody.innerHTML = '';
+      const rows = checkpointRows.length
+        ? checkpointRows
+        : syllabusTopics.map((topic, index) => ({
+          topicNumber: index + 1,
+          topic: topic.topic,
+          checkpointAssigned: topic.checkpointAssigned,
+          checkpointRate: topic.checkpointRate,
+          respondedStudents: 0,
+          totalStudents: 0,
+        }));
+
+      rows.forEach((topic) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${topic.topicNumber || '-'}</td>
+          <td>${topic.topic}</td>
+          <td>${topic.checkpointAssigned ? 'Yes' : 'No'}</td>
+          <td>${Number(topic.respondedStudents || 0)} / ${Number(topic.totalStudents || 0)}</td>
+          <td>${topic.checkpointAssigned ? `${topic.checkpointRate}%` : '-'}</td>
+        `;
+        checkpointTableBody.appendChild(tr);
+      });
+    }
+
+    function renderAutoHealing() {
+      warningList.innerHTML = '';
+      suggestionChips.innerHTML = '';
+
+      delayedTopics.forEach((topic) => {
+        const li = document.createElement('li');
+        li.className = 'item-row';
+        li.innerHTML = `
+          <div class="item-main">
+            <div class="item-title">${topic.topic}</div>
+            <div class="item-sub">Planned: ${topic.plannedDate || '-'} | Revised: ${topic.revisedDate || '-'}</div>
+          </div>
+          <span class="badge-delay"><i class="fa-solid fa-triangle-exclamation"></i> Behind Schedule</span>
+        `;
+        warningList.appendChild(li);
+
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.innerHTML = `<i class="fa-solid fa-calendar-plus"></i> ${topic.topic} -> ${topic.revisedDate || 'TBD'}`;
+        suggestionChips.appendChild(chip);
+      });
+
+      if (!delayedTopics.length) {
+        warningList.innerHTML = '<li class="item-row"><span class="item-sub">No delayed topics. Schedule is healthy.</span></li>';
+        suggestionChips.innerHTML = '<span class="chip"><i class="fa-solid fa-check"></i> No rescheduling required</span>';
+      }
+    }
+
+    function renderLaggingStudents() {
+      laggingTableBody.innerHTML = '';
+      if (!laggingStudents.length) {
+        laggingTableBody.innerHTML = '<tr><td colspan="4">No students currently below 60% engagement.</td></tr>';
+        return;
+      }
+
+      laggingStudents.forEach((student) => {
+        const disabledAttr = student.topicId ? '' : 'disabled';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${student.name}</td>
+          <td>${student.topic}</td>
+          <td>${Number(student.engagement || 0).toFixed(1)}%</td>
+          <td><button class="btn-primary" ${disabledAttr} data-student-id="${student.studentId}" data-topic-id="${student.topicId || ''}">Schedule Extra Lecture</button></td>
+        `;
+        laggingTableBody.appendChild(tr);
+      });
+
+      laggingTableBody.querySelectorAll('button').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          const studentId = e.target.dataset.studentId;
+          const topicId = Number(e.target.dataset.topicId);
+          if (!topicId) {
+            alert('No lagging topic mapped yet for this student.');
+            return;
+          }
+          try {
+            const result = await apiPost('/teacher/extra-lectures/schedule/', {
+              student_id: studentId,
+              topic_id: topicId,
+            });
+            alert(result?.message || 'Extra lecture scheduled.');
+          } catch (error) {
+            console.error('Schedule extra lecture error:', error);
+            alert('Could not schedule extra lecture.');
+          }
+        });
+      });
+    }
+
+    function renderReports() {
+      reportCards.innerHTML = '';
+      if (!studentReports.length) {
+        reportCards.innerHTML = '<div class="student-kpi">No analytics data available yet.</div>';
+        return;
+      }
+
+      studentReports.forEach((student) => {
+        const div = document.createElement('div');
+        div.className = 'student-kpi';
+        div.innerHTML = `
+          <h4>${student.name}</h4>
+          <div class="kpi-item"><span>Engagement</span><strong>${Number(student.engagement || 0).toFixed(1)}%</strong></div>
+          <div class="kpi-item"><span>Attendance</span><strong>${Number(student.attendance || 0).toFixed(1)}%</strong></div>
+          <div class="kpi-item"><span>Topic Completion</span><strong>${Number(student.completion || 0).toFixed(1)}%</strong></div>
+          <div class="kpi-item"><span>Extra Lectures</span><strong>${Number(student.extraLectures || 0)}</strong></div>
+        `;
+        reportCards.appendChild(div);
+      });
+    }
+
+    function renderFeedback() {
+      feedbackList.innerHTML = '';
+      avgRating.textContent = `${(Number.isFinite(averageRating) ? averageRating : 0).toFixed(1)} / 5`;
+
+      feedbackData.forEach((entry) => {
+        const li = document.createElement('li');
+        li.className = 'feedback-item';
+        li.innerHTML = `
+          <div class="feedback-head">
+            <span>${entry.lecture}</span>
+            <span class="rating">${entry.rating} <i class="fa-solid fa-star"></i></span>
+          </div>
+          <p style="font-size:0.84rem; color:#5a657f;">${entry.comment}</p>
+        `;
+        feedbackList.appendChild(li);
+      });
+    }
+
+    function updateSyllabusChart() {
+      const pendingCount = syllabusTopics.filter((s) => s.status === 'pending').length;
+      const inProgressCount = syllabusTopics.filter((s) => s.status === 'in-progress').length;
+      const completedCount = syllabusTopics.filter((s) => s.status === 'completed').length;
+      const data = [pendingCount, inProgressCount, completedCount];
+
+      if (!syllabusChart) {
+        const ctx = document.getElementById('syllabusChart');
+        syllabusChart = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Pending', 'In Progress', 'Completed'],
+            datasets: [{ data, backgroundColor: ['#f59e0b', '#4f8ef7', '#16a34a'], borderWidth: 0 }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { boxWidth: 12, usePointStyle: true }
+              }
+            }
+          }
+        });
+      } else {
+        syllabusChart.data.datasets[0].data = data;
+        syllabusChart.update();
+      }
+    }
+
+    loadTeacherDashboardData();
+  </script>
+</body>
+</html>

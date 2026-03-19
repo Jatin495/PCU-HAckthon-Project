@@ -262,3 +262,100 @@ class Report(models.Model):
     class Meta:
         db_table = 'reports'
         ordering = ['-created_at']
+
+
+class SyllabusTopic(models.Model):
+    """Teacher-defined syllabus topics and completion state."""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('in-progress', 'In Progress'),
+        ('completed', 'Completed'),
+    ]
+
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name='syllabus_topics')
+    subject = models.CharField(max_length=120)
+    unit = models.CharField(max_length=120)
+    topic = models.CharField(max_length=180)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    planned_date = models.DateField(default=timezone.now)
+    revised_date = models.DateField(null=True, blank=True)
+    is_delayed = models.BooleanField(default=False)
+    checkpoint_assigned = models.BooleanField(default=False)
+    checkpoint_completion_rate = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.subject} - {self.unit} - {self.topic}"
+
+    class Meta:
+        db_table = 'syllabus_topics'
+        ordering = ['created_at']
+
+
+class DailyLectureTopic(models.Model):
+    """Topics planned for a specific lecture day."""
+    topic = models.ForeignKey(SyllabusTopic, on_delete=models.CASCADE, related_name='daily_plans')
+    lecture_date = models.DateField(default=timezone.now)
+    is_completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.topic.topic} ({self.lecture_date})"
+
+    class Meta:
+        db_table = 'daily_lecture_topics'
+        unique_together = ['topic', 'lecture_date']
+        ordering = ['-lecture_date', 'topic__topic']
+
+
+class StudentTopicProgress(models.Model):
+    """Per-student progress in each syllabus topic."""
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='topic_progress')
+    topic = models.ForeignKey(SyllabusTopic, on_delete=models.CASCADE, related_name='student_progress')
+    completion_percent = models.FloatField(default=0.0)
+    needs_extra_lecture = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.student.student_id} - {self.topic.topic} ({self.completion_percent:.0f}%)"
+
+    class Meta:
+        db_table = 'student_topic_progress'
+        unique_together = ['student', 'topic']
+
+
+class ExtraLecturePlan(models.Model):
+    """Extra support sessions for lagging students/topics."""
+    STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'),
+        ('completed', 'Completed'),
+    ]
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='extra_lectures')
+    topic = models.ForeignKey(SyllabusTopic, on_delete=models.CASCADE, related_name='extra_lectures')
+    scheduled_date = models.DateField(default=timezone.now)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.student.student_id} - {self.topic.topic} ({self.scheduled_date})"
+
+    class Meta:
+        db_table = 'extra_lecture_plans'
+        ordering = ['-scheduled_date', '-created_at']
+
+
+class LectureFeedback(models.Model):
+    """Student feedback collected after lectures."""
+    lecture_title = models.CharField(max_length=200)
+    rating = models.FloatField(default=0.0)
+    comment = models.TextField(blank=True, default='')
+    submitted_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"{self.lecture_title} ({self.rating:.1f})"
+
+    class Meta:
+        db_table = 'lecture_feedback'
+        ordering = ['-submitted_at']

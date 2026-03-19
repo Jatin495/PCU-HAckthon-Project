@@ -39,6 +39,10 @@
                     <span class="nav-icon">👥</span>
                     Students
                 </a>
+                <a href="teacher.html" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    Teacher
+                </a>
                 <a href="reports.html" class="nav-item active">
                     <span class="nav-icon">📄</span>
                     Reports
@@ -204,11 +208,8 @@
                         
                         <div style="margin-top: 1rem; padding: 1rem; background: var(--hover-bg); border-radius: 8px;">
                             <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem;">Key Insights</h3>
-                            <ul style="font-size: 0.875rem; color: var(--text-secondary); margin: 0; padding-left: 1.5rem;">
-                                <li>Average engagement increased by 5% this week</li>
-                                <li>Peak engagement observed during interactive sessions</li>
-                                <li>3 students show consistently low engagement</li>
-                                <li>Monday sessions have 15% lower engagement</li>
+                            <ul id="engagementInsightsList" style="font-size: 0.875rem; color: var(--text-secondary); margin: 0; padding-left: 1.5rem;">
+                                <li>Loading insights from database...</li>
                             </ul>
                         </div>
                     </div>
@@ -228,23 +229,8 @@
                         
                         <div style="margin-top: 1rem; padding: 1rem; background: var(--hover-bg); border-radius: 8px;">
                             <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem;">Emotional Trends</h3>
-                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.8rem;">
-                                <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                    <span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></span>
-                                    Happy: +12% ↗️
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                    <span style="width: 8px; height: 8px; background: #6b7280; border-radius: 50%;"></span>
-                                    Neutral: -5% ↘️
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                    <span style="width: 8px; height: 8px; background: #f59e0b; border-radius: 50%;"></span>
-                                    Confused: -8% ↘️
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                    <span style="width: 8px; height: 8px; background: #ef4444; border-radius: 50%;"></span>
-                                    Bored: -3% ↘️
-                                </div>
+                            <div id="emotionTrendsSummary" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.8rem;">
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">Loading emotion trends...</div>
                             </div>
                         </div>
                     </div>
@@ -265,26 +251,26 @@
                     <div class="grid grid-cols-4" style="gap: 1rem; margin-bottom: 1.5rem;">
                         <div class="stat-card">
                             <div class="stat-label">Avg Attendance</div>
-                            <div class="stat-value">91.7%</div>
-                            <div class="stat-change positive">↑ 2.3% from last month</div>
+                            <div class="stat-value" id="reportAvgAttendance">0.0%</div>
+                            <div class="stat-change" id="reportAvgAttendanceChange">Awaiting data</div>
                         </div>
                         
                         <div class="stat-card">
                             <div class="stat-label">Avg Engagement</div>
-                            <div class="stat-value">78.5%</div>
-                            <div class="stat-change positive">↑ 5.1% improvement</div>
+                            <div class="stat-value" id="reportAvgEngagement">0.0%</div>
+                            <div class="stat-change" id="reportAvgEngagementChange">Awaiting data</div>
                         </div>
                         
                         <div class="stat-card">
                             <div class="stat-label">Focus Score</div>
-                            <div class="stat-value">82.3</div>
-                            <div class="stat-change positive">↑ 3.7 points</div>
+                            <div class="stat-value" id="reportFocusScore">0.0%</div>
+                            <div class="stat-change" id="reportFocusScoreChange">Awaiting data</div>
                         </div>
                         
                         <div class="stat-card">
                             <div class="stat-label">Participation</div>
-                            <div class="stat-value">76.8%</div>
-                            <div class="stat-change positive">↑ 4.2% increase</div>
+                            <div class="stat-value" id="reportParticipation">0.0%</div>
+                            <div class="stat-change" id="reportParticipationChange">Awaiting data</div>
                         </div>
                     </div>
                     
@@ -318,53 +304,8 @@
                     </div>
                     
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
-                        <!-- Top 3 Students -->
-                        <div style="padding: 1rem; background: linear-gradient(135deg, rgba(255,215,0,0.1), rgba(255,193,7,0.1)); border-radius: 12px; border: 1px solid rgba(255,193,7,0.2);">
-                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                                <div style="font-size: 2rem;">🥇</div>
-                                <div>
-                                    <h3 style="font-size: 1rem; font-weight: 600; margin: 0;">Emma Wilson</h3>
-                                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;">STU001</p>
-                                </div>
-                            </div>
-                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.875rem;">
-                                <div>Engagement: <strong>95%</strong></div>
-                                <div>Attendance: <strong>100%</strong></div>
-                                <div>Focus: <strong>92%</strong></div>
-                                <div>Participation: <strong>88%</strong></div>
-                            </div>
-                        </div>
-                        
-                        <div style="padding: 1rem; background: linear-gradient(135deg, rgba(192,192,192,0.1), rgba(169,169,169,0.1)); border-radius: 12px; border: 1px solid rgba(169,169,169,0.2);">
-                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                                <div style="font-size: 2rem;">🥈</div>
-                                <div>
-                                    <h3 style="font-size: 1rem; font-weight: 600; margin: 0;">Liam Johnson</h3>
-                                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;">STU002</p>
-                                </div>
-                            </div>
-                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.875rem;">
-                                <div>Engagement: <strong>92%</strong></div>
-                                <div>Attendance: <strong>96%</strong></div>
-                                <div>Focus: <strong>89%</strong></div>
-                                <div>Participation: <strong>85%</strong></div>
-                            </div>
-                        </div>
-                        
-                        <div style="padding: 1rem; background: linear-gradient(135deg, rgba(205,127,50,0.1), rgba(184,134,11,0.1)); border-radius: 12px; border: 1px solid rgba(184,134,11,0.2);">
-                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                                <div style="font-size: 2rem;">🥉</div>
-                                <div>
-                                    <h3 style="font-size: 1rem; font-weight: 600; margin: 0;">Olivia Davis</h3>
-                                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;">STU003</p>
-                                </div>
-                            </div>
-                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.875rem;">
-                                <div>Engagement: <strong>89%</strong></div>
-                                <div>Attendance: <strong>100%</strong></div>
-                                <div>Focus: <strong>87%</strong></div>
-                                <div>Participation: <strong>82%</strong></div>
-                            </div>
+                        <div id="topRankingsContainer" style="grid-column: 1 / -1; color: var(--text-secondary); padding: 0.5rem 0;">
+                            Loading real student rankings...
                         </div>
                     </div>
                 </div>
@@ -376,6 +317,10 @@
     <script src="main.js"></script>
     <script src="charts.js"></script>
     <script>
+        let reportAnalyticsData = null;
+        let engagementSummaryChart = null;
+        let emotionAnalysisChart = null;
+
         // Initialize reports page
         document.addEventListener('DOMContentLoaded', async function() {
             const currentUser = localStorage.getItem('currentUser');
@@ -390,14 +335,172 @@
             
             // Load data
             await loadRecentReports();
-            loadMetricsTable();
+            await loadReportClassOptions();
+            await refreshReportPreviewData();
+
+            const dateRangeSelect = document.getElementById('dateRange');
+            if (dateRangeSelect) {
+                dateRangeSelect.addEventListener('change', refreshReportPreviewData);
+            }
+
+            const classSelect = document.getElementById('reportClass');
+            if (classSelect) {
+                classSelect.addEventListener('change', refreshReportPreviewData);
+            }
             
-            // Initialize charts
-            setTimeout(() => {
-                createEngagementSummaryChart();
-                createEmotionAnalysisChart();
-            }, 100);
+            // Render charts once layout settles.
+            setTimeout(refreshReportPreviewData, 100);
         });
+
+        async function loadReportClassOptions() {
+            const classSelect = document.getElementById('reportClass');
+            if (!classSelect || !window.SmartClassAPI || !window.SmartClassAPI.API) return;
+
+            try {
+                const response = await window.SmartClassAPI.API.get('/sessions/');
+                const sessions = Array.isArray(response?.sessions) ? response.sessions : [];
+                const unique = Array.from(new Set(sessions.map(s => s.class_name).filter(Boolean)));
+                if (unique.length === 0) {
+                    return;
+                }
+
+                classSelect.innerHTML = '';
+                unique.forEach((name) => {
+                    const option = document.createElement('option');
+                    option.textContent = name;
+                    option.value = name;
+                    classSelect.appendChild(option);
+                });
+                const allOption = document.createElement('option');
+                allOption.textContent = 'All Classes';
+                allOption.value = 'All Classes';
+                classSelect.appendChild(allOption);
+                classSelect.value = 'All Classes';
+            } catch (error) {
+                console.warn('Could not load class options from sessions:', error);
+            }
+        }
+
+        async function refreshReportPreviewData() {
+            if (!window.SmartClassAPI || !window.SmartClassAPI.API) {
+                return;
+            }
+
+            const dateRangeLabel = document.getElementById('dateRange')?.value || 'This Week';
+            const days = mapReportRangeToDays(dateRangeLabel);
+
+            try {
+                const data = await window.SmartClassAPI.API.get('/analytics/', { days });
+                if (!data || data.error || data.message) {
+                    reportAnalyticsData = null;
+                    renderReportFallback();
+                    return;
+                }
+
+                reportAnalyticsData = data;
+                renderReportInsights(data);
+                updateReportMetricCards(data);
+                loadMetricsTable(data);
+                createEngagementSummaryChart(data);
+                createEmotionAnalysisChart(data);
+                await loadTopStudentRankings(data);
+            } catch (error) {
+                console.error('Failed to refresh report preview data:', error);
+                reportAnalyticsData = null;
+                renderReportFallback();
+            }
+        }
+
+        function renderReportFallback() {
+            const insightsList = document.getElementById('engagementInsightsList');
+            if (insightsList) {
+                insightsList.innerHTML = '<li>No analytics data available. Start a live session to collect report metrics.</li>';
+            }
+            const emotionSummary = document.getElementById('emotionTrendsSummary');
+            if (emotionSummary) {
+                emotionSummary.innerHTML = '<div>Emotion trend data unavailable.</div>';
+            }
+            updateReportMetricCards({
+                overall_avg_engagement: 0,
+                attendance_rate: 0,
+                student_rankings: [],
+                engagement_trend: 0,
+                trend_has_data: false,
+            });
+            loadMetricsTable({
+                overall_avg_engagement: 0,
+                attendance_rate: 0,
+                student_rankings: [],
+                engagement_trend: 0,
+                trend_has_data: false,
+            });
+            createEngagementSummaryChart({ daily_engagement: [] });
+            createEmotionAnalysisChart({ emotion_trend: {} });
+            loadTopStudentRankings({ student_rankings: [] });
+        }
+
+        function renderReportInsights(data) {
+            const insightsList = document.getElementById('engagementInsightsList');
+            if (!insightsList) return;
+
+            const trend = Number(data.engagement_trend || 0);
+            const topHour = (Array.isArray(data.hourly_pattern) && data.hourly_pattern.length)
+                ? data.hourly_pattern.reduce((best, cur) => Number(cur.engagement || 0) > Number(best.engagement || 0) ? cur : best, data.hourly_pattern[0])
+                : null;
+            const lowCount = Number(data.at_risk_count || 0);
+            const attendance = Number(data.attendance_rate || 0).toFixed(1);
+
+            const items = [
+                `Overall engagement: ${Number(data.overall_avg_engagement || 0).toFixed(1)}%.`,
+                `${trend >= 0 ? 'Improving' : 'Declining'} trend: ${trend >= 0 ? '+' : ''}${trend.toFixed(1)} points in selected period.`,
+                topHour ? `Peak engagement time: ${topHour.hour} (${Number(topHour.engagement || 0).toFixed(1)}%).` : 'Peak engagement time unavailable.',
+                `${lowCount} student(s) currently flagged as needing attention. Attendance: ${attendance}%.`,
+            ];
+
+            insightsList.innerHTML = items.map(text => `<li>${text}</li>`).join('');
+
+            const emotionSummary = document.getElementById('emotionTrendsSummary');
+            if (emotionSummary) {
+                const emotionEntries = Object.entries(data.emotion_trend || {}).sort((a, b) => Number(b[1]) - Number(a[1]));
+                if (!emotionEntries.length) {
+                    emotionSummary.innerHTML = '<div>No emotion records available for selected period.</div>';
+                } else {
+                    const colors = {
+                        happy: '#10b981', neutral: '#6b7280', focused: '#3b82f6', confused: '#f59e0b', bored: '#ef4444',
+                        sad: '#ec4899', angry: '#b91c1c', surprise: '#14b8a6', fear: '#a855f7', disgust: '#f97316', unknown: '#9ca3af'
+                    };
+                    emotionSummary.innerHTML = emotionEntries.slice(0, 6).map(([name, count]) => `
+                        <div style="display: flex; align-items: center; gap: 0.25rem;">
+                            <span style="width: 8px; height: 8px; background: ${colors[name] || '#9ca3af'}; border-radius: 50%;"></span>
+                            ${name}: ${count}
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+
+        function updateReportMetricCards(data) {
+            const rankings = Array.isArray(data.student_rankings) ? data.student_rankings : [];
+            const focusAvg = rankings.length
+                ? rankings.reduce((sum, s) => sum + Number(s.focus || 0), 0) / rankings.length
+                : 0;
+            const participationAvg = rankings.length
+                ? rankings.reduce((sum, s) => sum + Number(s.participation || 0), 0) / rankings.length
+                : 0;
+            const trend = Number(data.engagement_trend || 0);
+
+            setMetricCard('reportAvgAttendance', `${Number(data.attendance_rate || 0).toFixed(1)}%`, 'reportAvgAttendanceChange', `Period average`);
+            setMetricCard('reportAvgEngagement', `${Number(data.overall_avg_engagement || 0).toFixed(1)}%`, 'reportAvgEngagementChange', `${trend >= 0 ? '↑' : '↓'} ${Math.abs(trend).toFixed(1)} pts`);
+            setMetricCard('reportFocusScore', `${focusAvg.toFixed(1)}%`, 'reportFocusScoreChange', rankings.length ? 'From ranked students' : 'Awaiting data');
+            setMetricCard('reportParticipation', `${participationAvg.toFixed(1)}%`, 'reportParticipationChange', rankings.length ? 'From ranked students' : 'Awaiting data');
+        }
+
+        function setMetricCard(valueId, value, changeId, changeText) {
+            const valueEl = document.getElementById(valueId);
+            const changeEl = document.getElementById(changeId);
+            if (valueEl) valueEl.textContent = value;
+            if (changeEl) changeEl.textContent = changeText;
+        }
         
         async function loadRecentReports() {
             const tbody = document.getElementById('recentReportsTable');
@@ -439,23 +542,137 @@
                 tbody.appendChild(row);
             });
         }
+
+        function mapReportRangeToDays(rangeLabel) {
+            const rangeMap = {
+                'Today': 1,
+                'This Week': 7,
+                'This Month': 30,
+                'Last 30 Days': 30,
+                'Custom Range': 7,
+            };
+            return rangeMap[rangeLabel] || 7;
+        }
+
+        function getRankingStyleByIndex(index) {
+            if (index === 0) {
+                return {
+                    medal: '🥇',
+                    background: 'linear-gradient(135deg, rgba(255,215,0,0.1), rgba(255,193,7,0.1))',
+                    border: '1px solid rgba(255,193,7,0.2)',
+                };
+            }
+            if (index === 1) {
+                return {
+                    medal: '🥈',
+                    background: 'linear-gradient(135deg, rgba(192,192,192,0.1), rgba(169,169,169,0.1))',
+                    border: '1px solid rgba(169,169,169,0.2)',
+                };
+            }
+            if (index === 2) {
+                return {
+                    medal: '🥉',
+                    background: 'linear-gradient(135deg, rgba(205,127,50,0.1), rgba(184,134,11,0.1))',
+                    border: '1px solid rgba(184,134,11,0.2)',
+                };
+            }
+            return {
+                medal: `#${index + 1}`,
+                background: 'var(--hover-bg)',
+                border: '1px solid var(--border-color)',
+            };
+        }
+
+        async function loadTopStudentRankings(analyticsPayload = null) {
+            const container = document.getElementById('topRankingsContainer');
+            if (!container) return;
+
+            container.innerHTML = 'Loading real student rankings...';
+
+            try {
+                let analytics = analyticsPayload;
+                if (!analytics) {
+                    if (!window.SmartClassAPI || !window.SmartClassAPI.API) {
+                        throw new Error('API not available.');
+                    }
+                    const rangeLabel = document.getElementById('dateRange')?.value || 'This Week';
+                    const days = mapReportRangeToDays(rangeLabel);
+                    analytics = await window.SmartClassAPI.API.get('/analytics/', { days });
+                }
+
+                const rankings = Array.isArray(analytics?.student_rankings)
+                    ? analytics.student_rankings
+                    : (Array.isArray(analytics?.top_students) ? analytics.top_students : []);
+
+                if (!rankings.length) {
+                    container.innerHTML = 'No ranking data available yet. Run a live session to populate rankings.';
+                    return;
+                }
+
+                const top = rankings.slice(0, 6);
+                container.innerHTML = top.map((student, index) => {
+                    const style = getRankingStyleByIndex(index);
+                    const engagement = Number(student.avg_engagement || 0).toFixed(1);
+                    const attendance = Number(student.attendance || 0).toFixed(1);
+                    const focus = Number(student.focus || 0).toFixed(1);
+                    const participation = Number(student.participation || 0).toFixed(1);
+
+                    return `
+                        <div style="padding: 1rem; background: ${style.background}; border-radius: 12px; border: ${style.border}; margin-bottom: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                <div style="font-size: 2rem; min-width: 48px; text-align: center;">${style.medal}</div>
+                                <div>
+                                    <h3 style="font-size: 1rem; font-weight: 600; margin: 0;">${student.name || 'Unknown Student'}</h3>
+                                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;">${student.student_id || 'N/A'}</p>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.875rem;">
+                                <div>Engagement: <strong>${engagement}%</strong></div>
+                                <div>Attendance: <strong>${attendance}%</strong></div>
+                                <div>Focus: <strong>${focus}%</strong></div>
+                                <div>Participation: <strong>${participation}%</strong></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load real rankings:', error);
+                container.innerHTML = 'Unable to load ranking data from database.';
+            }
+        }
         
-        function loadMetricsTable() {
+        function loadMetricsTable(analyticsPayload = null) {
             const tbody = document.getElementById('metricsTable');
+            const data = analyticsPayload || reportAnalyticsData || {};
+            const daily = Array.isArray(data.daily_engagement) ? data.daily_engagement : [];
+            const rankings = Array.isArray(data.student_rankings) ? data.student_rankings : [];
+
+            const avg = (arr, pick) => arr.length ? (arr.reduce((s, item) => s + Number(pick(item) || 0), 0) / arr.length) : 0;
+            const firstHalf = daily.length > 1 ? daily.slice(0, Math.ceil(daily.length / 2)) : [];
+            const secondHalf = daily.length > 1 ? daily.slice(Math.ceil(daily.length / 2)) : [];
+
+            const prevEngagement = firstHalf.length ? avg(firstHalf, d => d.engagement) : Number(data.overall_avg_engagement || 0);
+            const currEngagement = secondHalf.length ? avg(secondHalf, d => d.engagement) : Number(data.overall_avg_engagement || 0);
+
+            const attendance = Number(data.attendance_rate || 0);
+            const focus = avg(rankings, s => s.focus);
+            const participation = avg(rankings, s => s.participation);
+            const atRisk = Number(data.at_risk_count || 0);
+
             const metrics = [
-                { metric: 'Attendance Rate', current: '91.7%', previous: '89.4%', change: '+2.3%', trend: 'up', status: 'excellent' },
-                { metric: 'Engagement Score', current: '78.5%', previous: '73.4%', change: '+5.1%', trend: 'up', status: 'good' },
-                { metric: 'Focus Duration', current: '42.3 min', previous: '38.7 min', change: '+3.6 min', trend: 'up', status: 'good' },
-                { metric: 'Participation Rate', current: '76.8%', previous: '72.6%', change: '+4.2%', trend: 'up', status: 'good' },
-                { metric: 'Question Response', current: '68.2%', previous: '65.1%', change: '+3.1%', trend: 'up', status: 'average' },
-                { metric: 'Assignment Completion', current: '94.5%', previous: '92.3%', change: '+2.2%', trend: 'up', status: 'excellent' }
+                { metric: 'Attendance Rate', current: `${attendance.toFixed(1)}%`, previous: `${attendance.toFixed(1)}%`, change: `${attendance.toFixed(1)}%`, trend: 'flat', status: attendance >= 85 ? 'excellent' : 'average' },
+                { metric: 'Engagement Score', current: `${currEngagement.toFixed(1)}%`, previous: `${prevEngagement.toFixed(1)}%`, change: `${(currEngagement - prevEngagement) >= 0 ? '+' : ''}${(currEngagement - prevEngagement).toFixed(1)}%`, trend: (currEngagement - prevEngagement) >= 0 ? 'up' : 'down', status: currEngagement >= 80 ? 'good' : 'average' },
+                { metric: 'Focus Score', current: `${focus.toFixed(1)}%`, previous: `${focus.toFixed(1)}%`, change: `${focus.toFixed(1)}%`, trend: 'flat', status: focus >= 75 ? 'good' : 'average' },
+                { metric: 'Participation Rate', current: `${participation.toFixed(1)}%`, previous: `${participation.toFixed(1)}%`, change: `${participation.toFixed(1)}%`, trend: 'flat', status: participation >= 70 ? 'good' : 'average' },
+                { metric: 'At-Risk Students', current: `${atRisk}`, previous: `${atRisk}`, change: `${atRisk}`, trend: atRisk > 0 ? 'down' : 'up', status: atRisk === 0 ? 'excellent' : 'warning' },
+                { metric: 'Records Processed', current: `${Number(data.total_records || 0)}`, previous: `${Number(data.total_records || 0)}`, change: `${Number(data.total_records || 0)}`, trend: 'up', status: 'good' }
             ];
             
             tbody.innerHTML = '';
             metrics.forEach(metric => {
                 const row = document.createElement('tr');
-                const statusColor = metric.status === 'excellent' ? 'success' : metric.status === 'good' ? 'info' : 'warning';
-                const trendIcon = metric.trend === 'up' ? '↗️' : '↘️';
+                const statusColor = metric.status === 'excellent' ? 'success' : metric.status === 'good' ? 'info' : metric.status === 'warning' ? 'danger' : 'warning';
+                const trendIcon = metric.trend === 'up' ? '↗️' : metric.trend === 'down' ? '↘️' : '➡️';
                 
                 row.innerHTML = `
                     <td><strong>${metric.metric}</strong></td>
@@ -469,17 +686,29 @@
             });
         }
         
-        function createEngagementSummaryChart() {
+        function createEngagementSummaryChart(analyticsPayload = null) {
             const ctx = document.getElementById('engagementSummaryChart');
             if (!ctx) return;
+
+            const data = analyticsPayload || reportAnalyticsData || {};
+            const daily = Array.isArray(data.daily_engagement) ? data.daily_engagement : [];
+            const labels = daily.length ? daily.map(item => {
+                const d = new Date(item.date);
+                return Number.isNaN(d.getTime()) ? item.date : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }) : ['No Data'];
+            const values = daily.length ? daily.map(item => Number(item.engagement || 0)) : [0];
+
+            if (engagementSummaryChart) {
+                engagementSummaryChart.destroy();
+            }
             
-            new Chart(ctx, {
+            engagementSummaryChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                    labels,
                     datasets: [{
                         label: 'Engagement %',
-                        data: [72, 78, 82, 85, 79],
+                        data: values,
                         backgroundColor: '#6366f1',
                         borderRadius: 6
                     }]
@@ -507,17 +736,28 @@
             });
         }
         
-        function createEmotionAnalysisChart() {
+        function createEmotionAnalysisChart(analyticsPayload = null) {
             const ctx = document.getElementById('emotionAnalysisChart');
             if (!ctx) return;
+
+            const data = analyticsPayload || reportAnalyticsData || {};
+            const emotionObj = data.emotion_trend || {};
+            const entries = Object.entries(emotionObj).sort((a, b) => Number(b[1]) - Number(a[1]));
+            const labels = entries.length ? entries.map(([k]) => k.charAt(0).toUpperCase() + k.slice(1)) : ['No Data'];
+            const values = entries.length ? entries.map(([, v]) => Number(v || 0)) : [1];
+            const colors = ['#10b981', '#6b7280', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#f97316', '#14b8a6'];
+
+            if (emotionAnalysisChart) {
+                emotionAnalysisChart.destroy();
+            }
             
-            new Chart(ctx, {
+            emotionAnalysisChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Happy', 'Neutral', 'Confused', 'Bored'],
+                    labels,
                     datasets: [{
-                        data: [45, 30, 15, 10],
-                        backgroundColor: ['#10b981', '#6b7280', '#f59e0b', '#ef4444'],
+                        data: values,
+                        backgroundColor: values.map((_, idx) => colors[idx % colors.length]),
                         borderWidth: 0
                     }]
                 },

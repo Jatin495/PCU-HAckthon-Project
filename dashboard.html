@@ -39,6 +39,10 @@
                     <span class="nav-icon">👥</span>
                     Students
                 </a>
+                  <a href="teacher.html" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    Teacher
+                </a>
                 <a href="reports.html" class="nav-item">
                     <span class="nav-icon">📄</span>
                     Reports
@@ -115,6 +119,37 @@
                 
                 <!-- Main Dashboard Grid -->
                 <div class="grid grid-cols-1" style="gap: 1.5rem;">
+                    <!-- Quick Actions: Start Session -->
+                    <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                        <div class="card-header" style="border-bottom: 1px solid rgba(255,255,255,0.2);">
+                            <div>
+                                <h2 class="card-title" style="color: white; margin: 0;">Today's Assigned Topic</h2>
+                                <p class="card-subtitle" style="color: rgba(255,255,255,0.8);">Use teacher planner data from database and start live session</p>
+                            </div>
+                        </div>
+                        <div style="padding: 1.5rem; display: grid; grid-template-columns: 1.5fr 1fr 1fr auto; gap: 1rem; align-items: end;">
+                            <div>
+                                <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; text-transform: uppercase; opacity: 0.9;">Today's Topic</label>
+                                <select id="todayTopicSelect" style="width: 100%; padding: 0.75rem; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(255,255,255,0.1); color: white; font-weight: 500;">
+                                    <option value="" style="background: black; color: white;">Loading today's planned topics...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; text-transform: uppercase; opacity: 0.9;">Subject</label>
+                                <input type="text" id="todayTopicSubject" value="-" readonly style="width: 100%; padding: 0.75rem; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(255,255,255,0.1); color: white; font-weight: 500;" />
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; text-transform: uppercase; opacity: 0.9;">Unit</label>
+                                <input type="text" id="todayTopicUnit" value="-" readonly style="width: 100%; padding: 0.75rem; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; background: rgba(255,255,255,0.1); color: white; font-weight: 500;" />
+                            </div>
+                            <div style="display: flex; align-items: flex-end; min-width: 220px;">
+                                <button onclick="startClassSession()" style="width: 100%; padding: 0.75rem; background: #10b981; border: none; border-radius: 6px; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">
+                                    ▶️ Start Live Session
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- Student Cards -->
                     <div class="card">
                         <div class="card-header">
@@ -211,6 +246,8 @@
     <script src="main.js"></script>
     <script src="charts.js"></script>
     <script>
+        let todayPlannerTopics = [];
+
         // Initialize charts when page loads
         document.addEventListener('DOMContentLoaded', function() {
             // Check authentication
@@ -234,7 +271,10 @@
         async function loadDashboardData() {
             try {
                 console.log('📊 Loading dashboard data...');
-                const dashboardData = await API.get('/dashboard/stats/');
+                const [dashboardData, teacherData] = await Promise.all([
+                    API.get('/dashboard/stats/'),
+                    API.get('/teacher/dashboard-data/').catch(() => null),
+                ]);
                 
                 if (dashboardData && !dashboardData.error) {
                     updateDashboardStats(dashboardData);
@@ -242,9 +282,55 @@
                 } else {
                     console.error('❌ Failed to load dashboard data');
                 }
+
+                if (teacherData && teacherData.success !== false) {
+                    todayPlannerTopics = Array.isArray(teacherData.planner) ? teacherData.planner : [];
+                    renderTodayPlannerTopics();
+                } else {
+                    todayPlannerTopics = [];
+                    renderTodayPlannerTopics();
+                }
             } catch (error) {
                 console.error('❌ Error loading dashboard data:', error);
             }
+        }
+
+        function renderTodayPlannerTopics() {
+            const select = document.getElementById('todayTopicSelect');
+            const subjectInput = document.getElementById('todayTopicSubject');
+            const unitInput = document.getElementById('todayTopicUnit');
+            if (!select || !subjectInput || !unitInput) return;
+
+            select.innerHTML = '';
+            if (!todayPlannerTopics.length) {
+                const emptyOption = document.createElement('option');
+                emptyOption.value = '';
+                emptyOption.textContent = 'No topics assigned for today';
+                emptyOption.style.background = 'black';
+                emptyOption.style.color = 'white';
+                select.appendChild(emptyOption);
+                subjectInput.value = '-';
+                unitInput.value = '-';
+                return;
+            }
+
+            todayPlannerTopics.forEach((item) => {
+                const option = document.createElement('option');
+                option.value = String(item.id);
+                option.textContent = item.topic || `Topic ${item.topicId}`;
+                option.style.background = 'black';
+                option.style.color = 'white';
+                select.appendChild(option);
+            });
+
+            const syncMeta = () => {
+                const selected = todayPlannerTopics.find((p) => String(p.id) === String(select.value));
+                subjectInput.value = selected?.subject || '-';
+                unitInput.value = selected?.unit || '-';
+            };
+
+            select.onchange = syncMeta;
+            syncMeta();
         }
         
         function updateDashboardStats(data) {
@@ -282,6 +368,36 @@
         }
         
         // Alerts are intentionally disabled on dashboard page.
+        
+        async function startClassSession() {
+            const selectedPlanId = document.getElementById('todayTopicSelect')?.value;
+            const selectedPlan = todayPlannerTopics.find((p) => String(p.id) === String(selectedPlanId));
+
+            if (!selectedPlan) {
+                alert('Please assign at least one topic for today from Teacher page before starting session.');
+                return;
+            }
+
+            const subject = selectedPlan.subject || 'Computer Science';
+            const unit = selectedPlan.unit || '';
+            const topicName = selectedPlan.topic || '';
+            const className = `${subject}${unit ? ` - ${unit}` : ''}`;
+            
+            // Store session info in localStorage for live_class.html to retrieve
+            localStorage.setItem('sessionInfo', JSON.stringify({
+                class_name: className,
+                subject: subject,
+                unit: unit,
+                topic_name: topicName,
+                daily_plan_id: selectedPlan.id,
+                started_at: new Date().toISOString()
+            }));
+            
+            console.log(`📚 Starting session: ${subject} | ${unit} | ${topicName}`);
+            
+            // Redirect to live class page
+            window.location.href = 'live_class.html';
+        }
     </script>
 </body>
 </html>

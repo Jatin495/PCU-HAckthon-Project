@@ -50,7 +50,7 @@
                     </label>
                 </div>
                 
-                <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 1rem;">
+                <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 1rem; justify-content: center; text-align: center;">
                     Sign In
                 </button>
                 
@@ -94,7 +94,7 @@
                         email: teacher.email,
                         role: 'teacher'
                     }));
-                    window.location.href = 'dashboard.html';
+                    window.location.href = 'teacher.html';
                 } else {
                     alert(result?.error || 'Login failed. Please try again.');
                     btn.textContent = 'Sign In';
@@ -106,7 +106,7 @@
                     localStorage.setItem('currentUser', JSON.stringify({
                         id: 'demo001', name: 'Demo Teacher', email, role: 'teacher'
                     }));
-                    window.location.href = 'dashboard.html';
+                    window.location.href = 'teacher.html';
                 }
             }
         });

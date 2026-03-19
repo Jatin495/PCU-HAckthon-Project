@@ -69,4 +69,16 @@ urlpatterns = [
 
     # Setup / Demo
     path('setup/seed/', views.seed_demo_data, name='seed_demo_data'),
+
+    # Database overview
+    path('database/tables/', views.database_tables_overview, name='database_tables_overview'),
+
+    # Teacher dashboard
+    path('teacher/dashboard-data/', views.teacher_dashboard_data, name='teacher_dashboard_data'),
+    path('teacher/syllabus/topics/add/', views.teacher_add_syllabus_topic, name='teacher_add_syllabus_topic'),
+    path('teacher/syllabus/topics/<int:topic_id>/status/', views.teacher_update_topic_status, name='teacher_update_topic_status'),
+    path('teacher/planner/add/', views.teacher_add_daily_topic, name='teacher_add_daily_topic'),
+    path('teacher/planner/<int:plan_id>/complete/', views.teacher_complete_daily_topic, name='teacher_complete_daily_topic'),
+    path('teacher/extra-lectures/schedule/', views.teacher_schedule_extra_lecture, name='teacher_schedule_extra_lecture'),
+    path('teacher/feedback/add/', views.teacher_add_feedback, name='teacher_add_feedback'),
 ]

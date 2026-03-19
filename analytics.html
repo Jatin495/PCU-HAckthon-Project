@@ -39,6 +39,10 @@
                     <span class="nav-icon">👥</span>
                     Students
                 </a>
+                                <a href="teacher.html" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    Teacher
+                </a>
                 <a href="reports.html" class="nav-item">
                     <span class="nav-icon">📄</span>
                     Reports
@@ -476,15 +480,34 @@
         async function updateKpiCards(data) {
             const overall = Number(data.overall_avg_engagement || 0);
             const daily = Array.isArray(data.daily_engagement) ? data.daily_engagement : [];
-            const first = daily.length > 0 ? Number(daily[0].engagement || 0) : overall;
-            const last = daily.length > 0 ? Number(daily[daily.length - 1].engagement || 0) : overall;
-            const trend = last - first;
+            const hourly = Array.isArray(data.hourly_pattern) ? data.hourly_pattern : [];
+
+            let trend = Number(data.engagement_trend);
+            let hasTrendData = Boolean(data.trend_has_data);
+
+            if (!Number.isFinite(trend)) {
+                if (daily.length > 1) {
+                    const first = Number(daily[0].engagement || 0);
+                    const last = Number(daily[daily.length - 1].engagement || 0);
+                    trend = last - first;
+                    hasTrendData = true;
+                } else if (hourly.length > 1) {
+                    const first = Number(hourly[0].engagement || 0);
+                    const last = Number(hourly[hourly.length - 1].engagement || 0);
+                    trend = last - first;
+                    hasTrendData = true;
+                } else {
+                    trend = 0;
+                    hasTrendData = false;
+                }
+            }
+
             const atRisk = Number(data.at_risk_count || 0);
 
             updateElementContent('overallPerformanceValue', overall.toFixed(1));
             updateElementContent('overallPerformanceChange', `${trend >= 0 ? '↑' : '↓'} ${Math.abs(trend).toFixed(1)} points`);
             updateElementContent('engagementTrendValue', `${trend >= 0 ? '+' : ''}${trend.toFixed(1)}%`);
-            updateElementContent('engagementTrendChange', daily.length > 1 ? 'From selected period' : 'Insufficient trend data');
+            updateElementContent('engagementTrendChange', hasTrendData ? 'From selected period' : 'Insufficient trend data');
             updateElementContent('atRiskStudentsValue', String(atRisk));
             updateElementContent('atRiskStudentsChange', atRisk > 0 ? 'Needs attention' : 'No high-risk students');
 

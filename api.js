@@ -4,7 +4,19 @@
  * All backend calls go through this module.
  */
 
-const ORIGIN = window.location.origin;
+function resolveBackendOrigin() {
+    const protocol = window.location.protocol;
+
+    // When opened directly via file://, window.location.origin is not usable for API calls.
+    if (protocol === 'file:') {
+        const saved = localStorage.getItem('backendOrigin');
+        return saved || 'http://127.0.0.1:8000';
+    }
+
+    return window.location.origin;
+}
+
+const ORIGIN = resolveBackendOrigin();
 const API_BASE = `${ORIGIN}/api`;
 const MJPEG_URL = `${ORIGIN}/api/live/feed/`;
 
@@ -60,10 +72,17 @@ const API = {
 
 // ─── Backend Connection Status ────────────────────────────────────────────────
 let backendConnected = false;
+let connectionCheckInterval = null;
 
 async function checkBackendConnection() {
-    const result = await API.get('/health/');
-    // FIXED: Always set backend as connected if server is running
+    let result = await API.get('/health/');
+
+    // Retry once after a short delay to avoid false offline during server warm-up.
+    if (result === null) {
+        await new Promise(resolve => setTimeout(resolve, 800));
+        result = await API.get('/health/');
+    }
+
     backendConnected = result !== null;
     updateConnectionUI(backendConnected, result);
     return backendConnected;
@@ -261,13 +280,45 @@ function renderLiveAlerts(alerts) {
     const container = document.getElementById('liveAlerts');
     if (!container) return;
     container.innerHTML = '';
+
+    const formatAlertTime12h = (alert) => {
+        const timeOptions = {
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+        };
+
+        // Prefer ISO timestamp when present.
+        if (alert && alert.timestamp) {
+            const d = new Date(alert.timestamp);
+            if (!Number.isNaN(d.getTime())) {
+                return d.toLocaleTimeString('en-US', timeOptions);
+            }
+        }
+
+        // Convert plain HH:MM[:SS] (24h) to 12h.
+        const raw = String((alert && alert.time) || '').trim();
+        const m = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+        if (m) {
+            const hour24 = Number(m[1]);
+            const minute = m[2];
+            const second = m[3] || '00';
+            const suffix = hour24 >= 12 ? 'PM' : 'AM';
+            const hour12 = hour24 % 12 || 12;
+            return `${hour12}:${minute}:${second} ${suffix}`;
+        }
+
+        return raw;
+    };
+
     alerts.slice(0, 5).forEach(alert => {
         const div = document.createElement('div');
         const severity = alert.severity || 'medium';
         div.className = `alert alert-${severity === 'high' ? 'danger' : 'warning'} fade-in`;
         const icon = severity === 'high' ? '⚠️' : '⚡';
         const actor = alert.student_name || 'Classroom';
-        const when = alert.time || '';
+        const when = formatAlertTime12h(alert);
         div.innerHTML = `
             <span>${icon}</span>
             <div>
@@ -314,15 +365,22 @@ function renderDetectedStudents(students) {
 // ─── Session Management ───────────────────────────────────────────────────────
 let currentSession = null;
 
-async function startBackendSession(className = 'CS101', subject = 'Computer Science', camera = '0') {
+async function startBackendSession(className = 'CS101', subject = 'Computer Science', camera = '0', metadata = {}) {
     if (!backendConnected) return null;
 
     const teacherData = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    const data = await API.post('/sessions/start/', {
+    const payload = {
         class_name: className,
         subject: subject,
         camera_source: camera,
         teacher_id: teacherData.id || 1,
+    };
+    if (metadata && typeof metadata === 'object') {
+        Object.assign(payload, metadata);
+    }
+
+    const data = await API.post('/sessions/start/', {
+        ...payload,
     });
 
     if (data && data.success) {
@@ -425,6 +483,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const savedSession = localStorage.getItem('activeSession');
     if (savedSession) {
         currentSession = JSON.parse(savedSession);
+    }
+
+    // Keep status fresh in case backend comes online after initial load.
+    if (connectionCheckInterval) {
+        clearInterval(connectionCheckInterval);
+    }
+    connectionCheckInterval = setInterval(checkBackendConnection, 15000);
+});
+
+window.addEventListener('beforeunload', () => {
+    if (connectionCheckInterval) {
+        clearInterval(connectionCheckInterval);
+        connectionCheckInterval = null;
     }
 });
 

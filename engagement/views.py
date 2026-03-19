@@ -15,7 +15,7 @@ from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
-from django.db.models import Avg, Count, Max, Min
+from django.db.models import Avg, Count, Max, Min, Q
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
@@ -23,7 +23,9 @@ import pandas as pd
 
 from .models import (
     Teacher, Student, ClassSession, Attendance,
-    EngagementRecord, ClassEngagementSnapshot, Alert, Report
+    EngagementRecord, ClassEngagementSnapshot, Alert, Report,
+    SyllabusTopic, DailyLectureTopic, StudentTopicProgress,
+    ExtraLecturePlan, LectureFeedback,
 )
 from .camera import generate_face_encoding
 
@@ -33,6 +35,7 @@ _ENGAGEMENT_WRITE_INTERVAL_SECONDS = 5
 _last_engagement_write_by_student = {}
 _last_snapshot_write_by_session = {}
 _engagement_write_lock = threading.Lock()
+_active_session_topic_map = {}
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -728,6 +731,9 @@ def start_session(request):
         data = request.data
         class_name = data.get('class_name', 'CS101')
         subject = data.get('subject', 'Computer Science')
+        unit = str(data.get('unit') or '').strip()
+        topic_name = str(data.get('topic_name') or data.get('topic') or '').strip()
+        daily_plan_id_raw = data.get('daily_plan_id')
         camera_source = data.get('camera_source', '0')
         teacher_id_raw = data.get('teacher_id', 1)
         teacher_id = 1
@@ -742,6 +748,21 @@ def start_session(request):
                 email='demo@smartclass.com',
                 defaults={'name': 'Demo Teacher', 'password_hash': hash_password('demo123')}
             )
+
+        daily_plan = None
+        if daily_plan_id_raw not in (None, '', 'null'):
+            try:
+                daily_plan = (
+                    DailyLectureTopic.objects
+                    .select_related('topic')
+                    .get(id=int(daily_plan_id_raw), topic__teacher=teacher)
+                )
+                subject = daily_plan.topic.subject
+                unit = daily_plan.topic.unit
+                topic_name = daily_plan.topic.topic
+            except Exception as plan_error:
+                logger.warning(f"Invalid daily_plan_id '{daily_plan_id_raw}' at session start: {plan_error}")
+                daily_plan = None
 
         ClassSession.objects.filter(status='active').update(status='ended', end_time=timezone.now())
 
@@ -790,8 +811,19 @@ def start_session(request):
                 defaults={'is_present': False}
             )
 
+        _active_session_topic_map[session.id] = {
+            'daily_plan_id': daily_plan.id if daily_plan else (int(daily_plan_id_raw) if str(daily_plan_id_raw).isdigit() else None),
+            'subject': subject,
+            'unit': unit,
+            'topic_name': topic_name,
+        }
+
         return Response({'success': True, 'session': {
             'id': session.id, 'class_name': session.class_name,
+            'subject': subject,
+            'unit': unit,
+            'topic_name': topic_name,
+            'daily_plan_id': _active_session_topic_map[session.id].get('daily_plan_id'),
             'start_time': session.start_time.isoformat(),
             'camera_started': camera_started,
             'camera_source': str(selected_source),
@@ -813,6 +845,26 @@ def end_session(request, session_id):
         session.status = 'ended'
         session.end_time = timezone.now()
         session.save()
+
+        topic_ctx = _active_session_topic_map.get(session.id, {})
+        daily_plan_id = topic_ctx.get('daily_plan_id')
+        if daily_plan_id:
+            try:
+                plan = DailyLectureTopic.objects.select_related('topic').get(id=daily_plan_id)
+                if not plan.is_completed:
+                    plan.is_completed = True
+                    plan.completed_at = timezone.now()
+                    plan.save(update_fields=['is_completed', 'completed_at'])
+
+                topic = plan.topic
+                if topic.status != 'completed':
+                    topic.status = 'completed'
+                    topic.checkpoint_assigned = True
+                    topic.checkpoint_completion_rate = max(float(topic.checkpoint_completion_rate or 0.0), 75.0)
+                    topic.save(update_fields=['status', 'checkpoint_assigned', 'checkpoint_completion_rate'])
+            except Exception as topic_close_error:
+                logger.warning(f"Failed to update selected daily topic on session end: {topic_close_error}")
+        _active_session_topic_map.pop(session.id, None)
         
         # Stop the video stream immediately
         from .video_stream import stop_stream
@@ -826,7 +878,8 @@ def end_session(request, session_id):
         return Response({
             'success': True, 
             'duration': session.duration_minutes,
-            'stream_stopped': stream_stopped
+            'stream_stopped': stream_stopped,
+            'topic_updated': bool(daily_plan_id),
         })
         
         
@@ -908,6 +961,20 @@ def live_data(request):
                 total_students=Student.objects.filter(is_active=True).count(),
                 status='active',
             )
+
+            auto_plan = (
+                DailyLectureTopic.objects
+                .select_related('topic')
+                .filter(topic__teacher=teacher, lecture_date=timezone.now().date())
+                .order_by('id')
+                .first()
+            )
+            _active_session_topic_map[active_session.id] = {
+                'daily_plan_id': auto_plan.id if auto_plan else None,
+                'subject': auto_plan.topic.subject if auto_plan else active_session.subject,
+                'unit': auto_plan.topic.unit if auto_plan else '',
+                'topic_name': auto_plan.topic.topic if auto_plan else '',
+            }
 
             today = timezone.now().date()
             for student in Student.objects.filter(is_active=True):
@@ -1114,6 +1181,16 @@ def live_data(request):
                 'stream_active': stream_status['is_running'],
                 'fps': stream_status['fps'],
                 'session_id': active_session.id if active_session else None,
+                'session': {
+                    'class_name': active_session.class_name if active_session else 'Live Class',
+                    'subject': (_active_session_topic_map.get(active_session.id, {}) if active_session else {}).get('subject') or (active_session.subject if active_session else 'Computer Science'),
+                    'unit': (_active_session_topic_map.get(active_session.id, {}) if active_session else {}).get('unit') or '',
+                    'topic_name': (_active_session_topic_map.get(active_session.id, {}) if active_session else {}).get('topic_name') or '',
+                    'daily_plan_id': (_active_session_topic_map.get(active_session.id, {}) if active_session else {}).get('daily_plan_id'),
+                    'teacher_id': active_session.teacher.id if active_session and active_session.teacher else None,
+                    'teacher_name': active_session.teacher.name if active_session and active_session.teacher else 'Teacher',
+                    'start_time': active_session.start_time.isoformat() if active_session else None,
+                } if active_session else None,
                 'present_count': analysis.get('present_count', len([s for s in students_data if s.get('present_today', True)])),
                 'avg_engagement': class_avg_engagement,
                 'emotion_distribution': analysis.get('emotion_distribution', {}),
@@ -1347,13 +1424,22 @@ def analytics_summary(request):
 
         df = pd.DataFrame(list(records.values(
             'timestamp', 'engagement_score', 'attention_score',
-            'emotion', 'posture_score', 'student__name', 'student__student_id'
+            'emotion', 'posture_score', 'eye_contact',
+            'student__id', 'student__name', 'student__student_id'
         )))
         df.columns = ['timestamp', 'engagement_score', 'attention_score',
-                      'emotion', 'posture_score', 'student_name', 'student_id']
+                      'emotion', 'posture_score', 'eye_contact',
+                      'student_pk', 'student_name', 'student_id']
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df['date'] = df['timestamp'].dt.date
         df['hour'] = df['timestamp'].dt.hour
+
+        # Trend based on first vs latest record in selected period (not daily buckets)
+        # so short sessions within one day still produce a meaningful trend.
+        df_sorted = df.sort_values('timestamp')
+        first_point = float(df_sorted['engagement_score'].iloc[0]) if len(df_sorted) > 0 else 0.0
+        latest_point = float(df_sorted['engagement_score'].iloc[-1]) if len(df_sorted) > 0 else 0.0
+        engagement_trend = latest_point - first_point
 
         daily_avg = df.groupby('date').agg({'engagement_score': 'mean', 'attention_score': 'mean'}).reset_index()
         daily_engagement = [{'date': str(row['date']), 'engagement': round(row['engagement_score'], 1),
@@ -1365,28 +1451,74 @@ def analytics_summary(request):
 
         emotion_counts = df['emotion'].value_counts().to_dict()
 
-        student_avg = df.groupby(['student_id', 'student_name'])['engagement_score'].mean().reset_index()
-        student_avg_sorted = student_avg.sort_values('engagement_score', ascending=False)
+        student_agg = (
+            df.groupby(['student_pk', 'student_id', 'student_name'])
+            .agg(
+                engagement_score=('engagement_score', 'mean'),
+                focus_score=('attention_score', 'mean'),
+                participation_score=('eye_contact', 'mean'),
+            )
+            .reset_index()
+        )
 
-        top_students = [{'student_id': row['student_id'], 'name': row['student_name'],
-                         'avg_engagement': round(row['engagement_score'], 1)}
-                        for _, row in student_avg_sorted.head(5).iterrows()]
+        # Attendance rate by student in selected period.
+        attendance_rates = {
+            row['student_id']: round(
+                (float(row['present_days']) / float(row['total_days']) * 100.0) if row['total_days'] else 0.0,
+                1,
+            )
+            for row in (
+                Attendance.objects
+                .filter(date__gte=since.date(), student__is_active=True)
+                .values('student__student_id')
+                .annotate(
+                    student_id=Max('student__student_id'),
+                    total_days=Count('id'),
+                    present_days=Count('id', filter=Q(is_present=True)),
+                )
+            )
+        }
+
+        student_agg['attendance_score'] = student_agg['student_id'].map(lambda sid: attendance_rates.get(sid, 0.0))
+        student_agg['participation_score'] = student_agg['participation_score'].fillna(0.0) * 100.0
+
+        # Weighted score for ranking.
+        student_agg['ranking_score'] = (
+            (student_agg['engagement_score'] * 0.50)
+            + (student_agg['attendance_score'] * 0.20)
+            + (student_agg['focus_score'] * 0.20)
+            + (student_agg['participation_score'] * 0.10)
+        )
+        student_avg_sorted = student_agg.sort_values('ranking_score', ascending=False)
+
+        top_students = [{
+            'student_id': row['student_id'],
+            'name': row['student_name'],
+            'avg_engagement': round(float(row['engagement_score']), 1),
+            'attendance': round(float(row['attendance_score']), 1),
+            'focus': round(float(row['focus_score']), 1),
+            'participation': round(float(row['participation_score']), 1),
+            'ranking_score': round(float(row['ranking_score']), 1),
+        } for _, row in student_avg_sorted.head(5).iterrows()]
         at_risk_df = student_avg_sorted[student_avg_sorted['engagement_score'] < 60]
         needs_attention = [{'student_id': row['student_id'], 'name': row['student_name'],
                             'avg_engagement': round(row['engagement_score'], 1)}
                            for _, row in at_risk_df.head(5).iterrows()]
 
-        excellent_count = int((student_avg['engagement_score'] >= 90).sum())
-        good_count = int(((student_avg['engagement_score'] >= 80) & (student_avg['engagement_score'] < 90)).sum())
-        average_count = int(((student_avg['engagement_score'] >= 70) & (student_avg['engagement_score'] < 80)).sum())
-        below_average_count = int((student_avg['engagement_score'] < 70).sum())
+        excellent_count = int((student_agg['engagement_score'] >= 90).sum())
+        good_count = int(((student_agg['engagement_score'] >= 80) & (student_agg['engagement_score'] < 90)).sum())
+        average_count = int(((student_agg['engagement_score'] >= 70) & (student_agg['engagement_score'] < 80)).sum())
+        below_average_count = int((student_agg['engagement_score'] < 70).sum())
 
         return Response({
             'days': days, 'total_records': len(df),
             'daily_engagement': daily_engagement, 'hourly_pattern': hourly_pattern,
             'emotion_trend': emotion_counts, 'top_students': top_students,
+            'student_rankings': top_students,
             'needs_attention': needs_attention,
             'overall_avg_engagement': round(df['engagement_score'].mean(), 1),
+            'engagement_trend': round(float(engagement_trend), 1),
+            'trend_has_data': bool(len(df_sorted) > 1),
             'total_students': total_students,
             'attendance_rate': round(attendance_rate, 1),
             'at_risk_count': int(len(at_risk_df)),
@@ -2008,3 +2140,405 @@ def schedule_report(request):
         })
     except Exception as e:
         return Response({'error': str(e)}, status=500)
+
+
+# ─── Teacher Dashboard APIs ─────────────────────────────────────────────────
+
+def _get_default_teacher():
+    teacher = Teacher.objects.filter(is_active=True).first()
+    if teacher:
+        return teacher
+    return Teacher.objects.create(
+        name='Demo Teacher',
+        email='demo.teacher@smartclass.com',
+        password_hash=hash_password('demo123'),
+        subject='General',
+        is_active=True,
+    )
+
+
+def _get_request_teacher(request):
+    teacher_id = request.session.get('teacher_id')
+    if teacher_id:
+        teacher = Teacher.objects.filter(id=teacher_id, is_active=True).first()
+        if teacher:
+            return teacher
+    return _get_default_teacher()
+
+
+def _serialize_topic(topic):
+    return {
+        'id': topic.id,
+        'subject': topic.subject,
+        'unit': topic.unit,
+        'topic': topic.topic,
+        'status': topic.status,
+        'delayed': bool(topic.is_delayed),
+        'plannedDate': topic.planned_date.isoformat() if topic.planned_date else None,
+        'revisedDate': topic.revised_date.isoformat() if topic.revised_date else None,
+        'checkpointAssigned': bool(topic.checkpoint_assigned),
+        'checkpointRate': round(float(topic.checkpoint_completion_rate or 0.0), 1),
+    }
+
+
+def _ensure_teacher_seed_data(teacher):
+    if SyllabusTopic.objects.filter(teacher=teacher).exists():
+        return
+
+    today = timezone.now().date()
+    seed_topics = [
+        ('Computer Science', 'Unit 1', 'Introduction to Algorithms', 'completed', 85.0),
+        ('Computer Science', 'Unit 1', 'Sorting Algorithms', 'in-progress', 65.0),
+        ('Computer Science', 'Unit 2', 'Data Structures', 'pending', 0.0),
+    ]
+
+    created = []
+    for idx, (subject, unit, title, state, rate) in enumerate(seed_topics):
+        created.append(SyllabusTopic.objects.create(
+            teacher=teacher,
+            subject=subject,
+            unit=unit,
+            topic=title,
+            status=state,
+            planned_date=today - timedelta(days=(3 - idx)),
+            checkpoint_assigned=(state != 'pending'),
+            checkpoint_completion_rate=rate,
+        ))
+
+    if len(created) > 1:
+        DailyLectureTopic.objects.get_or_create(topic=created[1], lecture_date=today)
+
+    for topic in created:
+        for student in Student.objects.filter(is_active=True):
+            base = 45 + ((student.id * 13 + topic.id * 11) % 46)
+            StudentTopicProgress.objects.get_or_create(
+                student=student,
+                topic=topic,
+                defaults={
+                    'completion_percent': float(base),
+                    'needs_extra_lecture': base < 60,
+                }
+            )
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def teacher_dashboard_data(request):
+    try:
+        teacher = _get_request_teacher(request)
+        _ensure_teacher_seed_data(teacher)
+
+        topics = list(SyllabusTopic.objects.filter(teacher=teacher).order_by('created_at'))
+        today = timezone.now().date()
+
+        planner_qs = (
+            DailyLectureTopic.objects
+            .filter(topic__teacher=teacher, lecture_date=today)
+            .select_related('topic')
+            .order_by('topic__created_at')
+        )
+        planner = [{
+            'id': p.id,
+            'topicId': p.topic_id,
+            'subject': p.topic.subject,
+            'topic': p.topic.topic,
+            'unit': p.topic.unit,
+            'done': bool(p.is_completed),
+        } for p in planner_qs]
+
+        progress_rows = {
+            row['topic_id']: row
+            for row in (
+                StudentTopicProgress.objects
+                .filter(topic__teacher=teacher)
+                .values('topic_id')
+                .annotate(
+                    total_students=Count('id'),
+                    responded_students=Count('id', filter=Q(completion_percent__gte=60)),
+                )
+            )
+        }
+
+        checkpoints = []
+        for idx, topic in enumerate(topics, start=1):
+            stats = progress_rows.get(topic.id, {})
+            checkpoints.append({
+                'id': topic.id,
+                'topicNumber': idx,
+                'topic': topic.topic,
+                'checkpointAssigned': bool(topic.checkpoint_assigned),
+                'checkpointRate': round(float(topic.checkpoint_completion_rate or 0.0), 1),
+                'respondedStudents': int(stats.get('responded_students') or 0),
+                'totalStudents': int(stats.get('total_students') or 0),
+            })
+
+        delayed = [{
+            'id': t.id,
+            'topic': t.topic,
+            'plannedDate': t.planned_date.isoformat() if t.planned_date else None,
+            'revisedDate': t.revised_date.isoformat() if t.revised_date else None,
+        } for t in topics if t.is_delayed]
+
+        lagging = [{
+            'studentId': row.student.student_id,
+            'name': row.student.name,
+            'topicId': row.topic_id,
+            'topic': row.topic.topic,
+            'engagement': round(float(row.completion_percent or 0.0), 1),
+        } for row in (
+            StudentTopicProgress.objects
+            .select_related('student', 'topic')
+            .filter(topic__teacher=teacher, completion_percent__lt=60)
+            .order_by('completion_percent')[:25]
+        )]
+
+        extra_by_student = {
+            row['student__student_id']: int(row['count'])
+            for row in (
+                ExtraLecturePlan.objects
+                .filter(topic__teacher=teacher)
+                .values('student__student_id')
+                .annotate(count=Count('id'))
+            )
+        }
+
+        performance = []
+        for student in Student.objects.filter(is_active=True).order_by('name'):
+            att_qs = Attendance.objects.filter(student=student)
+            att_total = att_qs.count()
+            att_present = att_qs.filter(is_present=True).count()
+            attendance_pct = (att_present / att_total * 100.0) if att_total > 0 else 0.0
+
+            eng_avg = EngagementRecord.objects.filter(student=student).aggregate(v=Avg('engagement_score')).get('v') or 0.0
+            completion_avg = (
+                StudentTopicProgress.objects
+                .filter(student=student, topic__teacher=teacher)
+                .aggregate(v=Avg('completion_percent'))
+                .get('v') or 0.0
+            )
+
+            performance.append({
+                'studentId': student.student_id,
+                'name': student.name,
+                'engagement': round(float(eng_avg), 1),
+                'attendance': round(float(attendance_pct), 1),
+                'completion': round(float(completion_avg), 1),
+                'extraLectures': int(extra_by_student.get(student.student_id, 0)),
+            })
+
+        feedback = [{
+            'id': f.id,
+            'lecture': f.lecture_title,
+            'rating': round(float(f.rating or 0.0), 1),
+            'comment': f.comment,
+            'submittedAt': f.submitted_at.isoformat(),
+        } for f in LectureFeedback.objects.order_by('-submitted_at')[:30]]
+
+        avg_rating = LectureFeedback.objects.aggregate(v=Avg('rating')).get('v') or 0.0
+        active_session = ClassSession.objects.filter(status='active').order_by('-start_time').first()
+
+        return Response({
+            'success': True,
+            'session': {
+                'id': active_session.id if active_session else None,
+                'className': active_session.class_name if active_session else None,
+                'subject': active_session.subject if active_session else None,
+                'topicCount': len(topics),
+                'topicNames': [t.topic for t in topics],
+            },
+            'topics': [_serialize_topic(t) for t in topics],
+            'planner': planner,
+            'checkpoints': checkpoints,
+            'delayed': delayed,
+            'lagging': lagging,
+            'performance': performance,
+            'feedback': feedback,
+            'avgRating': round(float(avg_rating), 1),
+        })
+    except Exception as e:
+        logger.error(f"Teacher dashboard data error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def teacher_add_syllabus_topic(request):
+    try:
+        teacher = _get_request_teacher(request)
+        subject = str(request.data.get('subject') or '').strip()
+        unit = str(request.data.get('unit') or '').strip()
+        topic_text = str(request.data.get('topic') or '').strip()
+        if not subject or not unit or not topic_text:
+            return Response({'success': False, 'error': 'subject, unit and topic are required'}, status=400)
+
+        topic = SyllabusTopic.objects.create(
+            teacher=teacher,
+            subject=subject,
+            unit=unit,
+            topic=topic_text,
+            planned_date=timezone.now().date(),
+        )
+
+        for student in Student.objects.filter(is_active=True):
+            StudentTopicProgress.objects.get_or_create(
+                student=student,
+                topic=topic,
+                defaults={'completion_percent': 50.0, 'needs_extra_lecture': True},
+            )
+
+        return Response({'success': True, 'topic': _serialize_topic(topic)})
+    except Exception as e:
+        logger.error(f"Add syllabus topic error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def teacher_update_topic_status(request, topic_id):
+    try:
+        teacher = _get_request_teacher(request)
+        topic = SyllabusTopic.objects.get(id=topic_id, teacher=teacher)
+        new_status = str(request.data.get('status') or '').strip().lower()
+        if new_status not in {'pending', 'in-progress', 'completed'}:
+            return Response({'success': False, 'error': 'Invalid status'}, status=400)
+
+        topic.status = new_status
+        if new_status == 'completed':
+            topic.checkpoint_assigned = True
+            topic.checkpoint_completion_rate = max(float(topic.checkpoint_completion_rate or 0.0), 75.0)
+            StudentTopicProgress.objects.filter(topic=topic).update(completion_percent=85.0, needs_extra_lecture=False)
+        topic.save()
+        return Response({'success': True, 'topic': _serialize_topic(topic)})
+    except SyllabusTopic.DoesNotExist:
+        return Response({'success': False, 'error': 'Topic not found'}, status=404)
+    except Exception as e:
+        logger.error(f"Update topic status error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def teacher_add_daily_topic(request):
+    try:
+        teacher = _get_request_teacher(request)
+        topic_id = request.data.get('topic_id')
+        if not topic_id:
+            return Response({'success': False, 'error': 'topic_id is required'}, status=400)
+
+        topic = SyllabusTopic.objects.get(id=topic_id, teacher=teacher)
+        plan, _ = DailyLectureTopic.objects.get_or_create(topic=topic, lecture_date=timezone.now().date())
+        return Response({'success': True, 'plan': {'id': plan.id, 'topicId': topic.id, 'topic': topic.topic, 'unit': topic.unit, 'done': bool(plan.is_completed)}})
+    except SyllabusTopic.DoesNotExist:
+        return Response({'success': False, 'error': 'Topic not found'}, status=404)
+    except Exception as e:
+        logger.error(f"Add daily topic error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def teacher_complete_daily_topic(request, plan_id):
+    try:
+        teacher = _get_request_teacher(request)
+        plan = DailyLectureTopic.objects.select_related('topic').get(id=plan_id, topic__teacher=teacher)
+        plan.is_completed = True
+        plan.completed_at = timezone.now()
+        plan.save(update_fields=['is_completed', 'completed_at'])
+
+        topic = plan.topic
+        topic.status = 'completed'
+        topic.checkpoint_assigned = True
+        topic.checkpoint_completion_rate = max(float(topic.checkpoint_completion_rate or 0.0), 75.0)
+        topic.save(update_fields=['status', 'checkpoint_assigned', 'checkpoint_completion_rate'])
+        StudentTopicProgress.objects.filter(topic=topic).update(completion_percent=85.0, needs_extra_lecture=False)
+
+        return Response({'success': True, 'nextTopicLaunched': None})
+    except DailyLectureTopic.DoesNotExist:
+        return Response({'success': False, 'error': 'Planned topic not found'}, status=404)
+    except Exception as e:
+        logger.error(f"Complete daily topic error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def teacher_schedule_extra_lecture(request):
+    try:
+        teacher = _get_request_teacher(request)
+        student_id = str(request.data.get('student_id') or '').strip()
+        topic_id = request.data.get('topic_id')
+        if not student_id or not topic_id:
+            return Response({'success': False, 'error': 'student_id and topic_id are required'}, status=400)
+
+        student = Student.objects.get(student_id=student_id)
+        topic = SyllabusTopic.objects.get(id=topic_id, teacher=teacher)
+        plan = ExtraLecturePlan.objects.create(
+            student=student,
+            topic=topic,
+            scheduled_date=timezone.now().date() + timedelta(days=2),
+        )
+        StudentTopicProgress.objects.filter(student=student, topic=topic).update(needs_extra_lecture=True)
+        return Response({'success': True, 'message': f'Extra lecture scheduled for {student.name}', 'planId': plan.id})
+    except Student.DoesNotExist:
+        return Response({'success': False, 'error': 'Student not found'}, status=404)
+    except SyllabusTopic.DoesNotExist:
+        return Response({'success': False, 'error': 'Topic not found'}, status=404)
+    except Exception as e:
+        logger.error(f"Schedule extra lecture error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def teacher_add_feedback(request):
+    try:
+        lecture = str(request.data.get('lecture') or '').strip()
+        comment = str(request.data.get('comment') or '').strip()
+        rating = float(request.data.get('rating') or 0.0)
+        if not lecture:
+            return Response({'success': False, 'error': 'lecture is required'}, status=400)
+        if rating <= 0 or rating > 5:
+            return Response({'success': False, 'error': 'rating must be between 0 and 5'}, status=400)
+
+        feedback = LectureFeedback.objects.create(lecture_title=lecture, comment=comment, rating=rating)
+        return Response({'success': True, 'feedback': {
+            'id': feedback.id,
+            'lecture': feedback.lecture_title,
+            'rating': round(float(feedback.rating or 0.0), 1),
+            'comment': feedback.comment,
+            'submittedAt': feedback.submitted_at.isoformat(),
+        }})
+    except Exception as e:
+        logger.error(f"Add feedback error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def database_tables_overview(request):
+    try:
+        tables = {
+            'teachers': {'count': Teacher.objects.count()},
+            'students': {'count': Student.objects.count()},
+            'class_sessions': {'count': ClassSession.objects.count()},
+            'syllabus_topics': {'count': SyllabusTopic.objects.count()},
+            'daily_lecture_topics': {'count': DailyLectureTopic.objects.count()},
+            'student_topic_progress': {'count': StudentTopicProgress.objects.count()},
+            'extra_lecture_plans': {'count': ExtraLecturePlan.objects.count()},
+            'lecture_feedback': {'count': LectureFeedback.objects.count()},
+            'attendance': {'count': Attendance.objects.count()},
+            'engagement_records': {'count': EngagementRecord.objects.count()},
+            'reports': {'count': Report.objects.count()},
+        }
+        return Response({'success': True, 'tables': tables})
+    except Exception as e:
+        logger.error(f"Database tables overview error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
