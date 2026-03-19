@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartClass Monitor - Home</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">SC</div>
+                <div>
+                    <h3 style="font-size: 1rem; margin: 0;">SmartClass</h3>
+                    <p style="font-size: 0.75rem; opacity: 0.8; margin: 0;">Monitor</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item">
+                    <span class="nav-icon">📊</span>
+                    Dashboard
+                </a>
+                <a href="live_class.html" class="nav-item">
+                    <span class="nav-icon">📹</span>
+                    Live Classroom
+                </a>
+                <a href="attendance.html" class="nav-item">
+                    <span class="nav-icon">✓</span>
+                    Attendance
+                </a>
+                <a href="student.html" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    Students
+                </a>
+                <a href="reports.html" class="nav-item">
+                    <span class="nav-icon">📄</span>
+                    Reports
+                </a>
+                <a href="analytics.html" class="nav-item">
+                    <span class="nav-icon">📈</span>
+                    Analytics
+                </a>
+                <a href="settings.html" class="nav-item">
+                    <span class="nav-icon">⚙️</span>
+                    Settings
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="page-header">
+                <div>
+                    <h1>SmartClass Monitor</h1>
+                    <p style="opacity: 0.8; margin: 0;">AI-Powered Classroom Engagement System</p>
+                </div>
+                
+                <div class="user-menu">
+                    <div class="user-avatar" id="userAvatar">T</div>
+                    <div>
+                        <div id="userName" style="font-size: 0.875rem; font-weight: 500;">Teacher</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">Online</div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Welcome Section -->
+            <div class="card" style="text-align: center; padding: 3rem; margin-bottom: 2rem;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">🎓</div>
+                <h2 style="margin: 0; color: var(--color-primary);">Welcome to SmartClass Monitor</h2>
+                <p style="font-size: 1.125rem; color: var(--text-secondary); margin-bottom: 2rem;">
+                    Real-time classroom engagement tracking with AI-powered emotion detection and student monitoring
+                </p>
+                
+                <div class="grid grid-cols-3" style="gap: 1.5rem; margin-top: 2rem;">
+                    <a href="live_class.html" class="card">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📹</div>
+                        <h3>Live Classroom</h3>
+                        <p>Real-time face recognition and emotion detection</p>
+                    </a>
+                    
+                    <a href="student.html" class="card">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">👥</div>
+                        <h3>Student Directory</h3>
+                        <p>Manage and monitor student engagement</p>
+                    </a>
+                    
+                    <a href="dashboard.html" class="card">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+                        <h3>Dashboard</h3>
+                        <p>View analytics and insights</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="grid grid-cols-4" style="margin-bottom: 2rem;">
+                <div class="stat-card success">
+                    <div class="stat-label">Total Students</div>
+                    <div class="stat-value">47</div>
+                    <div class="stat-change positive">↑ 5 new this month</div>
+                </div>
+                
+                <div class="stat-card info">
+                    <div class="stat-label">Active Sessions</div>
+                    <div class="stat-value">0</div>
+                    <div class="stat-change">No active sessions</div>
+                </div>
+                
+                <div class="stat-card warning">
+                    <div class="stat-label">Avg Engagement</div>
+                    <div class="stat-value">75%</div>
+                    <div class="stat-change">Good performance</div>
+                </div>
+                
+                <div class="stat-card danger">
+                    <div class="stat-label">At Risk</div>
+                    <div class="stat-value">3</div>
+                    <div class="stat-change negative">Needs attention</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="api.js"></script>
+    <script>
+        // Initialize home page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if user is logged in
+            const currentUser = localStorage.getItem('currentUser');
+            if (!currentUser) {
+                // Redirect to login if not authenticated
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // Update user info
+            if (currentUser) {
+                const user = JSON.parse(currentUser);
+                const userAvatar = document.getElementById('userAvatar');
+                const userName = document.getElementById('userName');
+                
+                if (userAvatar && user.name) {
+                    userAvatar.textContent = user.name.charAt(0).toUpperCase();
+                }
+                if (userName && user.name) {
+                    userName.textContent = user.name;
+                }
+            }
+
+            // Check backend connection
+            if (window.SmartClassAPI) {
+                window.SmartClassAPI.checkConnection();
+            }
+        });
+    </script>
+</body>
+</html>

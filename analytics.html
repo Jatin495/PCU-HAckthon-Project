@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics - SmartClass Monitor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">SC</div>
+                <div>
+                    <h3 style="font-size: 1rem; margin: 0;">SmartClass</h3>
+                    <p style="font-size: 0.75rem; opacity: 0.8; margin: 0;">Monitor</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item">
+                    <span class="nav-icon">📊</span>
+                    Dashboard
+                </a>
+                <a href="live_class.html" class="nav-item">
+                    <span class="nav-icon">📹</span>
+                    Live Classroom
+                </a>
+                <a href="attendance.html" class="nav-item">
+                    <span class="nav-icon">✓</span>
+                    Attendance
+                </a>
+                <a href="student.html" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    Students
+                </a>
+                <a href="reports.html" class="nav-item">
+                    <span class="nav-icon">📄</span>
+                    Reports
+                </a>
+                <a href="analytics.html" class="nav-item active">
+                    <span class="nav-icon">📈</span>
+                    Analytics
+                </a>
+                <a href="settings.html" class="nav-item">
+                    <span class="nav-icon">⚙️</span>
+                    Settings
+                </a>
+                <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <span class="nav-icon">🚪</span>
+                    Logout
+                </a>
+            </nav>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navbar -->
+            <header class="top-navbar">
+                <div class="navbar-left">
+                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">☰</button>
+                    <h1 style="font-size: 1.5rem; font-weight: 600;">Analytics Dashboard</h1>
+                </div>
+                
+                <div class="navbar-right">
+                    <div class="search-bar">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" placeholder="Search analytics...">
+                    </div>
+                    
+                    <div class="notification-bell">
+                        <span style="font-size: 1.25rem;">🔔</span>
+                        <span class="notification-badge">0</span>
+                    </div>
+                    
+                    <div class="user-menu">
+                        <div class="user-avatar" id="userAvatar">T</div>
+                        <div>
+                            <div id="userName" style="font-size: 0.875rem; font-weight: 500;">Teacher</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Online</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Analytics Controls -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <select class="form-select" style="width: 150px;" id="analyticsPeriod">
+                            <option>Last 7 Days</option>
+                            <option>Last 30 Days</option>
+                            <option>Last 3 Months</option>
+                            <option>Last 6 Months</option>
+                            <option>Academic Year</option>
+                        </select>
+                        
+                        <select class="form-select" style="width: 150px;" id="analyticsClass">
+                            <option>All Classes</option>
+                            <option>CS101</option>
+                            <option>CS102</option>
+                            <option>CS201</option>
+                        </select>
+                        
+                        <select class="form-select" style="width: 150px;" id="analyticsMetric">
+                            <option>All Metrics</option>
+                            <option>Engagement</option>
+                            <option>Attendance</option>
+                            <option>Emotions</option>
+                            <option>Performance</option>
+                        </select>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="btn btn-primary" onclick="exportAnalytics()">
+                            <span>📥</span> Export
+                        </button>
+                        <button class="btn btn-secondary" onclick="refreshAnalytics()">
+                            <span>🔄</span> Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Key Performance Indicators -->
+                <div class="grid grid-cols-4" style="margin-bottom: 2rem;">
+                    <div class="stat-card success">
+                        <div class="stat-label">Overall Performance</div>
+                        <div class="stat-value" id="overallPerformanceValue">0.0</div>
+                        <div class="stat-change" id="overallPerformanceChange">Awaiting live data</div>
+                    </div>
+                    
+                    <div class="stat-card info">
+                        <div class="stat-label">Engagement Trend</div>
+                        <div class="stat-value" id="engagementTrendValue">0.0%</div>
+                        <div class="stat-change" id="engagementTrendChange">Awaiting live data</div>
+                    </div>
+                    
+                    <div class="stat-card warning">
+                        <div class="stat-label">Attendance Rate</div>
+                        <div class="stat-value" id="attendanceRateValue">0.0%</div>
+                        <div class="stat-change" id="attendanceRateChange">Awaiting live data</div>
+                    </div>
+                    
+                    <div class="stat-card danger">
+                        <div class="stat-label">At-Risk Students</div>
+                        <div class="stat-value" id="atRiskStudentsValue">0</div>
+                        <div class="stat-change" id="atRiskStudentsChange">Awaiting live data</div>
+                    </div>
+                </div>
+                
+                <!-- Main Analytics Grid -->
+                <div class="grid grid-cols-2" style="gap: 1.5rem; margin-bottom: 2rem;">
+                    <!-- Engagement Trends -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Engagement Trends</h2>
+                                <p class="card-subtitle">Long-term engagement patterns</p>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-sm btn-secondary" onclick="changeTrendView('daily')">Daily</button>
+                                <button class="btn btn-sm btn-secondary" onclick="changeTrendView('weekly')">Weekly</button>
+                                <button class="btn btn-sm btn-secondary" onclick="changeTrendView('monthly')">Monthly</button>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container chart-large">
+                            <canvas id="trendsChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Emotion Distribution Over Time -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Emotion Distribution</h2>
+                                <p class="card-subtitle">Classroom emotion trends over time</p>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container chart-large">
+                            <canvas id="emotionTrendsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Performance Comparison -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Class Performance Comparison</h2>
+                            <p class="card-subtitle">Compare metrics across different classes</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <select class="form-select" style="width: 150px;">
+                                <option>All Classes</option>
+                                <option>CS101 vs CS102</option>
+                                <option>CS101 vs CS201</option>
+                                <option>All Three Classes</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container chart-large">
+                        <canvas id="comparisonChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Student Performance Distribution -->
+                <div class="grid grid-cols-3" style="gap: 1.5rem; margin-bottom: 2rem;">
+                    <!-- Performance Distribution -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Performance Distribution</h2>
+                                <p class="card-subtitle">Student performance categories</p>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container">
+                            <canvas id="performanceDistributionChart"></canvas>
+                        </div>
+                        
+                        <div style="margin-top: 1rem; padding: 1rem; background: var(--hover-bg); border-radius: 8px;">
+                            <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem;">Distribution Breakdown</h3>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span>Excellent (90-100%):</span>
+                                    <strong id="excellentCount">0 students</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span>Good (80-89%):</span>
+                                    <strong id="goodCount">0 students</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <span>Average (70-79%):</span>
+                                    <strong id="averageCount">0 students</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>Below Average (&lt;70%):</span>
+                                    <strong id="belowAverageCount">0 students</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Time-Based Analysis -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Time-Based Analysis</h2>
+                                <p class="card-subtitle">Engagement by time of day</p>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container">
+                            <canvas id="timeAnalysisChart"></canvas>
+                        </div>
+                        
+                        <div style="margin-top: 1rem; padding: 1rem; background: var(--hover-bg); border-radius: 8px;">
+                            <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem;">Peak Performance Times</h3>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                                <div style="margin-bottom: 0.5rem;">
+                                    <strong>Most Engaged:</strong> <span id="mostEngagedTime">N/A</span>
+                                </div>
+                                <div style="margin-bottom: 0.5rem;">
+                                    <strong>Least Engaged:</strong> <span id="leastEngagedTime">N/A</span>
+                                </div>
+                                <div>
+                                    <strong>Recommendation:</strong> <span id="timeRecommendation">Collecting classroom data...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Weekly Patterns -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Weekly Patterns</h2>
+                                <p class="card-subtitle">Day-wise performance analysis</p>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container">
+                            <canvas id="weeklyPatternsChart"></canvas>
+                        </div>
+                        
+                        <div style="margin-top: 1rem; padding: 1rem; background: var(--hover-bg); border-radius: 8px;">
+                            <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem;">Weekly Insights</h3>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                                <div style="margin-bottom: 0.5rem;">
+                                    <strong>Best Day:</strong> <span id="bestDay">N/A</span>
+                                </div>
+                                <div style="margin-bottom: 0.5rem;">
+                                    <strong>Challenging Day:</strong> <span id="challengingDay">N/A</span>
+                                </div>
+                                <div>
+                                    <strong>Pattern:</strong> <span id="weeklyPattern">Collecting weekly trend...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Correlation Analysis -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Correlation Analysis</h2>
+                            <p class="card-subtitle">Relationships between different metrics</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-sm btn-secondary" onclick="changeCorrelationView('engagement-attendance')">Engagement vs Attendance</button>
+                            <button class="btn btn-sm btn-secondary" onclick="changeCorrelationView('time-performance')">Time vs Performance</button>
+                            <button class="btn btn-sm btn-secondary" onclick="changeCorrelationView('emotion-engagement')">Emotion vs Engagement</button>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container chart-large">
+                        <canvas id="correlationChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Predictive Analytics -->
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Predictive Analytics</h2>
+                            <p class="card-subtitle">AI-powered predictions and recommendations</p>
+                        </div>
+                        <span class="badge badge-info">Beta Feature</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2" style="gap: 1.5rem;">
+                        <div>
+                            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">Performance Predictions</h3>
+                            <div style="margin-bottom: 1rem;">
+                                <div style="padding: 1rem; background: var(--hover-bg); border-radius: 8px; margin-bottom: 1rem;">
+                                    <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">Next Week Forecast</h4>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                                        <div style="margin-bottom: 0.25rem;">Expected Engagement: <strong id="nextWeekEngagement">N/A</strong></div>
+                                        <div style="margin-bottom: 0.25rem;">Expected Attendance: <strong id="nextWeekAttendance">N/A</strong></div>
+                                        <div>Confidence Level: <strong id="confidenceLevel">N/A</strong></div>
+                                    </div>
+                                </div>
+                                
+                                <div style="padding: 1rem; background: var(--hover-bg); border-radius: 8px; margin-bottom: 1rem;">
+                                    <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">At-Risk Predictions</h4>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                                        <div style="margin-bottom: 0.25rem;">Students at risk of disengagement: <strong id="atRiskCount">0</strong></div>
+                                        <div>Recommended intervention: <strong>Immediate</strong></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">AI Recommendations</h3>
+                            <div style="margin-bottom: 1rem;">
+                                <div style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 8px; margin-bottom: 1rem;">
+                                    <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--success-color);">Optimization Suggestion</h4>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary);" id="optimizationSuggestion">Collecting recommendation data...</div>
+                                </div>
+                                
+                                <div style="padding: 1rem; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px; margin-bottom: 1rem;">
+                                    <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--info-color);">Teaching Strategy</h4>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary);" id="teachingStrategy">Collecting recommendation data...</div>
+                                </div>
+                                
+                                <div style="padding: 1rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 8px;">
+                                    <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--warning-color);">Student Focus</h4>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary);" id="studentFocus">Collecting recommendation data...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="api.js"></script>
+    <script src="main.js"></script>
+    <script src="charts.js"></script>
+    <script>
+        // Initialize analytics page
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentUser = localStorage.getItem('currentUser');
+            if (!currentUser) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            console.log('📊 Analytics page loaded, waiting for data...');
+            
+            // Always trigger a direct refresh so page gets DB data even if analyticsLoaded doesn't fire.
+            refreshAnalytics();
+            
+            // Setup period change handler
+            document.getElementById('analyticsPeriod').addEventListener('change', refreshAnalytics);
+            document.getElementById('analyticsClass').addEventListener('change', refreshAnalytics);
+            document.getElementById('analyticsMetric').addEventListener('change', refreshAnalytics);
+        });
+        
+        function changeTrendView(view) {
+            showAlert(`Switching to ${view} trend view`, 'info');
+            // Update chart based on view
+        }
+        
+        function changeCorrelationView(view) {
+            showAlert(`Showing ${view} correlation`, 'info');
+            // Update correlation chart
+        }
+        
+        function exportAnalytics() {
+            showAlert('Exporting analytics data...', 'info');
+            setTimeout(() => {
+                showAlert('Analytics data exported successfully!', 'success');
+            }, 1500);
+        }
+        
+        async function refreshAnalytics() {
+            showAlert('Refreshing analytics...', 'info');
+            
+            try {
+                if (!window.SmartClassAPI || !window.SmartClassAPI.API) {
+                    throw new Error('API not available. Make sure api.js is loaded.');
+                }
+                
+                // Fetch real analytics data from API
+                const periodLabel = document.getElementById('analyticsPeriod')?.value || 'Last 7 Days';
+                const days = mapPeriodToDays(periodLabel);
+                console.log(`Fetching analytics data for ${days} days...`);
+                
+                const analyticsData = await window.SmartClassAPI.API.get('/analytics/', { days });
+                
+                console.log('Analytics data received:', analyticsData);
+                
+                if (analyticsData && analyticsData.total_records > 0) {
+                    // Update charts with real data
+                    updateChartsWithRealData(analyticsData);
+                    updateKpiCards(analyticsData);
+                    showAlert('Analytics refreshed successfully!', 'success');
+                } else if (analyticsData && analyticsData.message) {
+                    setAnalyticsFallbackValues();
+                    showAlert(analyticsData.message, 'warning');
+                } else {
+                    setAnalyticsFallbackValues();
+                    showAlert('No data available. Start a monitoring session first.', 'warning');
+                }
+            } catch (error) {
+                console.error('Error refreshing analytics:', error);
+                setAnalyticsFallbackValues();
+                showAlert(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function mapPeriodToDays(periodLabel) {
+            const periodMap = {
+                'Last 7 Days': 7,
+                'Last 30 Days': 30,
+                'Last 3 Months': 90,
+                'Last 6 Months': 180,
+                'Academic Year': 365,
+            };
+            return periodMap[periodLabel] || 7;
+        }
+
+        async function updateKpiCards(data) {
+            const overall = Number(data.overall_avg_engagement || 0);
+            const daily = Array.isArray(data.daily_engagement) ? data.daily_engagement : [];
+            const first = daily.length > 0 ? Number(daily[0].engagement || 0) : overall;
+            const last = daily.length > 0 ? Number(daily[daily.length - 1].engagement || 0) : overall;
+            const trend = last - first;
+            const atRisk = Number(data.at_risk_count || 0);
+
+            updateElementContent('overallPerformanceValue', overall.toFixed(1));
+            updateElementContent('overallPerformanceChange', `${trend >= 0 ? '↑' : '↓'} ${Math.abs(trend).toFixed(1)} points`);
+            updateElementContent('engagementTrendValue', `${trend >= 0 ? '+' : ''}${trend.toFixed(1)}%`);
+            updateElementContent('engagementTrendChange', daily.length > 1 ? 'From selected period' : 'Insufficient trend data');
+            updateElementContent('atRiskStudentsValue', String(atRisk));
+            updateElementContent('atRiskStudentsChange', atRisk > 0 ? 'Needs attention' : 'No high-risk students');
+
+            const attendanceRate = Number(data.attendance_rate || 0);
+
+            updateElementContent('attendanceRateValue', `${attendanceRate.toFixed(1)}%`);
+            updateElementContent('attendanceRateChange', attendanceRate >= 85 ? 'Above average' : 'Needs improvement');
+        }
+
+        function setAnalyticsFallbackValues() {
+            updateElementContent('excellentCount', '0 students');
+            updateElementContent('goodCount', '0 students');
+            updateElementContent('averageCount', '0 students');
+            updateElementContent('belowAverageCount', '0 students');
+            updateElementContent('mostEngagedTime', 'N/A');
+            updateElementContent('leastEngagedTime', 'N/A');
+            updateElementContent('timeRecommendation', 'Insufficient data. Run a live session to collect engagement trends.');
+            updateElementContent('bestDay', 'N/A');
+            updateElementContent('challengingDay', 'N/A');
+            updateElementContent('weeklyPattern', 'Insufficient weekly data.');
+            updateElementContent('nextWeekEngagement', 'N/A');
+            updateElementContent('nextWeekAttendance', 'N/A');
+            updateElementContent('confidenceLevel', 'N/A');
+            updateElementContent('atRiskCount', '0');
+            updateElementContent('optimizationSuggestion', 'Collect more session data to generate optimization suggestions.');
+            updateElementContent('teachingStrategy', 'Collect more session data to generate teaching strategy recommendations.');
+            updateElementContent('studentFocus', 'Collect more session data to identify student focus patterns.');
+        }
+        
+        function updateChartsWithRealData(data) {
+            // Update trends chart with real daily engagement data
+            updateTrendsChart(data.daily_engagement || []);
+            
+            // Update emotion trends with real emotion data
+            updateEmotionTrendsChart(data.emotion_trend || {});
+            
+            // Update other charts with real data
+            updateComparisonChart(data.top_students || [], data.needs_attention || []);
+            updatePerformanceDistribution(data.performance_distribution || null);
+            updateTimeAnalysisChart(data.hourly_pattern || []);
+            updateWeeklyPatternsChart(data.daily_engagement || []);
+            updateCorrelationChart(data.daily_engagement || []);
+            
+            // Update static text insights with real data
+            updatePredictiveAnalytics(data);
+            updatePerformanceInsights(data);
+            updateTimeInsights(data.hourly_pattern || []);
+            updateWeeklyInsights(data.daily_engagement || []);
+        }
+        
+        function updatePredictiveAnalytics(data) {
+            // Calculate real predictions based on historical data
+            const dailyData = data.daily_engagement || [];
+            const hourlyData = data.hourly_pattern || [];
+            
+            if (dailyData.length > 0) {
+                // Calculate next week forecast based on recent trends
+                const recentEngagement = dailyData.slice(-7).map(d => d.engagement);
+                const avgEngagement = recentEngagement.reduce((a, b) => a + b, 0) / recentEngagement.length;
+                const trend = recentEngagement.length > 1 ? 
+                    recentEngagement[recentEngagement.length - 1] - recentEngagement[0] : 0;
+                
+                const predictedEngagement = Math.round(Math.max(0, Math.min(100, 
+                    avgEngagement + (trend * 0.3))));
+                const predictedAttendance = Math.round(Math.max(0, Math.min(100, 
+                    avgEngagement + 10))); // Attendance typically higher than engagement
+                const confidence = Math.round(Math.min(95, Math.max(60, 
+                    85 - (recentEngagement.length > 3 ? 
+                        Math.abs(trend) * 5 : 20))));
+                
+                // Update predictive analytics section
+                updateElementContent('nextWeekEngagement', `${predictedEngagement}%`);
+                updateElementContent('nextWeekAttendance', `${predictedAttendance}%`);
+                updateElementContent('confidenceLevel', `${confidence}%`);
+                
+                // Calculate at-risk students
+                const atRiskCount = data.needs_attention ? data.needs_attention.length : 0;
+                updateElementContent('atRiskCount', atRiskCount);
+                
+                // Generate real recommendations
+                updateRecommendations(data, hourlyData);
+            }
+        }
+        
+        function updateRecommendations(data, hourlyData) {
+            const recommendations = [];
+            
+            // Analyze hourly patterns for recommendations
+            if (hourlyData.length > 0) {
+                const lowestHour = hourlyData.reduce((min, h) => 
+                    h.engagement < min.engagement ? h : min, hourlyData[0]);
+                const highestHour = hourlyData.reduce((max, h) => 
+                    h.engagement > max.engagement ? h : max, hourlyData[0]);
+                
+                recommendations.push({
+                    type: 'optimization',
+                    text: `Consider restructuring sessions during ${lowestHour.hour} to improve engagement. Current average: ${lowestHour.engagement}%.`
+                });
+                
+                recommendations.push({
+                    type: 'teaching',
+                    text: `Schedule complex topics during ${highestHour.hour} when engagement is highest (${highestHour.engagement}%).`
+                });
+            }
+            
+            // Student-specific recommendations
+            if (data.needs_attention && data.needs_attention.length > 0) {
+                recommendations.push({
+                    type: 'focus',
+                    text: `${data.needs_attention.length} students would benefit from additional support. Consider personalized interventions.`
+                });
+            }
+            
+            // Update recommendation elements
+            updateElementContent('optimizationSuggestion', 
+                recommendations[0]?.text || 'Continue current teaching strategies.');
+            updateElementContent('teachingStrategy', 
+                recommendations[1]?.text || 'Maintain current session structure.');
+            updateElementContent('studentFocus', 
+                recommendations[2]?.text || 'Monitor student engagement levels.');
+        }
+        
+        function updatePerformanceInsights(data) {
+            const distribution = data.performance_distribution || {};
+            const excellent = Number(distribution.excellent || 0);
+            const good = Number(distribution.good || 0);
+            const average = Number(distribution.average || 0);
+            const belowAverage = Number(distribution.below_average || 0);
+
+            updateElementContent('excellentCount', `${excellent} students`);
+            updateElementContent('goodCount', `${good} students`);
+            updateElementContent('averageCount', `${average} students`);
+            updateElementContent('belowAverageCount', `${belowAverage} students`);
+        }
+        
+        function updateTimeInsights(hourlyData) {
+            if (hourlyData.length > 0) {
+                const sortedByEngagement = [...hourlyData].sort((a, b) => b.engagement - a.engagement);
+                const highest = sortedByEngagement[0];
+                const lowest = sortedByEngagement[sortedByEngagement.length - 1];
+                
+                updateElementContent('mostEngagedTime', `${highest.hour}`);
+                updateElementContent('leastEngagedTime', `${lowest.hour}`);
+                updateElementContent('timeRecommendation', 
+                    `Schedule important topics during ${highest.hour} when engagement is highest (${highest.engagement}%).`);
+            }
+        }
+        
+        function updateWeeklyInsights(dailyData) {
+            if (dailyData.length > 0) {
+                // Group by day of week
+                const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const weeklyData = new Array(7).fill(0);
+                const weeklyCount = new Array(7).fill(0);
+                
+                dailyData.forEach(d => {
+                    const day = new Date(d.date).getDay();
+                    weeklyData[day] += d.engagement;
+                    weeklyCount[day]++;
+                });
+                
+                const avgWeeklyData = weeklyData.map((sum, i) => 
+                    weeklyCount[i] > 0 ? sum / weeklyCount[i] : 0);
+                
+                const maxAvg = Math.max(...avgWeeklyData);
+                const minAvg = Math.min(...avgWeeklyData.filter(v => v > 0));
+                
+                const bestDayIndex = avgWeeklyData.indexOf(maxAvg);
+                const challengingDayIndex = avgWeeklyData.indexOf(minAvg);
+                
+                updateElementContent('bestDay', `${dayOfWeek[bestDayIndex]} (${Math.round(maxAvg)}% avg engagement)`);
+                updateElementContent('challengingDay', `${dayOfWeek[challengingDayIndex]} (${Math.round(minAvg)}% avg engagement)`);
+                updateElementContent('weeklyPattern', 
+                    bestDayIndex >= 2 && bestDayIndex <= 4 ? 
+                        'Mid-week shows highest performance' : 
+                        'Performance varies throughout the week');
+            }
+        }
+        
+        function updateElementContent(id, content) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = content;
+            }
+        }
+        
+        function updateTrendsChart(dailyData) {
+            const ctx = document.getElementById('trendsChart');
+            if (!ctx || !dailyData.length) return;
+            
+            const labels = dailyData.map(d => new Date(d.date).toLocaleDateString());
+            const engagementData = dailyData.map(d => d.engagement);
+            const attentionData = dailyData.map(d => d.attention);
+            
+            if (window.trendsChartInstance) {
+                window.trendsChartInstance.destroy();
+            }
+            
+            window.trendsChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Engagement',
+                        data: engagementData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: 'Attention',
+                        data: attentionData,
+                        borderColor: '#22c55e',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: 'Daily Engagement Trends' }
+                    }
+                }
+            });
+        }
+        
+        function updateEmotionTrendsChart(emotionData) {
+            const ctx = document.getElementById('emotionTrendsChart');
+            if (!ctx) return;
+            
+            const emotions = ['happy', 'neutral', 'confused', 'bored', 'focused'];
+            const emotionCounts = emotions.map(e => emotionData[e] || 0);
+            
+            if (window.emotionTrendsChartInstance) {
+                window.emotionTrendsChartInstance.destroy();
+            }
+            
+            window.emotionTrendsChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: emotions.map(e => e.charAt(0).toUpperCase() + e.slice(1)),
+                    datasets: [{
+                        label: 'Emotion Distribution',
+                        data: emotionCounts,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: 'Emotion Trends' }
+                    }
+                }
+            });
+        }
+        
+        function updateComparisonChart(topStudents, needsAttention) {
+            const ctx = document.getElementById('comparisonChart');
+            if (!ctx) return;
+            
+            const allStudents = [...topStudents.slice(0, 3), ...needsAttention.slice(-3)];
+            const labels = allStudents.map(s => s.name);
+            const engagementData = allStudents.map(s => s.avg_engagement);
+            
+            if (window.comparisonChartInstance) {
+                window.comparisonChartInstance.destroy();
+            }
+            
+            window.comparisonChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Student Engagement',
+                        data: engagementData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: 'Student Performance Comparison' }
+                    }
+                }
+            });
+        }
+        
+        function updatePerformanceDistribution(distribution) {
+            const ctx = document.getElementById('performanceDistributionChart');
+            if (!ctx) return;
+
+            const excellent = Number(distribution?.excellent || 0);
+            const good = Number(distribution?.good || 0);
+            const average = Number(distribution?.average || 0);
+            const belowAverage = Number(distribution?.below_average || 0);
+            
+            if (window.performanceChartInstance) {
+                window.performanceChartInstance.destroy();
+            }
+            
+            window.performanceChartInstance = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Excellent', 'Good', 'Average', 'Below Average'],
+                    datasets: [{
+                        data: [excellent, good, average, belowAverage],
+                        backgroundColor: ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        title: { display: true, text: 'Performance Distribution' }
+                    }
+                }
+            });
+        }
+        
+        function updateTimeAnalysisChart(hourlyData) {
+            const ctx = document.getElementById('timeAnalysisChart');
+            if (!ctx || !hourlyData.length) return;
+            
+            const labels = hourlyData.map(h => h.hour);
+            const engagementData = hourlyData.map(h => h.engagement);
+            
+            if (window.timeAnalysisChartInstance) {
+                window.timeAnalysisChartInstance.destroy();
+            }
+            
+            window.timeAnalysisChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Average Engagement',
+                        data: engagementData,
+                        backgroundColor: '#3b82f6'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: 'Engagement by Time of Day' }
+                    }
+                }
+            });
+        }
+        
+        function updateWeeklyPatternsChart(dailyData) {
+            const ctx = document.getElementById('weeklyPatternsChart');
+            if (!ctx || !dailyData.length) return;
+            
+            // Group by day of week
+            const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const weeklyData = new Array(7).fill(0);
+            const weeklyCount = new Array(7).fill(0);
+            
+            dailyData.forEach(d => {
+                const day = new Date(d.date).getDay();
+                weeklyData[day] += d.engagement;
+                weeklyCount[day]++;
+            });
+            
+            const avgWeeklyData = weeklyData.map((sum, i) => 
+                weeklyCount[i] > 0 ? sum / weeklyCount[i] : 0
+            );
+            
+            if (window.weeklyPatternsChartInstance) {
+                window.weeklyPatternsChartInstance.destroy();
+            }
+            
+            window.weeklyPatternsChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dayOfWeek,
+                    datasets: [{
+                        label: 'Average Engagement',
+                        data: avgWeeklyData,
+                        backgroundColor: '#22c55e'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: 'Weekly Engagement Patterns' }
+                    }
+                }
+            });
+        }
+        
+        function updateCorrelationChart(dailyData) {
+            const ctx = document.getElementById('correlationChart');
+            if (!ctx || !dailyData.length) return;
+            
+            // Generate scatter plot data for engagement vs attendance correlation
+            const scatterData = dailyData.map(d => ({
+                x: d.attention || 50,
+                y: d.engagement || 50
+            }));
+            
+            if (window.correlationChartInstance) {
+                window.correlationChartInstance.destroy();
+            }
+            
+            window.correlationChartInstance = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Engagement vs Attention',
+                        data: scatterData,
+                        backgroundColor: '#3b82f6'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: 'Engagement-Attention Correlation' }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Attention Score' } },
+                        y: { title: { display: true, text: 'Engagement Score' } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

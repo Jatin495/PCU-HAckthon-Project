@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - SmartClass Monitor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">SC</div>
+                <div>
+                    <h3 style="font-size: 1rem; margin: 0;">SmartClass</h3>
+                    <p style="font-size: 0.75rem; opacity: 0.8; margin: 0;">Monitor</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item">
+                    <span class="nav-icon">📊</span>
+                    Dashboard
+                </a>
+                <a href="live_class.html" class="nav-item">
+                    <span class="nav-icon">📹</span>
+                    Live Classroom
+                </a>
+                <a href="attendance.html" class="nav-item">
+                    <span class="nav-icon">✓</span>
+                    Attendance
+                </a>
+                <a href="student.html" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    Students
+                </a>
+                <a href="reports.html" class="nav-item active">
+                    <span class="nav-icon">📄</span>
+                    Reports
+                </a>
+                <a href="analytics.html" class="nav-item">
+                    <span class="nav-icon">📈</span>
+                    Analytics
+                </a>
+                <a href="settings.html" class="nav-item">
+                    <span class="nav-icon">⚙️</span>
+                    Settings
+                </a>
+                <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <span class="nav-icon">🚪</span>
+                    Logout
+                </a>
+            </nav>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navbar -->
+            <header class="top-navbar">
+                <div class="navbar-left">
+                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">☰</button>
+                    <h1 style="font-size: 1.5rem; font-weight: 600;">Class Reports</h1>
+                </div>
+                
+                <div class="navbar-right">
+                    <div class="search-bar">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" placeholder="Search reports...">
+                    </div>
+                    
+                    <div class="notification-bell">
+                        <span style="font-size: 1.25rem;">🔔</span>
+                        <span class="notification-badge">0</span>
+                    </div>
+                    
+                    <div class="user-menu">
+                        <div class="user-avatar" id="userAvatar">T</div>
+                        <div>
+                            <div id="userName" style="font-size: 0.875rem; font-weight: 500;">Teacher</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Online</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Report Generation Controls -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Generate Report</h2>
+                            <p class="card-subtitle">Create comprehensive classroom performance reports</p>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div class="form-group">
+                            <label class="form-label">Report Type</label>
+                            <select class="form-select" id="reportType">
+                                <option>Daily Summary</option>
+                                <option>Weekly Analysis</option>
+                                <option>Monthly Performance</option>
+                                <option>Student Individual</option>
+                                <option>Class Comparison</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Date Range</label>
+                            <select class="form-select" id="dateRange">
+                                <option>Today</option>
+                                <option>This Week</option>
+                                <option>This Month</option>
+                                <option>Last 30 Days</option>
+                                <option>Custom Range</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Class</label>
+                            <select class="form-select" id="reportClass">
+                                <option>CS101 - Computer Science 101</option>
+                                <option>CS102 - Computer Science 102</option>
+                                <option>CS201 - Advanced Programming</option>
+                                <option>All Classes</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Format</label>
+                            <select class="form-select" id="reportFormat">
+                                <option>PDF</option>
+                                <option>Excel</option>
+                                <option>CSV</option>
+                                <option>PowerPoint</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="btn btn-primary btn-lg" onclick="generateReport()">
+                            <span>📊</span> Generate Report
+                        </button>
+                        <button class="btn btn-secondary" onclick="scheduleReport()">
+                            <span>📅</span> Schedule Report
+                        </button>
+                        <button class="btn btn-secondary" onclick="loadTemplates()">
+                            <span>📋</span> Load Template
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Recent Reports -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Recent Reports</h2>
+                            <p class="card-subtitle">Your previously generated reports</p>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" onclick="viewAllReports()">
+                            View All
+                        </button>
+                    </div>
+                    
+                    <div class="table">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr>
+                                    <th>Report Name</th>
+                                    <th>Type</th>
+                                    <th>Date Generated</th>
+                                    <th>Format</th>
+                                    <th>Size</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentReportsTable">
+                                <!-- Report rows will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Report Preview -->
+                <div class="grid grid-cols-2" style="gap: 1.5rem;">
+                    <!-- Engagement Summary -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Engagement Summary</h2>
+                                <p class="card-subtitle">Class engagement overview</p>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container">
+                            <canvas id="engagementSummaryChart"></canvas>
+                        </div>
+                        
+                        <div style="margin-top: 1rem; padding: 1rem; background: var(--hover-bg); border-radius: 8px;">
+                            <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem;">Key Insights</h3>
+                            <ul style="font-size: 0.875rem; color: var(--text-secondary); margin: 0; padding-left: 1.5rem;">
+                                <li>Average engagement increased by 5% this week</li>
+                                <li>Peak engagement observed during interactive sessions</li>
+                                <li>3 students show consistently low engagement</li>
+                                <li>Monday sessions have 15% lower engagement</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Emotion Analysis -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">Emotion Analysis</h2>
+                                <p class="card-subtitle">Student emotion distribution</p>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container">
+                            <canvas id="emotionAnalysisChart"></canvas>
+                        </div>
+                        
+                        <div style="margin-top: 1rem; padding: 1rem; background: var(--hover-bg); border-radius: 8px;">
+                            <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem;">Emotional Trends</h3>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.8rem;">
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></span>
+                                    Happy: +12% ↗️
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <span style="width: 8px; height: 8px; background: #6b7280; border-radius: 50%;"></span>
+                                    Neutral: -5% ↘️
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <span style="width: 8px; height: 8px; background: #f59e0b; border-radius: 50%;"></span>
+                                    Confused: -8% ↘️
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <span style="width: 8px; height: 8px; background: #ef4444; border-radius: 50%;"></span>
+                                    Bored: -3% ↘️
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Performance Metrics -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Performance Metrics</h2>
+                            <p class="card-subtitle">Detailed classroom performance data</p>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="downloadPDF()">
+                            <span>📥</span> Download PDF
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-4" style="gap: 1rem; margin-bottom: 1.5rem;">
+                        <div class="stat-card">
+                            <div class="stat-label">Avg Attendance</div>
+                            <div class="stat-value">91.7%</div>
+                            <div class="stat-change positive">↑ 2.3% from last month</div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-label">Avg Engagement</div>
+                            <div class="stat-value">78.5%</div>
+                            <div class="stat-change positive">↑ 5.1% improvement</div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-label">Focus Score</div>
+                            <div class="stat-value">82.3</div>
+                            <div class="stat-change positive">↑ 3.7 points</div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-label">Participation</div>
+                            <div class="stat-value">76.8%</div>
+                            <div class="stat-change positive">↑ 4.2% increase</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Detailed Metrics Table -->
+                    <div class="table">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Current Value</th>
+                                    <th>Previous Value</th>
+                                    <th>Change</th>
+                                    <th>Trend</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="metricsTable">
+                                <!-- Metrics rows will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Top Performers -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Student Performance Rankings</h2>
+                            <p class="card-subtitle">Top performing students this period</p>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                        <!-- Top 3 Students -->
+                        <div style="padding: 1rem; background: linear-gradient(135deg, rgba(255,215,0,0.1), rgba(255,193,7,0.1)); border-radius: 12px; border: 1px solid rgba(255,193,7,0.2);">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                <div style="font-size: 2rem;">🥇</div>
+                                <div>
+                                    <h3 style="font-size: 1rem; font-weight: 600; margin: 0;">Emma Wilson</h3>
+                                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;">STU001</p>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.875rem;">
+                                <div>Engagement: <strong>95%</strong></div>
+                                <div>Attendance: <strong>100%</strong></div>
+                                <div>Focus: <strong>92%</strong></div>
+                                <div>Participation: <strong>88%</strong></div>
+                            </div>
+                        </div>
+                        
+                        <div style="padding: 1rem; background: linear-gradient(135deg, rgba(192,192,192,0.1), rgba(169,169,169,0.1)); border-radius: 12px; border: 1px solid rgba(169,169,169,0.2);">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                <div style="font-size: 2rem;">🥈</div>
+                                <div>
+                                    <h3 style="font-size: 1rem; font-weight: 600; margin: 0;">Liam Johnson</h3>
+                                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;">STU002</p>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.875rem;">
+                                <div>Engagement: <strong>92%</strong></div>
+                                <div>Attendance: <strong>96%</strong></div>
+                                <div>Focus: <strong>89%</strong></div>
+                                <div>Participation: <strong>85%</strong></div>
+                            </div>
+                        </div>
+                        
+                        <div style="padding: 1rem; background: linear-gradient(135deg, rgba(205,127,50,0.1), rgba(184,134,11,0.1)); border-radius: 12px; border: 1px solid rgba(184,134,11,0.2);">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                <div style="font-size: 2rem;">🥉</div>
+                                <div>
+                                    <h3 style="font-size: 1rem; font-weight: 600; margin: 0;">Olivia Davis</h3>
+                                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 0;">STU003</p>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.875rem;">
+                                <div>Engagement: <strong>89%</strong></div>
+                                <div>Attendance: <strong>100%</strong></div>
+                                <div>Focus: <strong>87%</strong></div>
+                                <div>Participation: <strong>82%</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="api.js"></script>
+    <script src="main.js"></script>
+    <script src="charts.js"></script>
+    <script>
+        // Initialize reports page
+        document.addEventListener('DOMContentLoaded', async function() {
+            const currentUser = localStorage.getItem('currentUser');
+            if (!currentUser) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            if (window.SmartClassAPI && typeof window.SmartClassAPI.checkConnection === 'function') {
+                await window.SmartClassAPI.checkConnection();
+            }
+            
+            // Load data
+            await loadRecentReports();
+            loadMetricsTable();
+            
+            // Initialize charts
+            setTimeout(() => {
+                createEngagementSummaryChart();
+                createEmotionAnalysisChart();
+            }, 100);
+        });
+        
+        async function loadRecentReports() {
+            const tbody = document.getElementById('recentReportsTable');
+            if (!tbody) return;
+
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:1rem;">Loading reports...</td></tr>';
+
+            const response = window.SmartClassAPI && window.SmartClassAPI.API
+                ? await window.SmartClassAPI.API.get('/reports/list/')
+                : null;
+
+            const reports = response && response.success && Array.isArray(response.reports)
+                ? response.reports
+                : [];
+
+            tbody.innerHTML = '';
+
+            if (reports.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:1rem;">No reports generated yet.</td></tr>';
+                return;
+            }
+
+            reports.forEach(report => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${report.name}</strong></td>
+                    <td><span class="badge badge-info">${report.type || report.report_type || 'Report'}</span></td>
+                    <td>${report.date}</td>
+                    <td>${report.format}</td>
+                    <td>${report.size}</td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-sm btn-secondary" onclick="viewReportDetails('${report.id}')">View</button>
+                            <button class="btn btn-sm btn-secondary" onclick="downloadReportFromList('${report.id}')">Download</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteReportFromList('${report.id}')">Delete</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function loadMetricsTable() {
+            const tbody = document.getElementById('metricsTable');
+            const metrics = [
+                { metric: 'Attendance Rate', current: '91.7%', previous: '89.4%', change: '+2.3%', trend: 'up', status: 'excellent' },
+                { metric: 'Engagement Score', current: '78.5%', previous: '73.4%', change: '+5.1%', trend: 'up', status: 'good' },
+                { metric: 'Focus Duration', current: '42.3 min', previous: '38.7 min', change: '+3.6 min', trend: 'up', status: 'good' },
+                { metric: 'Participation Rate', current: '76.8%', previous: '72.6%', change: '+4.2%', trend: 'up', status: 'good' },
+                { metric: 'Question Response', current: '68.2%', previous: '65.1%', change: '+3.1%', trend: 'up', status: 'average' },
+                { metric: 'Assignment Completion', current: '94.5%', previous: '92.3%', change: '+2.2%', trend: 'up', status: 'excellent' }
+            ];
+            
+            tbody.innerHTML = '';
+            metrics.forEach(metric => {
+                const row = document.createElement('tr');
+                const statusColor = metric.status === 'excellent' ? 'success' : metric.status === 'good' ? 'info' : 'warning';
+                const trendIcon = metric.trend === 'up' ? '↗️' : '↘️';
+                
+                row.innerHTML = `
+                    <td><strong>${metric.metric}</strong></td>
+                    <td>${metric.current}</td>
+                    <td>${metric.previous}</td>
+                    <td><span class="badge badge-success">${metric.change}</span></td>
+                    <td>${trendIcon}</td>
+                    <td><span class="badge badge-${statusColor}">${metric.status}</span></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function createEngagementSummaryChart() {
+            const ctx = document.getElementById('engagementSummaryChart');
+            if (!ctx) return;
+            
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                    datasets: [{
+                        label: 'Engagement %',
+                        data: [72, 78, 82, 85, 79],
+                        backgroundColor: '#6366f1',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createEmotionAnalysisChart() {
+            const ctx = document.getElementById('emotionAnalysisChart');
+            if (!ctx) return;
+            
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Happy', 'Neutral', 'Confused', 'Bored'],
+                    datasets: [{
+                        data: [45, 30, 15, 10],
+                        backgroundColor: ['#10b981', '#6b7280', '#f59e0b', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+        }
+        
+        async function generateReport() {
+            const typeLabel = document.getElementById('reportType').value;
+            const dateRangeLabel = document.getElementById('dateRange').value;
+            const className = document.getElementById('reportClass').value;
+            const formatLabel = document.getElementById('reportFormat').value;
+
+            // Map UI labels to backend-supported values.
+            const typeMap = {
+                'Daily Summary': 'summary',
+                'Weekly Analysis': 'summary',
+                'Monthly Performance': 'engagement',
+                'Student Individual': 'engagement',
+                'Class Comparison': 'summary'
+            };
+            const rangeMap = {
+                'Today': '1',
+                'This Week': '7',
+                'This Month': '30',
+                'Last 30 Days': '30',
+                'Custom Range': '7'
+            };
+            const formatMap = {
+                'CSV': 'csv',
+                'Excel': 'xlsx',
+                'PDF': 'csv',
+                'PowerPoint': 'csv'
+            };
+
+            const type = typeMap[typeLabel] || 'summary';
+            const dateRange = rangeMap[dateRangeLabel] || '7';
+            const format = formatMap[formatLabel] || 'csv';
+            
+            try {
+                const response = await window.SmartClassAPI.API.post('/reports/generate/', {
+                    type: type,
+                    date_range: dateRange,
+                    class: className,
+                    format: format
+                });
+                
+                if (response && response.success) {
+                    const generatedId = response.report && response.report.id;
+                    if (generatedId) {
+                        showAlert('Report generated. Download starting...', 'success');
+                        window.location.href = `${window.location.origin}/api/reports/download/${generatedId}/`;
+                    } else {
+                        showAlert('Report generated successfully! Check Recent Reports.', 'success');
+                    }
+                    await loadRecentReports(); // Refresh reports list
+                } else {
+                    showAlert('Report generation failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Error generating report', 'error');
+            }
+        }
+        
+        async function scheduleReport() {
+            const typeLabel = document.getElementById('reportType').value;
+            const dateRangeLabel = document.getElementById('dateRange').value;
+            const className = document.getElementById('reportClass').value;
+            const formatLabel = document.getElementById('reportFormat').value;
+
+            const typeMap = {
+                'Daily Summary': 'summary',
+                'Weekly Analysis': 'summary',
+                'Monthly Performance': 'engagement',
+                'Student Individual': 'engagement',
+                'Class Comparison': 'summary'
+            };
+            const rangeMap = {
+                'Today': '1',
+                'This Week': '7',
+                'This Month': '30',
+                'Last 30 Days': '30',
+                'Custom Range': '7'
+            };
+            const formatMap = {
+                'CSV': 'csv',
+                'Excel': 'xlsx',
+                'PDF': 'csv',
+                'PowerPoint': 'csv'
+            };
+
+            const type = typeMap[typeLabel] || 'summary';
+            const dateRange = rangeMap[dateRangeLabel] || '7';
+            const format = formatMap[formatLabel] || 'csv';
+            
+            try {
+                const response = await window.SmartClassAPI.API.post('/reports/schedule/', {
+                    type: type,
+                    date_range: dateRange,
+                    class: className,
+                    format: format,
+                    schedule_time: new Date().toISOString()
+                });
+                
+                if (response && response.success) {
+                    showAlert(`Report scheduled for ${response.scheduled_time || 'later'}`, 'success');
+                } else {
+                    showAlert('Report scheduling failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Error scheduling report', 'error');
+            }
+        }
+        
+        async function loadTemplates() {
+            try {
+                const response = await window.SmartClassAPI.API.get('/reports/templates/');
+                
+                if (response && response.success) {
+                    const templates = response.templates || [];
+                    let templateHTML = '<div style="max-height: 400px; overflow-y: auto;">';
+                    
+                    templates.forEach(template => {
+                        templateHTML += `
+                            <div class="card" style="margin-bottom: 1rem; cursor: pointer;" onclick="useTemplate('${template.id}')">
+                                <div class="card-header">
+                                    <h3 style="margin: 0; font-size: 1rem;">${template.name}</h3>
+                                    <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem; color: var(--text-secondary);">${template.description}</p>
+                                </div>
+                                <div style="padding: 1rem;">
+                                    <strong>Sections:</strong> ${template.sections.join(', ')}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    templateHTML += '</div>';
+                    
+                    // Show in modal or replace page content
+                    const modal = document.createElement('div');
+                    modal.innerHTML = `
+                        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+                            <div style="background: white; padding: 2rem; border-radius: 8px; max-width: 600px; max-height: 80vh; overflow-y: auto;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                    <h2>Report Templates</h2>
+                                    <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">×</button>
+                                </div>
+                                ${templateHTML}
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+                } else {
+                    showAlert('Failed to load templates', 'error');
+                }
+            } catch (error) {
+                showAlert('Error loading templates', 'error');
+            }
+        }
+        
+        async function viewAllReports() {
+            try {
+                const response = await window.SmartClassAPI.API.get('/reports/list/');
+                
+                if (response && response.success) {
+                    const reports = response.reports || [];
+                    let reportsHTML = '<div style="max-height: 400px; overflow-y: auto;">';
+                    
+                    reports.forEach(report => {
+                        const statusColor = report.status === 'completed' ? 'success' : 'warning';
+                        reportsHTML += `
+                            <div class="card" style="margin-bottom: 1rem;">
+                                <div class="card-header">
+                                    <h3 style="margin: 0; font-size: 1rem;">${report.name}</h3>
+                                    <span class="badge badge-${statusColor}">${report.status}</span>
+                                </div>
+                                <div style="padding: 1rem;">
+                                    <p><strong>Type:</strong> ${report.type}</p>
+                                    <p><strong>Date:</strong> ${report.date}</p>
+                                    <p><strong>Format:</strong> ${report.format}</p>
+                                    <p><strong>Size:</strong> ${report.size}</p>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-sm btn-primary" onclick="viewReportDetails('${report.id}')">View</button>
+                                    <button class="btn btn-sm btn-secondary" onclick="downloadReportFromList('${report.id}')">Download</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteReportFromList('${report.id}')">Delete</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    reportsHTML += '</div>';
+                    
+                    // Replace the recent reports table
+                    const reportsContainer = document.querySelector('.page-content');
+                    if (reportsContainer) {
+                        reportsContainer.innerHTML = reportsHTML;
+                    }
+                } else {
+                    showAlert('Failed to load reports', 'error');
+                }
+            } catch (error) {
+                showAlert('Error loading reports', 'error');
+            }
+        }
+        
+        async function viewReportDetails(reportId) {
+            try {
+                const response = await window.SmartClassAPI.API.get(`/reports/list/`);
+                
+                if (response && response.success) {
+                    const reports = response.reports || [];
+                    const report = reports.find(r => r.id === reportId);
+                    
+                    if (report) {
+                        showAlert(`Opening report: ${report.name}`, 'info');
+                        // In a real app, this would open a detailed view
+                    } else {
+                        showAlert('Report not found', 'error');
+                    }
+                } else {
+                    showAlert('Failed to load report details', 'error');
+                }
+            } catch (error) {
+                showAlert('Error loading report details', 'error');
+            }
+        }
+        
+        async function downloadReportFromList(reportId) {
+            try {
+                // Download endpoint returns a file stream, not JSON.
+                window.location.href = `${window.location.origin}/api/reports/download/${reportId}/`;
+                showAlert('Download started', 'success');
+            } catch (error) {
+                showAlert('Error downloading report', 'error');
+            }
+        }
+        
+        async function deleteReportFromList(reportId) {
+            if (confirm(`Are you sure you want to delete this report?`)) {
+                try {
+                    const response = await window.SmartClassAPI.API.delete(`/reports/delete/${reportId}/`);
+                    
+                    if (response && response.success) {
+                        showAlert(response.message || 'Report deleted successfully', 'success');
+                        await loadRecentReports(); // Refresh the list
+                    } else {
+                        showAlert('Delete failed', 'error');
+                    }
+                } catch (error) {
+                    showAlert('Error deleting report', 'error');
+                }
+            }
+        }
+        
+        function useTemplate(templateId) {
+            showAlert(`Using template: ${templateId}`, 'info');
+            // In a real app, this would populate the form with template data
+        }
+        
+        function downloadPDF() {
+            window.SmartClassMonitor.downloadPDF();
+        }
+    </script>
+</body>
+</html>
