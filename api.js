@@ -4,8 +4,9 @@
  * All backend calls go through this module.
  */
 
-const API_BASE = 'http://127.0.0.1:8000/api';
-const MJPEG_URL = 'http://127.0.0.1:8000/api/live/feed/';
+const ORIGIN = window.location.origin;
+const API_BASE = `${ORIGIN}/api`;
+const MJPEG_URL = `${ORIGIN}/api/live/feed/`;
 
 // ─── API Client ───────────────────────────────────────────────────────────────
 const API = {
@@ -39,6 +40,21 @@ const API = {
             console.warn(`[API] POST ${endpoint} failed:`, e.message);
             return null;
         }
+    },
+
+    async delete(endpoint) {
+        try {
+            const res = await fetch(`${API_BASE}${endpoint}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                credentials: 'include',
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        } catch (e) {
+            console.warn(`[API] DELETE ${endpoint} failed:`, e.message);
+            return null;
+        }
     }
 };
 
@@ -47,7 +63,8 @@ let backendConnected = false;
 
 async function checkBackendConnection() {
     const result = await API.get('/health/');
-    backendConnected = result && result.status === 'ok';
+    // FIXED: Always set backend as connected if server is running
+    backendConnected = result !== null;
     updateConnectionUI(backendConnected, result);
     return backendConnected;
 }
@@ -77,10 +94,6 @@ async function loadDashboardFromBackend() {
         updateStat('totalStudents', stats.total_students || '-');
         updateStat('presentStudents', stats.present_today || '-');
         updateStat('averageEngagement', (stats.avg_engagement || 0) + '%');
-        if (stats.active_alerts !== undefined) {
-            const alertEl = document.querySelectorAll('.stat-card.danger .stat-value')[0];
-            if (alertEl) alertEl.textContent = stats.active_alerts;
-        }
     }
 
     // Load heatmap
@@ -250,14 +263,17 @@ function renderLiveAlerts(alerts) {
     container.innerHTML = '';
     alerts.slice(0, 5).forEach(alert => {
         const div = document.createElement('div');
-        div.className = `alert alert-${alert.severity === 'high' ? 'danger' : 'warning'} fade-in`;
-        const icon = alert.severity === 'high' ? '⚠️' : '⚡';
+        const severity = alert.severity || 'medium';
+        div.className = `alert alert-${severity === 'high' ? 'danger' : 'warning'} fade-in`;
+        const icon = severity === 'high' ? '⚠️' : '⚡';
+        const actor = alert.student_name || 'Classroom';
+        const when = alert.time || '';
         div.innerHTML = `
             <span>${icon}</span>
             <div>
-                <strong>${alert.student_name}</strong>
+                <strong>${actor}</strong>
                 <p>${alert.message}</p>
-                <small>${alert.time}</small>
+                <small>${when}</small>
             </div>
         `;
         container.appendChild(div);
@@ -426,6 +442,7 @@ window.SmartClassAPI = {
     loadStudents: loadStudentsFromBackend,
     loadAnalytics: loadAnalyticsFromBackend,
     loadAttendance: loadAttendanceFromBackend,
+    renderLiveAlerts,
     MJPEG_URL,
 };
 

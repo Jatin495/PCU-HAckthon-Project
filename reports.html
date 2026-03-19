@@ -372,19 +372,24 @@
         </main>
     </div>
     
+    <script src="api.js"></script>
     <script src="main.js"></script>
     <script src="charts.js"></script>
     <script>
         // Initialize reports page
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             const currentUser = localStorage.getItem('currentUser');
             if (!currentUser) {
                 window.location.href = 'login.html';
                 return;
             }
+
+            if (window.SmartClassAPI && typeof window.SmartClassAPI.checkConnection === 'function') {
+                await window.SmartClassAPI.checkConnection();
+            }
             
             // Load data
-            loadRecentReports();
+            await loadRecentReports();
             loadMetricsTable();
             
             // Initialize charts
@@ -394,30 +399,40 @@
             }, 100);
         });
         
-        function loadRecentReports() {
+        async function loadRecentReports() {
             const tbody = document.getElementById('recentReportsTable');
-            const reports = [
-                { name: 'Daily Summary - CS101', type: 'Daily', date: '2024-03-15', format: 'PDF', size: '2.4 MB' },
-                { name: 'Weekly Analysis - All Classes', type: 'Weekly', date: '2024-03-14', format: 'PDF', size: '5.1 MB' },
-                { name: 'Monthly Performance - CS101', type: 'Monthly', date: '2024-03-10', format: 'Excel', size: '1.8 MB' },
-                { name: 'Student Individual - Emma Wilson', type: 'Individual', date: '2024-03-12', format: 'PDF', size: '856 KB' },
-                { name: 'Class Comparison - March', type: 'Comparison', date: '2024-03-08', format: 'PowerPoint', size: '3.2 MB' }
-            ];
-            
+            if (!tbody) return;
+
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:1rem;">Loading reports...</td></tr>';
+
+            const response = window.SmartClassAPI && window.SmartClassAPI.API
+                ? await window.SmartClassAPI.API.get('/reports/list/')
+                : null;
+
+            const reports = response && response.success && Array.isArray(response.reports)
+                ? response.reports
+                : [];
+
             tbody.innerHTML = '';
+
+            if (reports.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:1rem;">No reports generated yet.</td></tr>';
+                return;
+            }
+
             reports.forEach(report => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><strong>${report.name}</strong></td>
-                    <td><span class="badge badge-info">${report.type}</span></td>
+                    <td><span class="badge badge-info">${report.type || report.report_type || 'Report'}</span></td>
                     <td>${report.date}</td>
                     <td>${report.format}</td>
                     <td>${report.size}</td>
                     <td>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn btn-sm btn-secondary" onclick="viewReport('${report.name}')">View</button>
-                            <button class="btn btn-sm btn-secondary" onclick="downloadReport('${report.name}')">Download</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteReport('${report.name}')">Delete</button>
+                            <button class="btn btn-sm btn-secondary" onclick="viewReportDetails('${report.id}')">View</button>
+                            <button class="btn btn-sm btn-secondary" onclick="downloadReportFromList('${report.id}')">Download</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteReportFromList('${report.id}')">Delete</button>
                         </div>
                     </td>
                 `;
@@ -520,10 +535,36 @@
         }
         
         async function generateReport() {
-            const type = document.getElementById('reportType').value;
-            const dateRange = document.getElementById('dateRange').value;
+            const typeLabel = document.getElementById('reportType').value;
+            const dateRangeLabel = document.getElementById('dateRange').value;
             const className = document.getElementById('reportClass').value;
-            const format = document.getElementById('reportFormat').value;
+            const formatLabel = document.getElementById('reportFormat').value;
+
+            // Map UI labels to backend-supported values.
+            const typeMap = {
+                'Daily Summary': 'summary',
+                'Weekly Analysis': 'summary',
+                'Monthly Performance': 'engagement',
+                'Student Individual': 'engagement',
+                'Class Comparison': 'summary'
+            };
+            const rangeMap = {
+                'Today': '1',
+                'This Week': '7',
+                'This Month': '30',
+                'Last 30 Days': '30',
+                'Custom Range': '7'
+            };
+            const formatMap = {
+                'CSV': 'csv',
+                'Excel': 'xlsx',
+                'PDF': 'csv',
+                'PowerPoint': 'csv'
+            };
+
+            const type = typeMap[typeLabel] || 'summary';
+            const dateRange = rangeMap[dateRangeLabel] || '7';
+            const format = formatMap[formatLabel] || 'csv';
             
             try {
                 const response = await window.SmartClassAPI.API.post('/reports/generate/', {
@@ -534,8 +575,14 @@
                 });
                 
                 if (response && response.success) {
-                    showAlert('Report generated successfully! Check your downloads.', 'success');
-                    loadRecentReports(); // Refresh reports list
+                    const generatedId = response.report && response.report.id;
+                    if (generatedId) {
+                        showAlert('Report generated. Download starting...', 'success');
+                        window.location.href = `${window.location.origin}/api/reports/download/${generatedId}/`;
+                    } else {
+                        showAlert('Report generated successfully! Check Recent Reports.', 'success');
+                    }
+                    await loadRecentReports(); // Refresh reports list
                 } else {
                     showAlert('Report generation failed', 'error');
                 }
@@ -545,10 +592,35 @@
         }
         
         async function scheduleReport() {
-            const type = document.getElementById('reportType').value;
-            const dateRange = document.getElementById('dateRange').value;
+            const typeLabel = document.getElementById('reportType').value;
+            const dateRangeLabel = document.getElementById('dateRange').value;
             const className = document.getElementById('reportClass').value;
-            const format = document.getElementById('reportFormat').value;
+            const formatLabel = document.getElementById('reportFormat').value;
+
+            const typeMap = {
+                'Daily Summary': 'summary',
+                'Weekly Analysis': 'summary',
+                'Monthly Performance': 'engagement',
+                'Student Individual': 'engagement',
+                'Class Comparison': 'summary'
+            };
+            const rangeMap = {
+                'Today': '1',
+                'This Week': '7',
+                'This Month': '30',
+                'Last 30 Days': '30',
+                'Custom Range': '7'
+            };
+            const formatMap = {
+                'CSV': 'csv',
+                'Excel': 'xlsx',
+                'PDF': 'csv',
+                'PowerPoint': 'csv'
+            };
+
+            const type = typeMap[typeLabel] || 'summary';
+            const dateRange = rangeMap[dateRangeLabel] || '7';
+            const format = formatMap[formatLabel] || 'csv';
             
             try {
                 const response = await window.SmartClassAPI.API.post('/reports/schedule/', {
@@ -685,19 +757,9 @@
         
         async function downloadReportFromList(reportId) {
             try {
-                const response = await window.SmartClassAPI.API.get(`/reports/download/${reportId}/`);
-                
-                if (response && response.success) {
-                    showAlert(`Downloading ${response.message}`, 'success');
-                    
-                    // Create download link
-                    const link = document.createElement('a');
-                    link.href = response.download_url || '#';
-                    link.download = `report_${reportId}.${response.format || 'pdf'}`;
-                    link.click();
-                } else {
-                    showAlert('Download failed', 'error');
-                }
+                // Download endpoint returns a file stream, not JSON.
+                window.location.href = `${window.location.origin}/api/reports/download/${reportId}/`;
+                showAlert('Download started', 'success');
             } catch (error) {
                 showAlert('Error downloading report', 'error');
             }
@@ -710,7 +772,7 @@
                     
                     if (response && response.success) {
                         showAlert(response.message || 'Report deleted successfully', 'success');
-                        await viewAllReports(); // Refresh the list
+                        await loadRecentReports(); // Refresh the list
                     } else {
                         showAlert('Delete failed', 'error');
                     }

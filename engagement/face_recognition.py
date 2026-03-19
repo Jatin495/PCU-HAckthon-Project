@@ -1,20 +1,21 @@
 """
-SmartClass Monitor - Face Recognition System
-Identifies registered students during live monitoring
+SmartClass Monitor - Enhanced Face Recognition System
+Identifies registered students during live monitoring using advanced face matching
 """
 
 import cv2
 import numpy as np
-import logging
 import json
-import ast
-from engagement.models import Student
+import logging
+from django.db import transaction
+from django.utils import timezone
+from engagement.models import Student, ClassSession, Attendance
 
 logger = logging.getLogger(__name__)
 
 class FaceRecognitionSystem:
     """
-    Face recognition system for identifying registered students
+    Advanced face recognition system for identifying registered students
     """
     
     def __init__(self):
@@ -25,9 +26,45 @@ class FaceRecognitionSystem:
     def load_student_encodings(self):
         """Load all active student face encodings from database."""
         try:
+            logger.info(f"🔍 Loading registered students from database...")
             self.student_encodings.clear()
-
-            # Load every active student with a stored encoding.
+            
+            # Load every active student with a stored encoding
+            students = Student.objects.filter(is_active=True, face_encoding__isnull=False).exclude(face_encoding='')
+            
+            for student in students:
+                try:
+                    # Decode JSON face encoding from database
+                    face_encoding_data = json.loads(student.face_encoding)
+                    
+                    # Convert back to numpy array
+                    if isinstance(face_encoding_data, list):
+                        face_encoding = np.array(face_encoding_data, dtype=np.float32)
+                    else:
+                        logger.warning(f"⚠️ Invalid encoding format for {student.name}")
+                        continue
+                        
+                    self.student_encodings[student.student_id] = {
+                        'student_id': student.student_id,
+                        'name': student.name,
+                        'encoding': face_encoding,
+                        'email': student.email,
+                        'seat_row': student.seat_row,
+                        'seat_col': student.seat_col
+                    }
+                    
+                    logger.info(f"✅ Loaded student: {student.name} ({student.student_id})")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error loading face encoding for {student.name}: {e}")
+                    continue
+            
+            logger.info(f"📊 Total students loaded: {len(self.student_encodings)}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error loading known faces: {e}")
+            return False
             students = Student.objects.filter(
                 is_active=True, 
                 face_encoding__isnull=False
@@ -61,7 +98,7 @@ class FaceRecognitionSystem:
         except Exception as e:
             logger.error(f"❌ Error loading student encodings: {e}")
     
-    def identify_student(self, face_roi, confidence_threshold=0.55):
+    def identify_student(self, face_roi, confidence_threshold=0.45):
         """
         Identify a student from face ROI with improved accuracy
         Returns: (student_id, student_name, confidence) or (None, None, 0)
@@ -82,6 +119,7 @@ class FaceRecognitionSystem:
             
             # Compare with all stored encodings
             best_match = None
+            best_match_student_id = None
             best_confidence = 0
             second_best_confidence = 0
             all_similarities = []
@@ -107,6 +145,7 @@ class FaceRecognitionSystem:
                         second_best_confidence = best_confidence
                         best_confidence = similarity
                         best_match = student_data
+                        best_match_student_id = student_id
                     elif similarity > second_best_confidence:
                         second_best_confidence = similarity
                         
@@ -119,9 +158,17 @@ class FaceRecognitionSystem:
             logger.info(f"🎯 Top 3 matches: {all_similarities[:3]}")
             
             # Accept match only if confidence passes threshold and is sufficiently separated from runner-up.
+            # Fallback encodings can produce near-ties for visually similar students; allow a small
+            # relaxed margin only when absolute confidence is very high.
             confidence_margin = best_confidence - second_best_confidence
-            if best_match and best_confidence >= confidence_threshold and confidence_margin >= 0.03:
-                return best_match['student_id'], best_match['name'], best_confidence
+            has_single_candidate = len(all_similarities) <= 1
+            strict_margin_ok = confidence_margin >= 0.005
+            high_conf_relaxed_margin_ok = (best_confidence >= 0.90 and confidence_margin >= 0.002)
+
+            if best_match and best_confidence >= confidence_threshold and (
+                has_single_candidate or strict_margin_ok or high_conf_relaxed_margin_ok
+            ):
+                return best_match_student_id, best_match['name'], float(best_confidence)
 
             logger.info(
                 "No reliable match: best=%.3f second=%.3f margin=%.3f threshold=%.2f",
@@ -137,49 +184,54 @@ class FaceRecognitionSystem:
             return None, None, 0
     
     def generate_face_encoding(self, face_roi):
-        """Generate face encoding in the same format used during student registration."""
+        """Generate face embedding with DeepFace and a deterministic fallback."""
+        if face_roi is None or getattr(face_roi, 'size', 0) == 0:
+            return None
+
         try:
-            if face_roi is None or face_roi.size == 0:
-                logger.warning("❌ Invalid face ROI provided")
-                return None
-
-            face_resized = cv2.resize(face_roi, (64, 64))
-            face_gray = cv2.cvtColor(face_resized, cv2.COLOR_BGR2GRAY)
-
-            encoding = []
-            encoding.extend([face_roi.shape[0], face_roi.shape[1]])
-
-            for channel in range(3):
-                hist = cv2.calcHist([face_resized], [channel], None, [16], [0, 256])
-                encoding.extend(hist.flatten())
-
-            gray_hist = cv2.calcHist([face_gray], [0], None, [8], [0, 256])
-            encoding.extend(gray_hist.flatten())
-
-            encoding = np.array(encoding, dtype=np.float32)
-            encoding = encoding / (np.linalg.norm(encoding) + 1e-5)
-
-            logger.info(f"✅ Generated face encoding with {len(encoding)} features")
-            return encoding.tolist()
+            # FIXED: Use DeepFace for face embeddings
+            from deepface import DeepFace
             
+            # Generate 128-dim embedding
+            embedding = DeepFace.represent(
+                face_roi, 
+                model_name='Facenet',
+                enforce_detection=False
+            )
+            
+            if embedding and len(embedding) > 0:
+                # Return the embedding vector as a list
+                return embedding[0]['embedding']
+
+        except ImportError:
+            logger.warning("DeepFace not available, using fallback face encoding")
         except Exception as e:
-            logger.error(f"❌ Face encoding error: {e}")
+            logger.warning(f"DeepFace embedding failed, using fallback encoding: {e}")
+
+        try:
+            # Fallback encoding: same 128-dim signature used during registration.
+            if len(face_roi.shape) == 2:
+                gray = face_roi
+            else:
+                gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+            gray = cv2.equalizeHist(gray)
+            signature = cv2.resize(gray, (16, 8), interpolation=cv2.INTER_AREA).astype(np.float32).flatten()
+            norm = np.linalg.norm(signature)
+            if norm > 0:
+                signature = signature / norm
+            return signature.tolist()
+        except Exception as e:
+            logger.error(f"❌ Fallback face encoding error: {e}")
             return None
     
     def calculate_similarity(self, encoding1, encoding2):
-        """Calculate similarity between two face encodings"""
+        """Calculate similarity between two face encodings using cosine similarity"""
         try:
-            # Ensure both encodings are numpy arrays
+            # FIXED: Updated for DeepFace embeddings (128-dim vectors)
             enc1 = np.array(encoding1)
             enc2 = np.array(encoding2)
 
-            # Ignore the first 2 metadata features (original ROI dimensions),
-            # which are highly distance-dependent and hurt identity matching.
-            if enc1.size > 2 and enc2.size > 2:
-                enc1 = enc1[2:]
-                enc2 = enc2[2:]
-            
-            # Calculate cosine similarity
+            # Use cosine similarity for DeepFace embeddings
             dot_product = np.dot(enc1, enc2)
             norm1 = np.linalg.norm(enc1)
             norm2 = np.linalg.norm(enc2)

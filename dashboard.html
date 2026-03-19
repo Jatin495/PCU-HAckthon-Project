@@ -92,7 +92,7 @@
             <!-- Page Content -->
             <div class="page-content">
                 <!-- Stats Overview -->
-                <div class="grid grid-cols-4" style="margin-bottom: 2rem;">
+                <div class="grid grid-cols-3" style="margin-bottom: 2rem;">
                     <div class="stat-card success">
                         <div class="stat-label">Total Students</div>
                         <div class="stat-value" id="totalStudents">24</div>
@@ -111,17 +111,12 @@
                         <div class="stat-change positive">↑ 5% improvement</div>
                     </div>
                     
-                    <div class="stat-card danger">
-                        <div class="stat-label">Active Alerts</div>
-                        <div class="stat-value">5</div>
-                        <div class="stat-change negative">↑ 2 new alerts</div>
-                    </div>
                 </div>
                 
                 <!-- Main Dashboard Grid -->
-                <div class="grid grid-cols-3" style="gap: 1.5rem;">
+                <div class="grid grid-cols-1" style="gap: 1.5rem;">
                     <!-- Student Cards -->
-                    <div class="card" style="grid-column: span 2;">
+                    <div class="card">
                         <div class="card-header">
                             <div>
                                 <h2 class="card-title">Student Engagement</h2>
@@ -137,20 +132,6 @@
                         </div>
                     </div>
                     
-                    <!-- Alerts Panel -->
-                    <div class="card">
-                        <div class="card-header">
-                            <div>
-                                <h2 class="card-title">Recent Alerts</h2>
-                                <p class="card-subtitle">Student attention alerts</p>
-                            </div>
-                            <span class="badge badge-danger">5</span>
-                        </div>
-                        
-                        <div id="alertsContainer" style="max-height: 400px; overflow-y: auto;">
-                            <!-- Alerts will be populated by JavaScript -->
-                        </div>
-                    </div>
                 </div>
                 
                 <!-- Charts Row -->
@@ -239,275 +220,68 @@
                 return;
             }
             
-            // Initialize charts
+            // Load real dashboard data
+            loadDashboardData();
+            
+            // Initialize charts with real data
             setTimeout(() => {
                 ChartUtils.createEmotionChart();
                 ChartUtils.createEngagementChart();
             }, 100);
             
-            // Start alert checking system
-            startAlertSystem();
         });
         
-        // Alert System Implementation
-        let alertInterval = null;
-        let lastAlertTime = 0;
-        
-        function startAlertSystem() {
-            // Check alerts every 5 seconds
-            alertInterval = setInterval(checkEngagementAlert, 5000);
-            console.log('🚨 Alert system started - checking every 5 seconds');
-            
-            // Also check immediately on start
-            setTimeout(checkEngagementAlert, 1000);
-        }
-        
-        async function checkEngagementAlert() {
+        async function loadDashboardData() {
             try {
-                console.log('🔍 Checking engagement alert...');
-                const response = await window.SmartClassAPI.API.get('/check-alert/');
-                console.log('📊 Alert response:', response);
+                console.log('📊 Loading dashboard data...');
+                const dashboardData = await API.get('/dashboard/stats/');
                 
-                if (response && response.alert) {
-                    // Alert triggered
-                    console.log('🚨 ALERT TRIGGERED:', response);
-                    showAlertNotification(response);
-                    
-                    // Play sound alert (optional)
-                    playAlertSound();
-                    
-                    // Show browser notification
-                    showBrowserNotification(response);
-                    
-                    // Show warning banner
-                    showWarningBanner(response);
+                if (dashboardData && !dashboardData.error) {
+                    updateDashboardStats(dashboardData);
+                    console.log('✅ Dashboard data loaded successfully');
                 } else {
-                    // Hide warning banner if no alert
-                    hideWarningBanner();
-                    console.log('✅ No alert - engagement normal');
+                    console.error('❌ Failed to load dashboard data');
                 }
             } catch (error) {
-                console.error('❌ Error checking engagement alert:', error);
+                console.error('❌ Error loading dashboard data:', error);
             }
         }
         
-        function showAlertNotification(alertData) {
-            console.log('🎯 Showing alert notification:', alertData);
+        function updateDashboardStats(data) {
+            // Update main statistics
+            updateStat('totalStudents', data.total_students || 0);
+            updateStat('presentStudents', data.present_today || 0);
+            updateStat('averageEngagement', (data.avg_engagement || 0) + '%');
+            // Dashboard intentionally does not render alert widgets.
             
-            // Prevent alert spam (show max once per 30 seconds)
-            const now = Date.now();
-            if (now - lastAlertTime < 30000) {
-                console.log('⏰ Alert suppressed (too recent)');
-                return;
-            }
-            lastAlertTime = now;
-            
-            console.log('📱 Creating alert popup...');
-            
-            // Create alert popup
-            const alertPopup = document.createElement('div');
-            alertPopup.className = 'alert-popup';
-            alertPopup.innerHTML = `
-                <div class="alert-content">
-                    <div class="alert-icon">🔴</div>
-                    <div class="alert-details">
-                        <h3>CLASSROOM ALERT</h3>
-                        <p>${alertData.message}</p>
-                        <div class="alert-stats">
-                            <span>👥 ${alertData.total_students} students</span>
-                            <span>😕 ${alertData.confused_students} confused</span>
-                            <span>📊 ${alertData.percentage}% not engaged</span>
-                        </div>
-                    </div>
-                    <button class="alert-close" onclick="this.parentElement.parentElement.remove()">×</button>
-                </div>
-            `;
-            
-            // Add styles
-            alertPopup.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: white;
-                border: 2px solid #ef4444;
-                border-radius: 8px;
-                padding: 1rem;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                z-index: 10000;
-                max-width: 400px;
-                animation: slideInRight 0.3s ease-out;
-            `;
-            
-            document.body.appendChild(alertPopup);
-            
-            // Auto-remove after 10 seconds
-            setTimeout(() => {
-                if (alertPopup.parentElement) {
-                    alertPopup.style.animation = 'slideOutRight 0.3s ease-out';
-                    setTimeout(() => alertPopup.remove(), 300);
-                }
-            }, 10000);
-        }
-        
-        function showWarningBanner(alertData) {
-            // Create warning banner at top of page
-            let banner = document.getElementById('alertBanner');
-            
-            if (!banner) {
-                banner = document.createElement('div');
-                banner.id = 'alertBanner';
-                banner.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    background: linear-gradient(90deg, #ef4444, #dc2626);
-                    color: white;
-                    padding: 1rem;
-                    text-align: center;
-                    z-index: 9999;
-                    font-weight: 600;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-                    animation: slideDown 0.3s ease-out;
-                `;
-                document.body.appendChild(banner);
+            // Update emotion distribution if chart is available
+            if (data.emotion_distribution && window.ChartUtils) {
+                window._backendEmotionData = data.emotion_distribution;
+                // Recreate emotion chart with real data
+                ChartUtils.createEmotionChart();
             }
             
-            banner.innerHTML = `
-                🔴 CLASSROOM ALERT: ${alertData.percentage}% of students appear confused (${alertData.confused_students}/${alertData.total_students})
-                <button onclick="hideWarningBanner()" style="background: none; border: none; color: white; margin-left: 1rem; cursor: pointer; font-size: 1.2rem;">×</button>
-            `;
-        }
-        
-        function hideWarningBanner() {
-            const banner = document.getElementById('alertBanner');
-            if (banner) {
-                banner.style.animation = 'slideUp 0.3s ease-out';
-                setTimeout(() => banner.remove(), 300);
+            // Update session info
+            if (data.active_session) {
+                updateSessionInfo(data.active_session);
             }
         }
         
-        function playAlertSound() {
-            // Create a simple beep sound
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.value = 800; // Hz
-            oscillator.type = 'sine';
-            
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-            
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.5);
-        }
-        
-        function showBrowserNotification(alertData) {
-            // Request permission if not granted
-            if (Notification.permission === 'default') {
-                Notification.requestPermission();
-            }
-            
-            if (Notification.permission === 'granted') {
-                const notification = new Notification('🚨 SmartClass Alert', {
-                    body: alertData.message,
-                    icon: '/favicon.ico',
-                    tag: 'classroom-alert',
-                    requireInteraction: true
-                });
-                
-                notification.onclick = function() {
-                    window.focus();
-                    notification.close();
-                };
-                
-                // Auto-close after 10 seconds
-                setTimeout(() => notification.close(), 10000);
+        function updateStat(id, value) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = value;
             }
         }
         
-        // Add CSS animations
-        const alertStyles = `
-            @keyframes slideInRight {
-                from { transform: translateX(100%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
+        function updateSessionInfo(session) {
+            const sessionElement = document.getElementById('activeSession');
+            if (sessionElement) {
+                sessionElement.textContent = `${session.name} (${session.duration} min)`;
             }
-            @keyframes slideOutRight {
-                from { transform: translateX(0); opacity: 1; }
-                to { transform: translateX(100%); opacity: 0; }
-            }
-            @keyframes slideDown {
-                from { transform: translateY(-100%); opacity: 0; }
-                to { transform: translateY(0); opacity: 1; }
-            }
-            @keyframes slideUp {
-                from { transform: translateY(0); opacity: 1; }
-                to { transform: translateY(-100%); opacity: 0; }
-            }
-            
-            .alert-popup .alert-content {
-                display: flex;
-                align-items: flex-start;
-                gap: 1rem;
-            }
-            
-            .alert-popup .alert-icon {
-                font-size: 2rem;
-                flex-shrink: 0;
-            }
-            
-            .alert-popup .alert-details h3 {
-                margin: 0 0 0.5rem 0;
-                color: #ef4444;
-                font-size: 1rem;
-            }
-            
-            .alert-popup .alert-details p {
-                margin: 0 0 0.5rem 0;
-                font-size: 0.875rem;
-            }
-            
-            .alert-popup .alert-stats {
-                display: flex;
-                gap: 1rem;
-                font-size: 0.75rem;
-                color: #6b7280;
-            }
-            
-            .alert-popup .alert-close {
-                background: none;
-                border: none;
-                font-size: 1.5rem;
-                cursor: pointer;
-                opacity: 0.6;
-                padding: 0;
-                width: 24px;
-                height: 24px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-            
-            .alert-popup .alert-close:hover {
-                opacity: 1;
-            }
-        `;
+        }
         
-        // Inject styles
-        const styleSheet = document.createElement('style');
-        styleSheet.textContent = alertStyles;
-        document.head.appendChild(styleSheet);
-        
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            if (alertInterval) {
-                clearInterval(alertInterval);
-            }
-        });
+        // Alerts are intentionally disabled on dashboard page.
     </script>
 </body>
 </html>

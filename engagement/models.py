@@ -217,3 +217,48 @@ class Alert(models.Model):
     class Meta:
         db_table = 'alerts'
         ordering = ['-timestamp']
+
+
+class Report(models.Model):
+    """Generated reports for analytics and insights"""
+    REPORT_TYPES = [
+        ('engagement', 'Engagement Report'),
+        ('attendance', 'Attendance Report'),
+        ('performance', 'Performance Report'),
+        ('emotion', 'Emotion Analysis'),
+        ('summary', 'Summary Report'),
+    ]
+    
+    FORMATS = [
+        ('csv', 'CSV'),
+        ('pdf', 'PDF'),
+        ('xlsx', 'Excel'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('generating', 'Generating'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
+    name = models.CharField(max_length=200)
+    report_type = models.CharField(max_length=20, choices=REPORT_TYPES)
+    format = models.CharField(max_length=5, choices=FORMATS, default='csv')
+    file_path = models.CharField(max_length=500, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    generated_at = models.DateTimeField(null=True, blank=True)
+    file_size = models.BigIntegerField(null=True, blank=True)  # in bytes
+    
+    # Report parameters
+    date_from = models.DateField(null=True, blank=True)
+    date_to = models.DateField(null=True, blank=True)
+    student_ids = models.TextField(null=True, blank=True)  # JSON string of student IDs
+    
+    def __str__(self):
+        return f"{self.name} - {self.get_report_type_display()}"
+    
+    class Meta:
+        db_table = 'reports'
+        ordering = ['-created_at']

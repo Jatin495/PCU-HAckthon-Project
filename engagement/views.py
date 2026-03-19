@@ -23,10 +23,16 @@ import pandas as pd
 
 from .models import (
     Teacher, Student, ClassSession, Attendance,
-    EngagementRecord, ClassEngagementSnapshot, Alert
+    EngagementRecord, ClassEngagementSnapshot, Alert, Report
 )
+from .camera import generate_face_encoding
 
 logger = logging.getLogger(__name__)
+
+_ENGAGEMENT_WRITE_INTERVAL_SECONDS = 5
+_last_engagement_write_by_student = {}
+_last_snapshot_write_by_session = {}
+_engagement_write_lock = threading.Lock()
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -36,6 +42,236 @@ def hash_password(password):
 
 def json_response(data, status_code=200):
     return JsonResponse(data, status=status_code, safe=False)
+
+
+def _mark_attendance_from_face_detections(active_session, detected_students):
+    """Mark attendance as present for recognized students seen in the live feed."""
+    if not active_session or not detected_students:
+        return 0
+
+    today = timezone.now().date()
+    now = timezone.now()
+
+    # Keep strongest confidence per recognized student_id in this batch.
+    confidence_by_student_id = {}
+    for item in detected_students:
+        sid = item.get('student_id')
+        if not sid:
+            continue
+        confidence = float(item.get('confidence') or 0)
+        previous = confidence_by_student_id.get(sid, 0)
+        if confidence > previous:
+            confidence_by_student_id[sid] = confidence
+
+    if not confidence_by_student_id:
+        return 0
+
+    students = Student.objects.filter(
+        is_active=True,
+        student_id__in=list(confidence_by_student_id.keys())
+    )
+
+    updated_count = 0
+    for student in students:
+        conf = confidence_by_student_id.get(student.student_id, 0.0)
+        attendance, created = Attendance.objects.get_or_create(
+            student=student,
+            session=active_session,
+            date=today,
+            defaults={
+                'is_present': True,
+                'arrival_time': now,
+                'detection_confidence': conf,
+            }
+        )
+
+        if created:
+            updated_count += 1
+            continue
+
+        changed = False
+        if not attendance.is_present:
+            attendance.is_present = True
+            changed = True
+        if attendance.arrival_time is None:
+            attendance.arrival_time = now
+            changed = True
+        if conf > float(attendance.detection_confidence or 0):
+            attendance.detection_confidence = conf
+            changed = True
+
+        if changed:
+            attendance.save(update_fields=['is_present', 'arrival_time', 'detection_confidence'])
+            updated_count += 1
+
+    return updated_count
+
+
+def _normalize_emotion(emotion):
+    """Normalize detector emotion labels to EngagementRecord choices."""
+    normalized = str(emotion or 'unknown').strip().lower()
+    allowed = {
+        'happy', 'neutral', 'sad', 'angry', 'surprise',
+        'fear', 'disgust', 'confused', 'bored', 'focused', 'unknown'
+    }
+    return normalized if normalized in allowed else 'unknown'
+
+
+def _first_value(*values):
+    """Return first meaningful value, handling numpy-like arrays safely."""
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, str) and value == '':
+            continue
+
+        # Handle numpy arrays and array-like objects without importing numpy.
+        if hasattr(value, 'shape') and hasattr(value, 'flatten'):
+            try:
+                size = getattr(value, 'size', None)
+                if size == 0:
+                    continue
+                flat = value.flatten()
+                if len(flat) == 0:
+                    continue
+                return flat[0]
+            except Exception:
+                continue
+
+        return value
+
+    return None
+
+
+def _safe_float(*values, default=0.0):
+    value = _first_value(*values)
+    if value is None:
+        return float(default)
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def _safe_bool(*values, default=False):
+    value = _first_value(*values)
+    if value is None:
+        return bool(default)
+    try:
+        return bool(value)
+    except Exception:
+        return bool(default)
+
+
+def _persist_live_engagement_records(active_session, analysis, now):
+    """
+    Persist per-student engagement records and periodic class snapshots from live analysis.
+    Throttles writes to reduce DB pressure while keeping timeline and reports current.
+    """
+    if not active_session or not analysis:
+        return {'records_written': 0, 'snapshot_written': False}
+
+    students_payload = analysis.get('students') or analysis.get('recognized_students') or []
+    if not students_payload:
+        return {'records_written': 0, 'snapshot_written': False}
+
+    now_ts = now.timestamp()
+    valid_student_ids = [s.get('student_id') for s in students_payload if s.get('student_id')]
+    students_by_sid = {
+        s.student_id: s for s in Student.objects.filter(is_active=True, student_id__in=valid_student_ids)
+    }
+
+    records_written = 0
+    with _engagement_write_lock:
+        for item in students_payload:
+            sid = item.get('student_id')
+            if not sid:
+                continue
+
+            student = students_by_sid.get(sid)
+            if not student:
+                continue
+
+            student_key = f"{active_session.id}:{sid}"
+            last_student_write = _last_engagement_write_by_student.get(student_key, 0)
+            if (now_ts - last_student_write) < _ENGAGEMENT_WRITE_INTERVAL_SECONDS:
+                continue
+
+            emotion = _normalize_emotion(item.get('emotion'))
+            emotion_conf = _safe_float(item.get('emotion_confidence'), item.get('confidence'), default=0.0)
+            engagement_score = _safe_float(item.get('engagement_score'), item.get('engagement'), default=0.0)
+            attention_score = _safe_float(item.get('attention_score'), default=(engagement_score * 0.9))
+            posture_score = _safe_float(item.get('posture_score'), default=0.0)
+            eye_contact = _safe_bool(item.get('is_looking_forward'), default=False)
+
+            face_bbox_val = item.get('face_bbox')
+            if hasattr(face_bbox_val, 'tolist'):
+                try:
+                    face_bbox_val = face_bbox_val.tolist()
+                except Exception:
+                    pass
+
+            if isinstance(face_bbox_val, (list, tuple)):
+                face_bbox = ','.join(str(int(float(v))) for v in face_bbox_val[:4])
+            else:
+                face_bbox = str(face_bbox_val) if face_bbox_val is not None else ''
+
+            emotion_scores = item.get('emotion_scores')
+            if not isinstance(emotion_scores, dict):
+                emotion_scores = {emotion: round(emotion_conf, 3)}
+
+            EngagementRecord.objects.create(
+                student=student,
+                session=active_session,
+                timestamp=now,
+                engagement_score=round(engagement_score, 1),
+                attention_score=round(attention_score, 1),
+                emotion=emotion,
+                emotion_confidence=round(emotion_conf, 3),
+                emotion_scores=json.dumps(emotion_scores),
+                head_angle=float(item.get('head_angle') or 0.0),
+                eye_contact=eye_contact,
+                posture_score=round(posture_score, 1),
+                is_slouching=_safe_bool(item.get('is_slouching'), default=(posture_score > 0 and posture_score < 50)),
+                face_detected=True,
+                face_confidence=round(_safe_float(item.get('confidence'), emotion_conf, default=0.0), 3),
+                face_bbox=face_bbox,
+                frame_path=str(item.get('frame_path') or ''),
+            )
+
+            _last_engagement_write_by_student[student_key] = now_ts
+            records_written += 1
+
+        snapshot_written = False
+        snapshot_key = str(active_session.id)
+        last_snapshot_write = _last_snapshot_write_by_session.get(snapshot_key, 0)
+        if (now_ts - last_snapshot_write) >= _ENGAGEMENT_WRITE_INTERVAL_SECONDS:
+            avg_eng = float(analysis.get('avg_engagement') or 0.0)
+            avg_att = float(analysis.get('avg_attention') or (avg_eng * 0.9))
+            present_count = int(analysis.get('present_count') or 0)
+            emotion_distribution = analysis.get('emotion_distribution') or analysis.get('emotions') or {}
+            if not isinstance(emotion_distribution, dict):
+                emotion_distribution = {}
+
+            confusion_ratio = 0.0
+            if present_count > 0:
+                confusion_count = float(emotion_distribution.get('confused', 0) or 0)
+                confusion_ratio = confusion_count / present_count
+
+            ClassEngagementSnapshot.objects.create(
+                session=active_session,
+                timestamp=now,
+                avg_engagement=round(avg_eng, 1),
+                avg_attention=round(avg_att, 1),
+                present_count=present_count,
+                emotion_distribution=json.dumps(emotion_distribution),
+                confusion_alert=confusion_ratio > 0.30,
+                low_engagement_alert=avg_eng < 60,
+            )
+            _last_snapshot_write_by_session[snapshot_key] = now_ts
+            snapshot_written = True
+
+    return {'records_written': records_written, 'snapshot_written': snapshot_written}
 
 
 # ─── Auth Endpoints ───────────────────────────────────────────────────────────
@@ -97,7 +333,7 @@ def dashboard_stats(request):
     try:
         today = timezone.now().date()
         total_students = Student.objects.filter(is_active=True).count()
-        present_today = Attendance.objects.filter(date=today, is_present=True).count()
+        present_today = Attendance.objects.filter(date=today, is_present=True).values('student').distinct().count()
         active_session = ClassSession.objects.filter(status='active').first()
         today_records = EngagementRecord.objects.filter(timestamp__date=today)
         avg_engagement = today_records.aggregate(avg=Avg('engagement_score'))['avg'] or 0
@@ -153,12 +389,32 @@ def engagement_timeline(request):
 @api_view(['GET'])
 def list_students(request):
     try:
-        students = Student.objects.filter(is_active=True)
+        from django.db.models import OuterRef, Subquery
+        
+        # FIXED: Use Subquery to avoid N+1 queries
         today = timezone.now().date()
+        
+        # Subquery for latest engagement record per student
+        latest_engagement = EngagementRecord.objects.filter(
+            student=OuterRef('pk')
+        ).order_by('-timestamp')
+        
+        # Prefetch today's attendance in one query
+        attendance_map = {
+            a.student_id: a 
+            for a in Attendance.objects.filter(date=today)
+        }
+        
+        # Single query with annotations
+        students = Student.objects.filter(is_active=True).annotate(
+            latest_emotion=Subquery(latest_engagement.values('emotion')[:1]),
+            latest_engagement_score=Subquery(latest_engagement.values('engagement_score')[:1]),
+            latest_timestamp=Subquery(latest_engagement.values('timestamp')[:1])
+        )
+        
         result = []
         for student in students:
-            latest = EngagementRecord.objects.filter(student=student).order_by('-timestamp').first()
-            attendance = Attendance.objects.filter(student=student, date=today).first()
+            attendance = attendance_map.get(student.id)
             result.append({
                 'id': student.id,
                 'student_id': student.student_id,
@@ -168,11 +424,12 @@ def list_students(request):
                 'seat_col': student.seat_col,
                 'face_registered': bool(student.face_encoding),
                 'present_today': attendance.is_present if attendance else False,
-                'current_emotion': latest.emotion if latest else 'unknown',
-                'current_engagement': round(latest.engagement_score, 1) if latest else 0,
-                'avg_engagement': round(latest.engagement_score, 1) if latest else 0,
-                'last_updated': latest.timestamp.isoformat() if latest else None,
+                'current_emotion': student.latest_emotion or 'unknown',
+                'current_engagement': round(student.latest_engagement_score, 1) if student.latest_engagement_score else 0,
+                'avg_engagement': round(student.latest_engagement_score, 1) if student.latest_engagement_score else 0,
+                'last_updated': student.latest_timestamp.isoformat() if student.latest_timestamp else None,
             })
+        
         return Response({'students': result, 'total': len(result)})
     except Exception as e:
         return Response({'error': str(e)}, status=500)
@@ -312,6 +569,9 @@ def add_student(request):
         
         if not name:
             return Response({'error': 'Name is required'}, status=400)
+
+        if not face_image:
+            return Response({'error': 'Face image is required for student registration'}, status=400)
         
         count = Student.objects.count() + 1
         student_id = f"STU{count:03d}"
@@ -322,7 +582,6 @@ def add_student(request):
             try:
                 import cv2
                 import numpy as np
-                from engagement.simple_detector import SimpleFaceDetector
                 
                 # Read and process face image
                 image_bytes = face_image.read()
@@ -330,40 +589,57 @@ def add_student(request):
                 img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
                 
                 if img is not None:
-                    detector = SimpleFaceDetector()
-                    face_regions = detector.detect_faces(img, lenient=True)  # Use lenient mode for registration
-                    
-                    if face_regions:
-                        # Use the first detected face for encoding
-                        face_roi = face_regions[0]['face_roi']
-                        # Generate a simple encoding (face ROI dimensions + color histogram)
+                    face_roi = None
+
+                    # Try OpenCV Haar detector first.
+                    try:
+                        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                        cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                        faces = cascade.detectMultiScale(
+                            gray,
+                            scaleFactor=1.1,
+                            minNeighbors=4,
+                            minSize=(60, 60),
+                        )
+
+                        if len(faces) > 0:
+                            # Select the largest detected face.
+                            x, y, w, h = max(faces, key=lambda f: int(f[2]) * int(f[3]))
+                            face_roi = img[y:y+h, x:x+w]
+                    except Exception as detect_error:
+                        logger.warning(f"OpenCV face detection failed for {name}: {detect_error}")
+
+                    # Fallback to center crop if detector found nothing.
+                    if face_roi is None or getattr(face_roi, 'size', 0) == 0:
+                        logger.warning(f"No face box detected for {name}; using center crop fallback")
+                        h, w = img.shape[:2]
+                        center_size = max(80, min(h, w) // 2)
+                        center_x, center_y = w // 2, h // 2
+                        face_roi = img[
+                            max(0, center_y - center_size // 2):min(h, center_y + center_size // 2),
+                            max(0, center_x - center_size // 2):min(w, center_x + center_size // 2)
+                        ]
+
+                    if face_roi is not None and getattr(face_roi, 'size', 0) > 0:
                         face_encoding = generate_face_encoding(face_roi)
+
+                    # Final fallback: encode using whole image.
+                    if face_encoding is None:
+                        face_encoding = generate_face_encoding(img)
+
+                    if face_encoding:
                         logger.info(f"✅ Face registered for student {name}")
                     else:
-                        logger.warning(f"No face detected in image for {name} - using center region")
-                        # Fallback: use center region of image (this will work for registration)
-                        h, w = img.shape[:2]
-                        # Use a larger center region for better results
-                        center_size = min(h, w) // 2
-                        center_x, center_y = w // 2, h // 2
-                        face_roi = img[max(0, center_y-center_size//2):min(h, center_y+center_size//2), 
-                                       max(0, center_x-center_size//2):min(w, center_x+center_size//2)]
-                        
-                        # Ensure we have a valid region
-                        if face_roi.size > 0:
-                            face_encoding = generate_face_encoding(face_roi)
-                            if face_encoding:
-                                logger.info(f"✅ Face registered using center region for {name}")
-                            else:
-                                logger.error(f"Failed to generate encoding for {name}")
-                        else:
-                            logger.error(f"Invalid image region for {name}")
+                        logger.error(f"Failed to generate encoding for {name}")
                 else:
                     logger.error(f"Could not decode face image for {name}")
                     
             except Exception as e:
                 logger.error(f"Face processing error for {name}: {e}")
         
+        if face_encoding is None:
+            return Response({'error': 'Face registration failed. Please upload a clear student face image.'}, status=400)
+
         student = Student.objects.create(
             student_id=student_id, name=name, email=email,
             seat_row=seat_row, seat_col=seat_col,
@@ -384,45 +660,6 @@ def add_student(request):
         }})
     except Exception as e:
         return Response({'error': str(e)}, status=500)
-
-
-def generate_face_encoding(face_roi):
-    """Generate a simple face encoding from face ROI"""
-    try:
-        import cv2
-        import numpy as np
-        
-        # Resize face to standard size
-        face_resized = cv2.resize(face_roi, (64, 64))
-        
-        # Convert to different color spaces
-        face_gray = cv2.cvtColor(face_resized, cv2.COLOR_BGR2GRAY)
-        face_hsv = cv2.cvtColor(face_resized, cv2.COLOR_BGR2HSV)
-        
-        # Generate features: dimensions + color histograms
-        encoding = []
-        
-        # Add dimensions
-        encoding.extend([face_roi.shape[0], face_roi.shape[1]])
-        
-        # Add color histograms (simplified)
-        for channel in range(3):
-            hist = cv2.calcHist([face_resized], [channel], None, [16], [0, 256])
-            encoding.extend(hist.flatten())
-        
-        # Add gray histogram
-        gray_hist = cv2.calcHist([face_gray], [0], None, [8], [0, 256])
-        encoding.extend(gray_hist.flatten())
-        
-        # Convert to numpy array and normalize
-        encoding = np.array(encoding, dtype=np.float32)
-        encoding = encoding / (np.linalg.norm(encoding) + 1e-5)
-        
-        return encoding.tolist()
-        
-    except Exception as e:
-        logger.error(f"Face encoding error: {e}")
-        return None
 
 
 @api_view(['GET'])
@@ -550,7 +787,7 @@ def start_session(request):
         for student in Student.objects.filter(is_active=True):
             Attendance.objects.get_or_create(
                 student=student, session=session, date=today,
-                defaults={'is_present': True, 'arrival_time': timezone.now()}
+                defaults={'is_present': False}
             )
 
         return Response({'success': True, 'session': {
@@ -566,6 +803,8 @@ def start_session(request):
 
 @csrf_exempt
 @api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
 def end_session(request, session_id):
     try:
         logger.info(f"🛑 Ending session {session_id}")
@@ -628,6 +867,8 @@ def video_feed(request):
 
 @csrf_exempt
 @api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
 def stop_stream_force(request):
     try:
         from .video_stream import stop_stream
@@ -645,6 +886,37 @@ def live_data(request):
         stream_status = stream.get_status()
         analysis = stream.get_latest_analysis()
         active_session = ClassSession.objects.filter(status='active').first()
+        now = timezone.now()
+
+        # If live monitoring is running without an explicit session start,
+        # create a lightweight active session so attendance can be recorded.
+        if active_session is None and stream_status.get('is_running'):
+            teacher = Teacher.objects.filter(is_active=True).first()
+            if teacher is None:
+                teacher = Teacher.objects.create(
+                    name='Demo Teacher',
+                    email='demo@smartclass.com',
+                    password_hash=hash_password('demo123'),
+                    subject='Computer Science',
+                )
+
+            active_session = ClassSession.objects.create(
+                teacher=teacher,
+                class_name='Live Class',
+                subject='Computer Science',
+                camera_source='0',
+                total_students=Student.objects.filter(is_active=True).count(),
+                status='active',
+            )
+
+            today = timezone.now().date()
+            for student in Student.objects.filter(is_active=True):
+                Attendance.objects.get_or_create(
+                    student=student,
+                    session=active_session,
+                    date=today,
+                    defaults={'is_present': False},
+                )
 
         recent_snapshots = ClassEngagementSnapshot.objects.filter(
             timestamp__gte=timezone.now() - timedelta(minutes=5)
@@ -657,6 +929,18 @@ def live_data(request):
 
         # Generate real-time alerts ONLY for students actually detected in camera
         alerts_data = []
+        if analysis and active_session and analysis.get('recognized_students'):
+            try:
+                _mark_attendance_from_face_detections(active_session, analysis.get('recognized_students', []))
+            except Exception as attendance_error:
+                logger.warning(f"Attendance update from face detection failed: {attendance_error}")
+
+        if analysis and active_session:
+            try:
+                _persist_live_engagement_records(active_session, analysis, now)
+            except Exception as persist_error:
+                logger.warning(f"Live engagement persistence failed: {persist_error}")
+
         if analysis and analysis.get('recognized_students'):
             detected_students = analysis['recognized_students']
             
@@ -737,18 +1021,73 @@ def live_data(request):
             alerts_data.sort(key=lambda x: x['time'], reverse=True)
             alerts_data = alerts_data[:10]
 
+        # Class-level low engagement alert (persisted to DB).
+        class_avg_engagement = 0
+        if analysis:
+            class_avg_engagement = analysis.get('class_avg_engagement', analysis.get('avg_engagement', 0)) or 0
+
+        if class_avg_engagement < 30:
+            class_alert_msg = f"Class average engagement is low ({round(class_avg_engagement, 1)}%). Immediate intervention recommended."
+
+            # Always surface on live panel.
+            alerts_data.append({
+                'id': f"class_low_{int(time.time())}",
+                'type': 'low_engagement',
+                'severity': 'high',
+                'message': class_alert_msg,
+                'student_name': 'Classroom',
+                'student_id': None,
+                'time': now.strftime('%H:%M:%S'),
+            })
+
+            # Persist to DB if an active session exists, with short cooldown to avoid spam.
+            if active_session:
+                recent_duplicate = Alert.objects.filter(
+                    session=active_session,
+                    student__isnull=True,
+                    alert_type='low_engagement',
+                    is_resolved=False,
+                    timestamp__gte=now - timedelta(minutes=2),
+                ).exists()
+
+                if not recent_duplicate:
+                    Alert.objects.create(
+                        session=active_session,
+                        student=None,
+                        alert_type='low_engagement',
+                        severity='high',
+                        message=class_alert_msg,
+                    )
+
+        # Include unresolved DB alerts so Live Alerts box always reflects persisted records.
+        if active_session:
+            db_alerts = Alert.objects.filter(
+                session=active_session,
+                is_resolved=False,
+            ).order_by('-timestamp')[:10]
+
+            for db_alert in db_alerts:
+                alerts_data.append({
+                    'id': f"db_{db_alert.id}",
+                    'type': db_alert.alert_type,
+                    'severity': db_alert.severity,
+                    'message': db_alert.message,
+                    'student_name': db_alert.student.name if db_alert.student else 'Classroom',
+                    'student_id': db_alert.student.student_id if db_alert.student else None,
+                    'time': db_alert.timestamp.strftime('%H:%M:%S'),
+                })
+
+        alerts_data.sort(key=lambda x: x.get('time', ''), reverse=True)
+        alerts_data = alerts_data[:10]
+
         if analysis:
             # Prepare students data - SHOW ALL DETECTED STUDENTS
             students_data = []
             if analysis.get('recognized_students'):
-                for student_data in analysis['recognized_students']:
-                    student_name = student_data.get('name', 'Unknown Person')
+                for i, student_data in enumerate(analysis['recognized_students']):
+                    student_name = student_data.get('name') or f"Detected Face {i + 1}"
                     student_id = student_data.get('student_id')
-                    
-                    # Skip if no student name
-                    if not student_name or student_name == 'Unknown Person':
-                        continue
-                    
+
                     students_data.append({
                         'student_id': student_id,
                         'name': student_name,
@@ -776,7 +1115,7 @@ def live_data(request):
                 'fps': stream_status['fps'],
                 'session_id': active_session.id if active_session else None,
                 'present_count': analysis.get('present_count', len([s for s in students_data if s.get('present_today', True)])),
-                'avg_engagement': analysis.get('class_avg_engagement', 0),
+                'avg_engagement': class_avg_engagement,
                 'emotion_distribution': analysis.get('emotion_distribution', {}),
                 'students': students_data[:12],
                 'recognized_students': analysis.get('recognized_students', []),
@@ -982,6 +1321,12 @@ def analytics_summary(request):
         days = int(request.query_params.get('days', 7))
         since = timezone.now() - timedelta(days=days)
         records = EngagementRecord.objects.filter(timestamp__gte=since)
+        total_students = Student.objects.filter(is_active=True).count()
+
+        attendance_qs = Attendance.objects.filter(date__gte=since.date())
+        attendance_total = attendance_qs.count()
+        attendance_present = attendance_qs.filter(is_present=True).count()
+        attendance_rate = (attendance_present / attendance_total * 100) if attendance_total > 0 else 0
 
         if not records.exists():
             return Response({
@@ -989,6 +1334,15 @@ def analytics_summary(request):
                 'days': days, 'daily_engagement': [], 'hourly_pattern': [],
                 'emotion_trend': {}, 'top_students': [], 'needs_attention': [],
                 'overall_avg_engagement': 0,
+                'total_students': total_students,
+                'attendance_rate': round(attendance_rate, 1),
+                'at_risk_count': 0,
+                'performance_distribution': {
+                    'excellent': 0,
+                    'good': 0,
+                    'average': 0,
+                    'below_average': 0,
+                },
             })
 
         df = pd.DataFrame(list(records.values(
@@ -1017,9 +1371,15 @@ def analytics_summary(request):
         top_students = [{'student_id': row['student_id'], 'name': row['student_name'],
                          'avg_engagement': round(row['engagement_score'], 1)}
                         for _, row in student_avg_sorted.head(5).iterrows()]
+        at_risk_df = student_avg_sorted[student_avg_sorted['engagement_score'] < 60]
         needs_attention = [{'student_id': row['student_id'], 'name': row['student_name'],
                             'avg_engagement': round(row['engagement_score'], 1)}
-                           for _, row in student_avg_sorted.tail(5).iterrows()]
+                           for _, row in at_risk_df.head(5).iterrows()]
+
+        excellent_count = int((student_avg['engagement_score'] >= 90).sum())
+        good_count = int(((student_avg['engagement_score'] >= 80) & (student_avg['engagement_score'] < 90)).sum())
+        average_count = int(((student_avg['engagement_score'] >= 70) & (student_avg['engagement_score'] < 80)).sum())
+        below_average_count = int((student_avg['engagement_score'] < 70).sum())
 
         return Response({
             'days': days, 'total_records': len(df),
@@ -1027,6 +1387,15 @@ def analytics_summary(request):
             'emotion_trend': emotion_counts, 'top_students': top_students,
             'needs_attention': needs_attention,
             'overall_avg_engagement': round(df['engagement_score'].mean(), 1),
+            'total_students': total_students,
+            'attendance_rate': round(attendance_rate, 1),
+            'at_risk_count': int(len(at_risk_df)),
+            'performance_distribution': {
+                'excellent': excellent_count,
+                'good': good_count,
+                'average': average_count,
+                'below_average': below_average_count,
+            },
         })
     except Exception as e:
         logger.error(f"Analytics error: {e}")
@@ -1363,58 +1732,27 @@ def api_health(request):
 def list_reports(request):
     """List all generated reports"""
     try:
-        # Mock reports data - in production this would come from database
-        reports = [
-            {
-                'id': 'rpt_001',
-                'name': 'Daily Summary - CS101',
-                'type': 'Daily',
-                'date': '2024-03-15',
-                'format': 'PDF',
-                'size': '2.4 MB',
-                'status': 'completed'
-            },
-            {
-                'id': 'rpt_002',
-                'name': 'Weekly Analysis - All Classes',
-                'type': 'Weekly',
-                'date': '2024-03-14',
-                'format': 'PDF',
-                'size': '5.1 MB',
-                'status': 'completed'
-            },
-            {
-                'id': 'rpt_003',
-                'name': 'Monthly Performance - CS101',
-                'type': 'Monthly',
-                'date': '2024-03-10',
-                'format': 'Excel',
-                'size': '1.8 MB',
-                'status': 'completed'
-            },
-            {
-                'id': 'rpt_004',
-                'name': 'Student Individual - Emma Wilson',
-                'type': 'Individual',
-                'date': '2024-03-12',
-                'format': 'PDF',
-                'size': '856 KB',
-                'status': 'completed'
-            },
-            {
-                'id': 'rpt_005',
-                'name': 'Class Comparison - March',
-                'type': 'Comparison',
-                'date': '2024-03-08',
-                'format': 'PowerPoint',
-                'size': '3.2 MB',
-                'status': 'completed'
-            }
-        ]
+        # FIXED: Query actual Report objects from DB
+        reports = Report.objects.all().order_by('-created_at')
+        
+        report_data = []
+        for report in reports:
+            report_data.append({
+                'id': report.id,
+                'name': report.name,
+                'type': report.get_report_type_display(),
+                'report_type': report.report_type,
+                'date': report.created_at.strftime('%Y-%m-%d'),
+                'format': report.format.upper(),
+                'size': f"{report.file_size / (1024*1024):.1f} MB" if report.file_size else "N/A",
+                'status': report.status,
+                'created_at': report.created_at.isoformat(),
+                'generated_at': report.generated_at.isoformat() if report.generated_at else None
+            })
         
         return Response({
             'success': True,
-            'reports': reports
+            'reports': report_data
         })
     except Exception as e:
         return Response({'error': str(e)}, status=500)
@@ -1423,53 +1761,173 @@ def list_reports(request):
 def generate_report(request):
     """Generate a new report"""
     try:
+        import pandas as pd
+        import os
+        from django.conf import settings
+        
         data = request.data
-        report_type = data.get('type', 'Daily')
-        date_range = data.get('date_range', 'Today')
+        report_type = data.get('type', 'engagement')
+        date_range = data.get('date_range', '7')
         class_name = data.get('class', 'CS101')
-        format_type = data.get('format', 'PDF')
+        format_type = data.get('format', 'csv')
         
-        # Generate report based on type
-        report_data = {
-            'id': f'rpt_{int(time.time())}',
-            'name': f'{report_type} Summary - {class_name}',
-            'type': report_type,
-            'date': timezone.now().strftime('%Y-%m-%d'),
-            'format': format_type,
-            'size': f'{random.uniform(0.5, 5.0):.1f} MB',
-            'status': 'generating'
-        }
+        # FIXED: Actually generate a CSV report using pandas from real data
+        # Create report record
+        report = Report.objects.create(
+            name=f'{report_type.title()} Report - {class_name}',
+            report_type=report_type,
+            format=format_type,
+            status='generating'
+        )
         
-        # In production, this would generate actual report data
-        # For now, return success
+        # Get date range
+        days = int(date_range) if date_range.isdigit() else 7
+        date_from = timezone.now().date() - timedelta(days=days)
+        date_to = timezone.now().date()
+        
+        report.date_from = date_from
+        report.date_to = date_to
+        report.save()
+        
+        # Generate report data based on type
+        if report_type == 'engagement':
+            # Get engagement records
+            records = EngagementRecord.objects.filter(
+                timestamp__date__gte=date_from,
+                timestamp__date__lte=date_to
+            ).select_related('student')
+            
+            # Create DataFrame
+            data = []
+            for record in records:
+                data.append({
+                    'Student Name': record.student.name,
+                    'Student ID': record.student.student_id,
+                    'Date': record.timestamp.date(),
+                    'Time': record.timestamp.time(),
+                    'Engagement Score': record.engagement_score,
+                    'Attention Score': record.attention_score,
+                    'Emotion': record.emotion,
+                    'Posture Score': record.posture_score
+                })
+            
+            df = pd.DataFrame(data)
+            
+        elif report_type == 'attendance':
+            # Get attendance records
+            records = Attendance.objects.filter(
+                date__gte=date_from,
+                date__lte=date_to
+            ).select_related('student', 'session')
+            
+            data = []
+            for record in records:
+                data.append({
+                    'Student Name': record.student.name,
+                    'Student ID': record.student.student_id,
+                    'Date': record.date,
+                    'Status': 'Present' if record.is_present else 'Absent',
+                    'Arrival Time': record.arrival_time,
+                    'Session': record.session.class_name if record.session else 'N/A',
+                    'Detection Confidence': record.detection_confidence
+                })
+            
+            df = pd.DataFrame(data)
+            
+        else:  # summary report
+            # Combine engagement and attendance
+            engagement_records = EngagementRecord.objects.filter(
+                timestamp__date__gte=date_from,
+                timestamp__date__lte=date_to
+            ).select_related('student')
+            
+            data = []
+            for record in engagement_records:
+                data.append({
+                    'Student Name': record.student.name,
+                    'Student ID': record.student.student_id,
+                    'Date': record.timestamp.date(),
+                    'Engagement Score': record.engagement_score,
+                    'Attention Score': record.attention_score,
+                    'Emotion': record.emotion
+                })
+            
+            df = pd.DataFrame(data)
+        
+        # Create reports directory if it doesn't exist
+        reports_dir = os.path.join(settings.MEDIA_ROOT, 'reports')
+        os.makedirs(reports_dir, exist_ok=True)
+        
+        # Generate filename
+        filename = f"{report.name.replace(' ', '_').lower()}_{report.id}.{format_type}"
+        file_path = os.path.join(reports_dir, filename)
+        
+        # Save file
+        if format_type == 'csv':
+            df.to_csv(file_path, index=False)
+        elif format_type == 'xlsx':
+            df.to_excel(file_path, index=False)
+        
+        # Update report record
+        report.file_path = f"reports/{filename}"
+        report.status = 'completed'
+        report.generated_at = timezone.now()
+        report.file_size = os.path.getsize(file_path)
+        report.save()
+        
         return Response({
             'success': True,
-            'message': f'Report generation started for {class_name}',
-            'report': report_data
+            'message': f'Report generated successfully: {report.name}',
+            'report': {
+                'id': report.id,
+                'name': report.name,
+                'type': report.get_report_type_display(),
+                'date': report.created_at.strftime('%Y-%m-%d'),
+                'format': report.format.upper(),
+                'size': f"{report.file_size / (1024*1024):.1f} MB",
+                'status': report.status
+            }
         })
+        
     except Exception as e:
+        # Update report status to failed
+        if 'report' in locals():
+            report.status = 'failed'
+            report.save()
         return Response({'error': str(e)}, status=500)
 
 @api_view(['GET'])
 def download_report(request, report_id):
     """Download a specific report"""
     try:
-        # Mock report data - in production this would fetch from database
-        reports = {
-            'rpt_001': {'name': 'Daily Summary - CS101', 'format': 'PDF'},
-            'rpt_002': {'name': 'Weekly Analysis - All Classes', 'format': 'PDF'},
-            'rpt_003': {'name': 'Monthly Performance - CS101', 'format': 'Excel'},
-        }
+        from django.http import FileResponse
+        from django.conf import settings
+        import os
         
-        if report_id in reports:
-            report = reports[report_id]
-            return Response({
-                'success': True,
-                'message': f'Downloading {report["format"]} report: {report["name"]}',
-                'download_url': f'/api/reports/download/{report_id}/file/'
-            })
-        else:
+        # FIXED: Serve the actual saved file using Django FileResponse
+        try:
+            report = Report.objects.get(id=report_id)
+        except Report.DoesNotExist:
             return Response({'error': 'Report not found'}, status=404)
+        
+        if not report.file_path or report.status != 'completed':
+            return Response({'error': 'Report file not available'}, status=404)
+        
+        # Build full file path
+        file_path = os.path.join(settings.MEDIA_ROOT, report.file_path)
+        
+        if not os.path.exists(file_path):
+            return Response({'error': 'Report file not found on server'}, status=404)
+        
+        # Return file response
+        response = FileResponse(
+            open(file_path, 'rb'),
+            as_attachment=True,
+            filename=f"{report.name}.{report.format}"
+        )
+        
+        return response
+        
     except Exception as e:
         return Response({'error': str(e)}, status=500)
 
@@ -1477,7 +1935,24 @@ def download_report(request, report_id):
 def delete_report(request, report_id):
     """Delete a specific report"""
     try:
-        # Mock deletion - in production this would delete from database
+        import os
+        from django.conf import settings
+        
+        # FIXED: Actually delete the report from database and file system
+        try:
+            report = Report.objects.get(id=report_id)
+        except Report.DoesNotExist:
+            return Response({'error': 'Report not found'}, status=404)
+        
+        # Delete file if it exists
+        if report.file_path:
+            file_path = os.path.join(settings.MEDIA_ROOT, report.file_path)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        
+        # Delete database record
+        report.delete()
+        
         return Response({
             'success': True,
             'message': f'Report {report_id} deleted successfully'

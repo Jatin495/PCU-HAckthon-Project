@@ -61,4 +61,8 @@ urlpatterns = [
     path('settings.html', serve_root_file('settings.html'), name='settings_html'),
     path('alert_test.html', serve_root_file('alert_test.html'), name='alert_test_html'),
 
+    # Face Recognition
+    # path('register-face/', views.register_student_face, name='register_student_face'),
+    # path('register-face/', views.register_student_face, name='register_student_face_html'),
+
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

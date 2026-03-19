@@ -5,20 +5,17 @@ All /api/ routes handled here.
 
 from django.urls import path
 from . import views
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import working_camera as simple_cam
+from . import camera
 
 urlpatterns = [
     # Health check
     path('health/', views.api_health, name='api_health'),
 
-    # Working camera endpoints
-    path('simple_camera_feed/', simple_cam.simple_camera_feed, name='simple_camera_feed'),
-    path('start_simple_camera/', simple_cam.start_simple_camera, name='start_simple_camera'),
-    path('stop_simple_camera/', simple_cam.stop_simple_camera, name='stop_simple_camera'),
-    path('emotion_stats/', simple_cam.get_emotion_stats, name='emotion_stats'),
+    # Camera endpoints (using consolidated camera)
+    path('simple_camera_feed/', camera.simple_camera_feed, name='simple_camera_feed'),
+    path('start_simple_camera/', camera.start_simple_camera, name='start_simple_camera'),
+    path('stop_simple_camera/', camera.stop_simple_camera, name='stop_simple_camera'),
+    path('emotion_stats/', camera.get_emotion_stats, name='emotion_stats'),
 
     # Auth
     path('auth/login/', views.login, name='login'),
@@ -34,6 +31,9 @@ urlpatterns = [
     path('students/overview/', views.students_overview, name='students_overview'),
     path('students/add/', views.add_student, name='add_student'),
     path('students/<str:student_id>/', views.student_detail, name='student_detail'),
+    
+    # Face Recognition
+    # path('register-face/', views.register_student_face, name='register_student_face'),
 
     # Sessions
     path('sessions/', views.list_sessions, name='list_sessions'),
