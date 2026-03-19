@@ -7,7 +7,8 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-smartclass-monitor-secret-key-2024-hackathon'
+# Use environment variable in production; fallback is for local development only.
+SECRET_KEY = os.environ.get('SECRET_KEY', 'fallback-for-dev')
 
 DEBUG = True
 

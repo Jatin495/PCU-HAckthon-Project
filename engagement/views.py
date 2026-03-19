@@ -4,7 +4,6 @@ All endpoints that the frontend HTML/JS communicates with.
 """
 
 import json
-import hashlib
 import logging
 import threading
 import base64
@@ -16,6 +15,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.db.models import Avg, Count, Max, Min, Q
+from django.contrib.auth.hashers import make_password, check_password
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
@@ -41,7 +41,32 @@ _active_session_topic_map = {}
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+    return make_password(password)
+
+
+def verify_and_upgrade_password(teacher, raw_password):
+    """
+    Verify password using Django hashers and transparently upgrade legacy
+    unsalted SHA-256 hashes to Django's default hasher on successful login.
+    """
+    stored = str(teacher.password_hash or '')
+    if not raw_password:
+        return False
+
+    # First try Django-standard password hash verification.
+    if check_password(raw_password, stored):
+        return True
+
+    # Legacy compatibility path: previous versions stored SHA-256 hex digests.
+    # Keep this strictly as a migration bridge and upgrade on success.
+    import hashlib
+    legacy_sha256 = hashlib.sha256(raw_password.encode()).hexdigest()
+    if stored == legacy_sha256:
+        teacher.password_hash = make_password(raw_password)
+        teacher.save(update_fields=['password_hash'])
+        return True
+
+    return False
 
 def json_response(data, status_code=200):
     return JsonResponse(data, status=status_code, safe=False)
@@ -302,7 +327,7 @@ def login(request):
             )
             logger.info(f"Auto-created teacher: {email}")
 
-        if teacher.password_hash != hash_password(password):
+        if not verify_and_upgrade_password(teacher, password):
             return Response({'error': 'Invalid credentials'}, status=401)
 
         request.session['teacher_id'] = teacher.id
@@ -874,12 +899,16 @@ def end_session(request, session_id):
             logger.info(f"✅ Session {session_id} ended successfully - Stream stopped")
         else:
             logger.warning(f"⚠️ Session {session_id} ended but stream stop failed")
+
+        auto_report = _generate_session_auto_report(session)
         
         return Response({
             'success': True, 
             'duration': session.duration_minutes,
             'stream_stopped': stream_stopped,
             'topic_updated': bool(daily_plan_id),
+            'auto_report_generated': bool(auto_report and auto_report.status == 'completed'),
+            'auto_report_id': auto_report.id if auto_report else None,
         })
         
         
@@ -889,6 +918,108 @@ def end_session(request, session_id):
     except Exception as e:
         logger.error(f"❌ Error ending session {session_id}: {e}")
         return Response({'error': str(e)}, status=500)
+
+
+def _generate_session_auto_report(session):
+    """Create a CSV report automatically whenever a session is ended."""
+    report = None
+    try:
+        import os
+        import pandas as pd
+        from django.conf import settings
+
+        session_end = session.end_time or timezone.now()
+        report = Report.objects.create(
+            name=f"Session Report - {session.class_name} - {session.start_time.strftime('%Y-%m-%d %H-%M')}",
+            report_type='summary',
+            format='csv',
+            status='generating',
+            date_from=session.start_time.date(),
+            date_to=session_end.date(),
+        )
+
+        engagement_qs = EngagementRecord.objects.filter(session=session).select_related('student').order_by('student__student_id', 'timestamp')
+        attendance_qs = Attendance.objects.filter(session=session).select_related('student')
+
+        attendance_by_sid = {}
+        for a in attendance_qs:
+            attendance_by_sid[a.student.student_id] = a
+
+        student_rows = []
+        if engagement_qs.exists():
+            from collections import defaultdict
+
+            by_sid = defaultdict(list)
+            for rec in engagement_qs:
+                by_sid[rec.student.student_id].append(rec)
+
+            for sid, rows in by_sid.items():
+                first = rows[0]
+                student_name = first.student.name
+                avg_eng = sum(float(r.engagement_score or 0.0) for r in rows) / max(len(rows), 1)
+                avg_att = sum(float(r.attention_score or 0.0) for r in rows) / max(len(rows), 1)
+
+                emotion_counts = {}
+                for r in rows:
+                    emotion = str(r.emotion or 'unknown')
+                    emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
+                dominant_emotion = max(emotion_counts, key=emotion_counts.get) if emotion_counts else 'unknown'
+
+                attendance = attendance_by_sid.get(sid)
+                student_rows.append({
+                    'Session ID': session.id,
+                    'Class Name': session.class_name,
+                    'Subject': session.subject,
+                    'Student ID': sid,
+                    'Student Name': student_name,
+                    'Attendance': 'Present' if (attendance and attendance.is_present) else 'Absent',
+                    'Avg Engagement Score': round(avg_eng, 1),
+                    'Avg Attention Score': round(avg_att, 1),
+                    'Dominant Emotion': dominant_emotion,
+                    'Samples Captured': len(rows),
+                    'Session Start': session.start_time.isoformat(),
+                    'Session End': session_end.isoformat(),
+                    'Duration (min)': session.duration_minutes,
+                })
+        else:
+            # Still produce a session-level report row even if no detections were captured.
+            student_rows.append({
+                'Session ID': session.id,
+                'Class Name': session.class_name,
+                'Subject': session.subject,
+                'Student ID': '',
+                'Student Name': 'No engagement records captured',
+                'Attendance': '',
+                'Avg Engagement Score': 0.0,
+                'Avg Attention Score': 0.0,
+                'Dominant Emotion': 'unknown',
+                'Samples Captured': 0,
+                'Session Start': session.start_time.isoformat(),
+                'Session End': session_end.isoformat(),
+                'Duration (min)': session.duration_minutes,
+            })
+
+        df = pd.DataFrame(student_rows)
+
+        reports_dir = os.path.join(settings.MEDIA_ROOT, 'reports')
+        os.makedirs(reports_dir, exist_ok=True)
+
+        filename = f"session_report_{session.id}_{report.id}.csv"
+        file_path = os.path.join(reports_dir, filename)
+        df.to_csv(file_path, index=False)
+
+        report.file_path = f"reports/{filename}"
+        report.status = 'completed'
+        report.generated_at = timezone.now()
+        report.file_size = os.path.getsize(file_path)
+        report.save(update_fields=['file_path', 'status', 'generated_at', 'file_size'])
+        return report
+    except Exception as e:
+        logger.warning(f"Auto report generation failed for session {session.id}: {e}")
+        if report is not None:
+            report.status = 'failed'
+            report.save(update_fields=['status'])
+        return None
 
 
 # ─── Live Monitoring Endpoints ────────────────────────────────────────────────
