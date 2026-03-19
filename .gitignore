@@ -61,3 +61,6 @@ yarn-error.log*
 *.bak
 *.backup
 *.old
+
+# Local virtualenv
+venv_310/
