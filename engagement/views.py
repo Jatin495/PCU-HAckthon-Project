@@ -1324,6 +1324,9 @@ def live_data(request):
                 } if active_session else None,
                 'present_count': analysis.get('present_count', len([s for s in students_data if s.get('present_today', True)])),
                 'avg_engagement': class_avg_engagement,
+                'fusion_enabled': analysis.get('fusion_enabled', False),
+                'fusion_weights': analysis.get('fusion_weights', {'fer': 0.0, 'daisee': 0.0}),
+                'daisee_model_loaded': analysis.get('daisee_model_loaded', False),
                 'emotion_distribution': analysis.get('emotion_distribution', {}),
                 'students': students_data[:12],
                 'recognized_students': analysis.get('recognized_students', []),
@@ -1673,12 +1676,52 @@ def classroom_heatmap(request):
         today = timezone.now().date()
         students = Student.objects.filter(is_active=True)
         heatmap_data = []
+        active_session = ClassSession.objects.filter(status='active').order_by('-start_time').first()
+        aggregation = 'session_avg' if active_session else 'today_avg'
+
+        live_by_student_id = {}
+        try:
+            from .video_stream import get_video_stream
+            live_analysis = get_video_stream().get_latest_analysis() or {}
+            for item in (live_analysis.get('recognized_students') or []):
+                sid = item.get('student_id')
+                if sid:
+                    live_by_student_id[sid] = item
+        except Exception:
+            live_by_student_id = {}
+
         for student in students:
-            latest = EngagementRecord.objects.filter(student=student, timestamp__date=today).order_by('-timestamp').first()
-            attend = Attendance.objects.filter(student=student, date=today).first()
-            engagement = latest.engagement_score if latest else 0
-            emotion = latest.emotion if latest else 'unknown'
+            if active_session:
+                records_qs = EngagementRecord.objects.filter(student=student, session=active_session)
+                attend = Attendance.objects.filter(student=student, session=active_session, date=today).first()
+            else:
+                records_qs = EngagementRecord.objects.filter(student=student, timestamp__date=today)
+                attend = Attendance.objects.filter(student=student, date=today).order_by('-id').first()
+
+            metrics = records_qs.aggregate(avg_engagement=Avg('engagement_score'))
+            dominant_emotion_row = (
+                records_qs.values('emotion')
+                .annotate(total=Count('id'))
+                .order_by('-total', 'emotion')
+                .first()
+            )
+            live_item = live_by_student_id.get(student.student_id)
+
+            engagement = metrics.get('avg_engagement')
+            emotion = dominant_emotion_row.get('emotion') if dominant_emotion_row else None
             present = attend.is_present if attend else False
+
+            if live_item is not None:
+                if engagement is None:
+                    engagement = float(live_item.get('engagement') or 0)
+                if not emotion:
+                    emotion = str(live_item.get('emotion') or 'unknown')
+                present = True
+
+            if engagement is None:
+                engagement = 0
+            if not emotion:
+                emotion = 'unknown'
 
             if not present:
                 level, color = 'absent', '#374151'
@@ -1697,7 +1740,11 @@ def classroom_heatmap(request):
                 'engagement': round(engagement, 1), 'emotion': emotion,
                 'present': present, 'level': level, 'color': color,
             })
-        return Response({'heatmap': heatmap_data})
+        return Response({
+            'heatmap': heatmap_data,
+            'aggregation': aggregation,
+            'session_id': active_session.id if active_session else None,
+        })
     except Exception as e:
         return Response({'error': str(e)}, status=500)
 
@@ -1986,6 +2033,51 @@ def api_health(request):
         'database': 'connected', 'stream_running': stream.is_running,
         'students': Student.objects.count(),
         'sessions': ClassSession.objects.filter(status='active').count(),
+    })
+
+
+@api_view(['GET'])
+def model_status(request):
+    """Get status of all AI models (FER-2013, DAiSEE, etc.)"""
+    from .camera import camera_processor
+    import os
+    
+    fer2013_loaded = camera_processor.fer2013_predictor is not None
+    daisee_loaded = camera_processor.daisee_predictor is not None
+    fer_loaded = camera_processor._fer_detector is not None
+    
+    return Response({
+        'timestamp': timezone.now().isoformat(),
+        'models': {
+            'fer': {
+                'loaded': fer_loaded,
+                'status': 'ready' if fer_loaded else 'not_initialized',
+                'description': 'Core emotion detector (FER package)',
+            },
+            'fer2013': {
+                'loaded': fer2013_loaded,
+                'status': 'ready' if fer2013_loaded else 'not_loaded',
+                'checkpoint': camera_processor.fer2013_model_path,
+                'exists': os.path.exists(camera_processor.fer2013_model_path),
+                'description': 'Fallback emotion detector trained on FER-2013 dataset',
+            },
+            'daisee': {
+                'loaded': daisee_loaded,
+                'status': 'ready' if daisee_loaded else 'not_loaded',
+                'checkpoint': camera_processor.daisee_model_path,
+                'exists': os.path.exists(camera_processor.daisee_model_path),
+                'description': 'Engagement level detector (DAiSEE-inspired)',
+            },
+        },
+        'fusion': {
+            'enabled': camera_processor.fusion_enabled,
+            'fer_weight': round(camera_processor.fer_weight, 3),
+            'daisee_weight': round(camera_processor.daisee_weight, 3),
+        },
+        'camera': {
+            'running': camera_processor.is_running,
+            'demo_mode': camera_processor.demo_mode,
+        },
     })
 
 

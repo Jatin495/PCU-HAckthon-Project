@@ -1,6 +1,8 @@
 django>=4.0
 djangorestframework
 django-cors-headers
+charset-normalizer
+chardet
 opencv-python
 mediapipe
 fer

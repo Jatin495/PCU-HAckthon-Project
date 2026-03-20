@@ -31,7 +31,9 @@ class CameraProcessor:
         self._mp_face_detection = None
         self._haar_face_cascade = None
         self._fer_init_attempted = False
+        self._fer2013_init_attempted = False
         self._mp_init_attempted = False
+        self._daisee_init_attempted = False
         self.students_data = []
         self.recognized_students = []
         
@@ -53,15 +55,19 @@ class CameraProcessor:
 
         # FER + DAiSEE-inspired fusion controls.
         # NOTE: daisee component here is a proxy scorer unless you plug in a trained DAiSEE model.
-        self.fer_weight = float(os.getenv('FER_WEIGHT', '0.4'))
-        self.daisee_weight = float(os.getenv('DAISEE_WEIGHT', '0.6'))
+        self.fer_weight = float(os.getenv('FER_WEIGHT', '0.65'))
+        self.daisee_weight = float(os.getenv('DAISEE_WEIGHT', '0.35'))
         weight_sum = self.fer_weight + self.daisee_weight
         if weight_sum <= 0:
-            self.fer_weight, self.daisee_weight = 0.4, 0.6
+            self.fer_weight, self.daisee_weight = 0.65, 0.35
             weight_sum = 1.0
         self.fer_weight /= weight_sum
         self.daisee_weight /= weight_sum
         self.fusion_enabled = True
+        self.fer2013_model_path = os.getenv('FER2013_MODEL_PATH', 'media/models/fer2013_emotion.pt')
+        self.fer2013_predictor = None
+        self.daisee_model_path = os.getenv('DAISEE_MODEL_PATH', 'media/models/daisee_engagement.pt')
+        self.daisee_predictor = None
         
     def start(self, source=0):
         """Start camera processing"""
@@ -130,7 +136,11 @@ class CameraProcessor:
         self._mp_face_detection = None
         self._haar_face_cascade = None
         self._fer_init_attempted = False
+        self._fer2013_init_attempted = False
         self._mp_init_attempted = False
+        self._daisee_init_attempted = False
+        self.fer2013_predictor = None
+        self.daisee_predictor = None
         
         # Clear frames
         self.current_frame = None
@@ -154,6 +164,25 @@ class CameraProcessor:
     
     def get_analysis(self):
         """Get current analysis results with emotions matching frontend expectations"""
+        if self.daisee_predictor is None and not self._daisee_init_attempted:
+            self._load_daisee_predictor()
+
+        safe_students = []
+        for item in (self.students_data or []):
+            safe_item = dict(item)
+            bbox = safe_item.get('face_bbox')
+            if hasattr(bbox, 'tolist'):
+                bbox = bbox.tolist()
+            if isinstance(bbox, (list, tuple)):
+                try:
+                    bbox = [int(float(v)) for v in list(bbox)[:4]]
+                except Exception:
+                    bbox = [0, 0, 0, 0]
+            elif bbox is not None:
+                bbox = [0, 0, 0, 0]
+            safe_item['face_bbox'] = bbox
+            safe_students.append(safe_item)
+
         return {
             'faces_detected': self.faces_detected,
             'total_faces': self.faces_detected,
@@ -168,8 +197,10 @@ class CameraProcessor:
                 'fer': round(self.fer_weight, 3),
                 'daisee': round(self.daisee_weight, 3),
             },
+            'fer2013_model_loaded': self.fer2013_predictor is not None,
+            'daisee_model_loaded': self.daisee_predictor is not None,
             'timestamp': datetime.now().isoformat(),
-            'students': self.students_data,
+            'students': safe_students,
             'recognized_students': self.recognized_students,
             'present_count': len(self.recognized_students),
         }
@@ -301,12 +332,16 @@ class CameraProcessor:
                         x, y, bw, bh = int(bboxC.xmin * w), int(bboxC.ymin * h), int(bboxC.width * w), int(bboxC.height * h)
                         if x < 0: x = 0
                         if y < 0: y = 0
-                        
-                        # Assign random sensible emotions to simulate engagement
-                        emotion_choices = ['happy', 'neutral', 'focused', 'confused', 'bored']
-                        weights = [0.25, 0.4, 0.2, 0.1, 0.05]
-                        dom_emotion = random.choices(emotion_choices, weights=weights)[0]
-                        conf = random.uniform(0.6, 0.95)
+
+                        face_roi = analysis_frame[max(0, y):max(0, y) + max(0, bh), max(0, x):max(0, x) + max(0, bw)] if bw > 0 and bh > 0 else None
+                        dom_emotion, conf = self._predict_emotion_from_face(face_roi)
+
+                        if dom_emotion is None:
+                            # Keep a deterministic fallback when FER-2013 is not available.
+                            emotion_choices = ['happy', 'neutral', 'focused', 'confused', 'bored']
+                            weights = [0.25, 0.4, 0.2, 0.1, 0.05]
+                            dom_emotion = random.choices(emotion_choices, weights=weights)[0]
+                            conf = random.uniform(0.6, 0.95)
                         
                         fer_results.append({
                             'box': [x, y, bw, bh],
@@ -331,16 +366,20 @@ class CameraProcessor:
                     )
 
                     for (x, y, bw, bh) in haar_faces:
-                        # Slightly prefer neutral/focused for conservative fallback.
-                        face_area = bw * bh
-                        frame_area = analysis_frame.shape[0] * analysis_frame.shape[1]
-                        relative_size = face_area / frame_area if frame_area > 0 else 0
-                        if relative_size > 0.03:
-                            dom_emotion = 'focused'
-                            conf = 0.62
-                        else:
-                            dom_emotion = 'neutral'
-                            conf = 0.58
+                        face_roi = analysis_frame[max(0, y):max(0, y) + max(0, bh), max(0, x):max(0, x) + max(0, bw)] if bw > 0 and bh > 0 else None
+                        dom_emotion, conf = self._predict_emotion_from_face(face_roi)
+
+                        if dom_emotion is None:
+                            # Slightly prefer neutral/focused for conservative fallback.
+                            face_area = bw * bh
+                            frame_area = analysis_frame.shape[0] * analysis_frame.shape[1]
+                            relative_size = face_area / frame_area if frame_area > 0 else 0
+                            if relative_size > 0.03:
+                                dom_emotion = 'focused'
+                                conf = 0.62
+                            else:
+                                dom_emotion = 'neutral'
+                                conf = 0.58
 
                         fer_results.append({
                             'box': [int(x), int(y), int(bw), int(bh)],
@@ -368,7 +407,12 @@ class CameraProcessor:
             
             # Process each detected face
             for face_data in fer_results:
-                box = face_data['box']        # [x, y, w, h]
+                raw_box = face_data.get('box', [0, 0, 0, 0])
+                if hasattr(raw_box, 'tolist'):
+                    raw_box = raw_box.tolist()
+                if not isinstance(raw_box, (list, tuple)) or len(raw_box) < 4:
+                    raw_box = [0, 0, 0, 0]
+                box = [int(float(v)) for v in raw_box[:4]]  # [x, y, w, h]
                 emotions = face_data['emotions']  # dict of emotion: score
                 x, y, bw, bh = box
                 
@@ -409,7 +453,18 @@ class CameraProcessor:
                 )
 
                 # Final fused engagement.
-                engagement_score = self._fuse_engagement_scores(fer_engagement, daisee_engagement)
+                dynamic_fer_weight = self.fer_weight
+                dynamic_daisee_weight = self.daisee_weight
+                if mapped_emotion in ['bored', 'confused']:
+                    dynamic_fer_weight = min(0.65, self.fer_weight + 0.25)
+                    dynamic_daisee_weight = 1.0 - dynamic_fer_weight
+
+                engagement_score = self._fuse_engagement_scores(
+                    fer_engagement,
+                    daisee_engagement,
+                    fer_weight=dynamic_fer_weight,
+                    daisee_weight=dynamic_daisee_weight,
+                )
                 
                 # Draw bounding box and label on frame
                 color = (0, 255, 0) if engagement_score > 60 else (0, 0, 255)
@@ -625,11 +680,84 @@ class CameraProcessor:
 
         return (total_score / total_weight * 100) if total_weight > 0 else 50
 
+    def _load_daisee_predictor(self):
+        """Lazy-load DAiSEE model checkpoint if available."""
+        if self._daisee_init_attempted:
+            return
+
+        self._daisee_init_attempted = True
+        try:
+            if not os.path.exists(self.daisee_model_path):
+                logger.info(
+                    "DAiSEE model checkpoint not found at %s; using proxy score fallback.",
+                    self.daisee_model_path,
+                )
+                return
+
+            from .daisee_model import DAiSEEPredictor
+
+            self.daisee_predictor = DAiSEEPredictor(self.daisee_model_path)
+            logger.info("DAiSEE model loaded from %s", self.daisee_model_path)
+        except Exception as e:
+            logger.warning("DAiSEE model load failed (%s). Falling back to proxy score.", e)
+            self.daisee_predictor = None
+
+    def _load_fer2013_predictor(self):
+        """Lazy-load FER-2013 model checkpoint if available."""
+        if self._fer2013_init_attempted:
+            return
+
+        self._fer2013_init_attempted = True
+        try:
+            if not os.path.exists(self.fer2013_model_path):
+                logger.info(
+                    "FER-2013 model checkpoint not found at %s; using FER package/fallback emotions.",
+                    self.fer2013_model_path,
+                )
+                return
+
+            from .fer_emotion_model import FER2013Predictor
+
+            self.fer2013_predictor = FER2013Predictor(self.fer2013_model_path)
+            logger.info("FER-2013 emotion model loaded from %s", self.fer2013_model_path)
+        except Exception as e:
+            logger.warning("FER-2013 model load failed (%s). Falling back to FER package/fallback.", e)
+            self.fer2013_predictor = None
+
+    def _predict_emotion_from_face(self, face_roi):
+        """Predict emotion from a face crop with FER-2013 if a checkpoint is configured."""
+        if self.fer2013_predictor is None and not self._fer2013_init_attempted:
+            self._load_fer2013_predictor()
+
+        if self.fer2013_predictor is None:
+            return None, 0.0
+
+        try:
+            prediction = self.fer2013_predictor.predict(face_roi)
+            if prediction is None:
+                return None, 0.0
+            return prediction.label, float(prediction.confidence)
+        except Exception as e:
+            logger.debug(f"FER-2013 predictor inference failed: {e}")
+            return None, 0.0
+
     def _estimate_daissee_engagement(self, mapped_emotion, confidence, face_roi):
         """
         DAiSEE-inspired proxy score.
         Replace this with a trained DAiSEE model output when available.
         """
+        # Try trained DAiSEE model first.
+        if self.daisee_predictor is None and not self._daisee_init_attempted:
+            self._load_daisee_predictor()
+
+        if self.daisee_predictor is not None:
+            try:
+                prediction = self.daisee_predictor.predict(face_roi)
+                if prediction is not None:
+                    return max(0.0, min(100.0, float(prediction.score)))
+            except Exception as e:
+                logger.debug(f"DAiSEE predictor inference failed, using fallback proxy: {e}")
+
         base_by_emotion = {
             'focused': 90.0,
             'happy': 84.0,
@@ -654,11 +782,20 @@ class CameraProcessor:
 
         return max(0.0, min(100.0, base + confidence_term + texture_term))
 
-    def _fuse_engagement_scores(self, fer_score, daisee_score):
+    def _fuse_engagement_scores(self, fer_score, daisee_score, fer_weight=None, daisee_weight=None):
         if not self.fusion_enabled:
             return float(fer_score)
 
-        fused = (self.fer_weight * float(fer_score)) + (self.daisee_weight * float(daisee_score))
+        fw = self.fer_weight if fer_weight is None else float(fer_weight)
+        dw = self.daisee_weight if daisee_weight is None else float(daisee_weight)
+        total = fw + dw
+        if total <= 0:
+            fw, dw = self.fer_weight, self.daisee_weight
+            total = fw + dw
+        fw /= total
+        dw /= total
+
+        fused = (fw * float(fer_score)) + (dw * float(daisee_score))
         return max(0.0, min(100.0, fused))
 
 # Global camera processor instance
@@ -675,8 +812,9 @@ def generate_face_encoding(face_roi):
         return None
 
     try:
-        # Try to import DeepFace
-        from deepface import DeepFace
+        # Try to import DeepFace lazily so environments without deepface still work.
+        import importlib
+        DeepFace = importlib.import_module('deepface').DeepFace
         
         # Use DeepFace to generate 128-dim embedding
         embedding = DeepFace.represent(
@@ -775,13 +913,30 @@ def stop_simple_camera(request):
 def get_emotion_stats(request):
     """Get emotion statistics endpoint"""
     from django.http import JsonResponse
+
+    def _safe_json_value(value):
+        if hasattr(value, 'tolist'):
+            value = value.tolist()
+        if isinstance(value, dict):
+            return {str(k): _safe_json_value(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [_safe_json_value(v) for v in value]
+        try:
+            import numpy as _np
+            if isinstance(value, (_np.integer, _np.floating)):
+                return value.item()
+            if isinstance(value, _np.bool_):
+                return bool(value)
+        except Exception:
+            pass
+        return value
     
     if request.method == 'GET':
         analysis = camera_processor.get_analysis()
         return JsonResponse({
             'success': True,
-            'stats': analysis,
-            'students': analysis.get('students', [])
+            'stats': _safe_json_value(analysis),
+            'students': _safe_json_value(analysis.get('students', []))
         })
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 

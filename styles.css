@@ -1443,6 +1443,17 @@ body {
     }
 }
 
+@keyframes slideOutLeft {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(-30px);
+        opacity: 0;
+    }
+}
+
 .bounce-in {
     animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }

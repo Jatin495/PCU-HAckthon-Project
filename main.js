@@ -58,15 +58,16 @@ function initializeApp() {
 
     
 
-    // Load mock data
+    const isDashboardPage = (window.location.pathname || '').toLowerCase().includes('dashboard.html');
 
-    loadMockData();
+    // Keep dashboard fully backend-driven; other pages can still use mock fallback.
+    if (!isDashboardPage) {
+        // Load mock data
+        loadMockData();
 
-    
-
-    // Initialize real-time updates
-
-    initializeRealTimeUpdates();
+        // Initialize real-time updates
+        initializeRealTimeUpdates();
+    }
 
 }
 

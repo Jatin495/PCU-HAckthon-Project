@@ -10,6 +10,7 @@ from . import camera
 urlpatterns = [
     # Health check
     path('health/', views.api_health, name='api_health'),
+    path('model-status/', views.model_status, name='model_status'),
 
     # Camera endpoints (using consolidated camera)
     path('simple_camera_feed/', camera.simple_camera_feed, name='simple_camera_feed'),

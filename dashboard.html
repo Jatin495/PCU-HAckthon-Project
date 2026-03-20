@@ -271,9 +271,12 @@
         async function loadDashboardData() {
             try {
                 console.log('📊 Loading dashboard data...');
-                const [dashboardData, teacherData] = await Promise.all([
+                const [dashboardData, teacherData, heatmapData, timelineData, studentsData] = await Promise.all([
                     API.get('/dashboard/stats/'),
                     API.get('/teacher/dashboard-data/').catch(() => null),
+                    API.get('/dashboard/heatmap/').catch(() => null),
+                    API.get('/dashboard/timeline/').catch(() => null),
+                    API.get('/students/').catch(() => null),
                 ]);
                 
                 if (dashboardData && !dashboardData.error) {
@@ -289,6 +292,53 @@
                 } else {
                     todayPlannerTopics = [];
                     renderTodayPlannerTopics();
+                }
+
+                if (heatmapData && Array.isArray(heatmapData.heatmap) && typeof renderBackendHeatmap === 'function') {
+                    renderBackendHeatmap(heatmapData.heatmap);
+                }
+
+                if (timelineData && Array.isArray(timelineData.timeline)) {
+                    window._backendTimeline = timelineData.timeline;
+                }
+
+                if (studentsData && Array.isArray(studentsData.students)) {
+                    const container = document.getElementById('studentCardsContainer');
+                    if (container) {
+                        container.innerHTML = '';
+                        studentsData.students.slice(0, 8).forEach(student => {
+                            const card = document.createElement('div');
+                            card.className = 'student-card fade-in';
+
+                            const eng = Math.round(Number(student.current_engagement || 0));
+                            const color = eng >= 80 ? 'success' : eng >= 60 ? 'warning' : 'danger';
+                            const initials = (student.name || 'S')
+                                .split(' ')
+                                .filter(Boolean)
+                                .map(n => n[0])
+                                .join('')
+                                .toUpperCase() || 'S';
+
+                            card.innerHTML = `
+                                <div class="student-avatar">${initials}</div>
+                                <div class="student-name">${student.name || 'Student'}</div>
+                                <div class="student-id">${student.student_id || '-'}</div>
+                                <div class="engagement-score">
+                                    <div class="engagement-bar">
+                                        <div class="engagement-fill" style="width: ${eng}%"></div>
+                                    </div>
+                                    <span class="engagement-text">${eng}%</span>
+                                </div>
+                                <span class="badge badge-${color}">${student.current_emotion || 'neutral'}</span>
+                            `;
+                            container.appendChild(card);
+                        });
+                    }
+                }
+
+                if (window.ChartUtils) {
+                    ChartUtils.createEmotionChart();
+                    ChartUtils.createEngagementChart();
                 }
             } catch (error) {
                 console.error('❌ Error loading dashboard data:', error);

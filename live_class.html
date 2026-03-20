@@ -805,7 +805,10 @@
 
             const formatAlertTime12h = (alert) => {
                 const timeOptions = {
-                    hour: 'numeric',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
                     minute: '2-digit',
                     second: '2-digit',
                     hour12: true,
@@ -814,7 +817,7 @@
                 if (alert && alert.timestamp) {
                     const d = new Date(alert.timestamp);
                     if (!Number.isNaN(d.getTime())) {
-                        return d.toLocaleTimeString('en-US', timeOptions);
+                        return d.toLocaleString(undefined, timeOptions);
                     }
                 }
 
@@ -1108,7 +1111,7 @@
                             message: `⚠ ALERT: ${confusedPercentage.toFixed(1)}% students appear confused or not engaged.`,
                             total_students: totalFaces,
                             confused_students: confusedCount,
-                            timestamp: new Date().toISOString()
+                            timestamp: Date.now()
                         };
                         
                         console.log('🚨 LIVE ALERT TRIGGERED:', alertData);
@@ -1128,9 +1131,9 @@
         }
         
         function showLiveAlert(alertData) {
-            // Prevent alert spam (show max once per 30 seconds)
+            // Prevent alert spam (show max once per 5 seconds per unique source)
             const now = Date.now();
-            if (now - lastLiveAlertTime < 30000) {
+            if (now - lastLiveAlertTime < 5000) {
                 console.log('⏰ Live alert suppressed (too recent)');
                 return;
             }
@@ -1155,7 +1158,10 @@
                 padding: 1rem;
                 margin-bottom: 0.75rem;
                 border-left: 4px solid #ef4444;
-                animation: slideInLeft 0.3s ease-out;
+                animation: slideIn 0.3s ease-out;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
             `;
             
             alertItem.innerHTML = `
@@ -1163,8 +1169,11 @@
                     <div style="font-size: 1.5rem; flex-shrink: 0;">🔴</div>
                     <div style="flex: 1;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
-                            <h4 style="margin: 0; color: #ef4444; font-size: 0.875rem; font-weight: 600;">LIVE ALERT</h4>
-                            <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: none; border: none; color: #6b7280; cursor: pointer; font-size: 1rem; padding: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;">×</button>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <h4 style="margin: 0; color: #ef4444; font-size: 0.875rem; font-weight: 600;">LIVE ALERT</h4>
+                                <span style="background: #ef4444; color: white; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 3px;">NEW</span>
+                            </div>
+                            <button onclick="this.parentElement.parentElement.parentElement.parentElement.remove()" style="background: none; border: none; color: #6b7280; cursor: pointer; font-size: 1rem; padding: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;">×</button>
                         </div>
                         <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem; color: #374151; line-height: 1.4;">${alertData.message}</p>
                         <div style="display: flex; gap: 1rem; font-size: 0.75rem; color: #6b7280;">
@@ -1173,7 +1182,15 @@
                             <span>📊 ${alertData.percentage.toFixed(1)}% not engaged</span>
                         </div>
                         <div style="font-size: 0.75rem; color: #9ca3af; margin-top: 0.5rem;">
-                            ${new Date(alertData.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })}
+                            ⏰ ${new Date(alertData.timestamp).toLocaleString(undefined, { 
+                                year: 'numeric',
+                                month: '2-digit', 
+                                day: '2-digit',
+                                hour: '2-digit', 
+                                minute: '2-digit', 
+                                second: '2-digit',
+                                hour12: true 
+                            })}
                         </div>
                     </div>
                 </div>
@@ -1198,7 +1215,7 @@
                 }
             }
             
-            // Auto-remove after 30 seconds
+            // Auto-remove after 2 minutes (120 seconds) so alerts stay visible longer
             setTimeout(() => {
                 if (alertItem.parentElement) {
                     alertItem.style.animation = 'slideOutLeft 0.3s ease-out';
@@ -1217,7 +1234,7 @@
                         }
                     }, 300);
                 }
-            }, 30000);
+            }, 120000);
             
             // Play sound alert
             playLiveAlertSound();
