@@ -637,23 +637,14 @@ def add_student(request):
                     except Exception as detect_error:
                         logger.warning(f"OpenCV face detection failed for {name}: {detect_error}")
 
-                    # Fallback to center crop if detector found nothing.
+                    # Do not silently fallback to center/full image because it can
+                    # register a non-face patch and later produce wrong identity matches.
                     if face_roi is None or getattr(face_roi, 'size', 0) == 0:
-                        logger.warning(f"No face box detected for {name}; using center crop fallback")
-                        h, w = img.shape[:2]
-                        center_size = max(80, min(h, w) // 2)
-                        center_x, center_y = w // 2, h // 2
-                        face_roi = img[
-                            max(0, center_y - center_size // 2):min(h, center_y + center_size // 2),
-                            max(0, center_x - center_size // 2):min(w, center_x + center_size // 2)
-                        ]
+                        logger.warning(f"No valid face detected for {name}; registration rejected")
+                        return Response({'error': 'No clear face detected. Please upload a front-facing image with one visible face.'}, status=400)
 
                     if face_roi is not None and getattr(face_roi, 'size', 0) > 0:
                         face_encoding = generate_face_encoding(face_roi)
-
-                    # Final fallback: encode using whole image.
-                    if face_encoding is None:
-                        face_encoding = generate_face_encoding(img)
 
                     if face_encoding:
                         logger.info(f"✅ Face registered for student {name}")
@@ -732,6 +723,100 @@ def student_detail(request, student_id):
         return Response({'error': str(e)}, status=500)
 
 
+@api_view(['POST'])
+def face_capture_check(request):
+    """
+    Validate guided registration frame quality and pose-position step.
+    expected_pose values: left, right, straight
+    """
+    try:
+        expected_pose = str(request.data.get('expected_pose', 'straight')).strip().lower()
+        if expected_pose not in {'left', 'right', 'straight'}:
+            expected_pose = 'straight'
+
+        face_image = request.FILES.get('face_image')
+        if not face_image:
+            return Response({'success': False, 'error': 'Face image is required'}, status=400)
+
+        import cv2
+        import numpy as np
+
+        image_bytes = face_image.read()
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        if img is None:
+            return Response({'success': False, 'error': 'Could not decode image'}, status=400)
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        faces = face_cascade.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=4,
+            minSize=(60, 60),
+        )
+
+        if len(faces) == 0:
+            return Response({
+                'success': True,
+                'passed': False,
+                'issues': ['No clear face detected. Keep one face visible and look at camera.'],
+                'expected_pose': expected_pose,
+                'detected_pose': 'unknown',
+            })
+
+        x, y, w, h = max(faces, key=lambda f: int(f[2]) * int(f[3]))
+        h_img, w_img = img.shape[:2]
+        face_center_x = x + (w / 2.0)
+        center_ratio = face_center_x / float(max(1, w_img))
+
+        if center_ratio < 0.4:
+            detected_pose = 'left'
+        elif center_ratio > 0.6:
+            detected_pose = 'right'
+        else:
+            detected_pose = 'straight'
+
+        face_roi = gray[y:y + h, x:x + w]
+        blur_score = float(cv2.Laplacian(face_roi, cv2.CV_64F).var()) if face_roi.size else 0.0
+        brightness = float(np.mean(face_roi)) if face_roi.size else 0.0
+        face_area_ratio = float((w * h) / float(max(1, w_img * h_img)))
+
+        pose_ok = detected_pose == expected_pose
+        size_ok = face_area_ratio >= 0.08
+        blur_ok = blur_score >= 70.0
+        light_ok = 45.0 <= brightness <= 220.0
+
+        issues = []
+        if not pose_ok:
+            issues.append(f"Position mismatch: expected {expected_pose}, detected {detected_pose}. Move your face to {expected_pose.upper()} side of preview.")
+        if not size_ok:
+            issues.append('Face is too small. Move closer to camera.')
+        if not blur_ok:
+            issues.append('Image is blurry. Hold still and recapture.')
+        if not light_ok:
+            issues.append('Lighting is poor. Ensure your face is clearly lit.')
+
+        passed = pose_ok and size_ok and blur_ok and light_ok
+
+        return Response({
+            'success': True,
+            'passed': passed,
+            'expected_pose': expected_pose,
+            'detected_pose': detected_pose,
+            'metrics': {
+                'blur_score': round(blur_score, 2),
+                'brightness': round(brightness, 2),
+                'face_area_ratio': round(face_area_ratio, 4),
+            },
+            'issues': issues,
+            'message': 'Capture accepted' if passed else 'Please adjust and try again',
+        })
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
 # ─── Session Endpoints ────────────────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -789,7 +874,9 @@ def start_session(request):
                 logger.warning(f"Invalid daily_plan_id '{daily_plan_id_raw}' at session start: {plan_error}")
                 daily_plan = None
 
-        ClassSession.objects.filter(status='active').update(status='ended', end_time=timezone.now())
+        active_sessions = list(ClassSession.objects.filter(status='active'))
+        for active_session in active_sessions:
+            _finalize_session(active_session)
 
         session = ClassSession.objects.create(
             teacher=teacher, class_name=class_name, subject=subject,
@@ -867,29 +954,7 @@ def end_session(request, session_id):
         logger.info(f"🛑 Ending session {session_id}")
         
         session = ClassSession.objects.get(id=session_id)
-        session.status = 'ended'
-        session.end_time = timezone.now()
-        session.save()
-
-        topic_ctx = _active_session_topic_map.get(session.id, {})
-        daily_plan_id = topic_ctx.get('daily_plan_id')
-        if daily_plan_id:
-            try:
-                plan = DailyLectureTopic.objects.select_related('topic').get(id=daily_plan_id)
-                if not plan.is_completed:
-                    plan.is_completed = True
-                    plan.completed_at = timezone.now()
-                    plan.save(update_fields=['is_completed', 'completed_at'])
-
-                topic = plan.topic
-                if topic.status != 'completed':
-                    topic.status = 'completed'
-                    topic.checkpoint_assigned = True
-                    topic.checkpoint_completion_rate = max(float(topic.checkpoint_completion_rate or 0.0), 75.0)
-                    topic.save(update_fields=['status', 'checkpoint_assigned', 'checkpoint_completion_rate'])
-            except Exception as topic_close_error:
-                logger.warning(f"Failed to update selected daily topic on session end: {topic_close_error}")
-        _active_session_topic_map.pop(session.id, None)
+        topic_updated = bool(_active_session_topic_map.get(session.id, {}).get('daily_plan_id'))
         
         # Stop the video stream immediately
         from .video_stream import stop_stream
@@ -900,13 +965,13 @@ def end_session(request, session_id):
         else:
             logger.warning(f"⚠️ Session {session_id} ended but stream stop failed")
 
-        auto_report = _generate_session_auto_report(session)
+        auto_report = _finalize_session(session)
         
         return Response({
             'success': True, 
             'duration': session.duration_minutes,
             'stream_stopped': stream_stopped,
-            'topic_updated': bool(daily_plan_id),
+            'topic_updated': topic_updated,
             'auto_report_generated': bool(auto_report and auto_report.status == 'completed'),
             'auto_report_id': auto_report.id if auto_report else None,
         })
@@ -929,8 +994,9 @@ def _generate_session_auto_report(session):
         from django.conf import settings
 
         session_end = session.end_time or timezone.now()
+        report_name = f"Session Report - {session.class_name} - {session.start_time.strftime('%Y-%m-%d %H-%M')}"
         report = Report.objects.create(
-            name=f"Session Report - {session.class_name} - {session.start_time.strftime('%Y-%m-%d %H-%M')}",
+            name=report_name,
             report_type='summary',
             format='csv',
             status='generating',
@@ -1020,6 +1086,45 @@ def _generate_session_auto_report(session):
             report.status = 'failed'
             report.save(update_fields=['status'])
         return None
+
+
+def _finalize_session(session):
+    """Mark session ended, update planned topic state, and auto-generate report."""
+    session.status = 'ended'
+    session.end_time = timezone.now()
+    session.save(update_fields=['status', 'end_time'])
+
+    topic_ctx = _active_session_topic_map.get(session.id, {})
+    daily_plan_id = topic_ctx.get('daily_plan_id')
+    if daily_plan_id:
+        try:
+            plan = DailyLectureTopic.objects.select_related('topic').get(id=daily_plan_id)
+            if not plan.is_completed:
+                plan.is_completed = True
+                plan.completed_at = timezone.now()
+                plan.save(update_fields=['is_completed', 'completed_at'])
+
+            topic = plan.topic
+            if topic.status != 'completed':
+                topic.status = 'completed'
+                topic.checkpoint_assigned = True
+                topic.checkpoint_completion_rate = max(float(topic.checkpoint_completion_rate or 0.0), 75.0)
+                topic.save(update_fields=['status', 'checkpoint_assigned', 'checkpoint_completion_rate'])
+        except Exception as topic_close_error:
+            logger.warning(f"Failed to update selected daily topic on session end: {topic_close_error}")
+
+    _active_session_topic_map.pop(session.id, None)
+    return _generate_session_auto_report(session)
+
+
+def _ensure_missing_session_reports(limit=50):
+    """Backfill missing auto reports for ended sessions shown on the reports page."""
+    ended_sessions = ClassSession.objects.filter(status='ended').order_by('-start_time')[:limit]
+    for session in ended_sessions:
+        expected_name = f"Session Report - {session.class_name} - {session.start_time.strftime('%Y-%m-%d %H-%M')}"
+        exists = Report.objects.filter(name=expected_name, report_type='summary').exists()
+        if not exists:
+            _generate_session_auto_report(session)
 
 
 # ─── Live Monitoring Endpoints ────────────────────────────────────────────────
@@ -1157,6 +1262,7 @@ def live_data(request):
                 
                 # Low engagement alert
                 if engagement < 60:
+                    alert_now = timezone.now()
                     alerts_data.append({
                         'id': f"engagement_{student_id}_{int(time.time())}",
                         'type': 'low_engagement',
@@ -1164,12 +1270,14 @@ def live_data(request):
                         'message': f"{student_name} shows low engagement ({engagement}%)",
                         'student_name': student_name,
                         'student_id': student_id,
-                        'time': timezone.now().strftime('%H:%M:%S'),
+                        'time': alert_now.strftime('%H:%M:%S'),
+                        'timestamp': alert_now.isoformat(),
                     })
                     student_alert_created = True
                 
                 # Emotion-based alerts (only 4 emotions: happy, bored, confused, neutral)
                 if emotion == 'confused':
+                    alert_now = timezone.now()
                     alerts_data.append({
                         'id': f"confused_{student_id}_{int(time.time())}",
                         'type': 'confused',
@@ -1177,10 +1285,12 @@ def live_data(request):
                         'message': f"{student_name} appears confused",
                         'student_name': student_name,
                         'student_id': student_id,
-                        'time': timezone.now().strftime('%H:%M:%S'),
+                        'time': alert_now.strftime('%H:%M:%S'),
+                        'timestamp': alert_now.isoformat(),
                     })
                     student_alert_created = True
                 elif emotion == 'bored':
+                    alert_now = timezone.now()
                     alerts_data.append({
                         'id': f"bored_{student_id}_{int(time.time())}",
                         'type': 'bored',
@@ -1188,10 +1298,12 @@ def live_data(request):
                         'message': f"{student_name} appears bored",
                         'student_name': student_name,
                         'student_id': student_id,
-                        'time': timezone.now().strftime('%H:%M:%S'),
+                        'time': alert_now.strftime('%H:%M:%S'),
+                        'timestamp': alert_now.isoformat(),
                     })
                     student_alert_created = True
                 elif emotion == 'happy':
+                    alert_now = timezone.now()
                     alerts_data.append({
                         'id': f"happy_{student_id}_{int(time.time())}",
                         'type': 'happy',
@@ -1199,12 +1311,14 @@ def live_data(request):
                         'message': f"{student_name} appears happy and engaged",
                         'student_name': student_name,
                         'student_id': student_id,
-                        'time': timezone.now().strftime('%H:%M:%S'),
+                        'time': alert_now.strftime('%H:%M:%S'),
+                        'timestamp': alert_now.isoformat(),
                     })
                     student_alert_created = True
                 
                 # Always show at least one info alert per detected student.
                 if not student_alert_created:
+                    alert_now = timezone.now()
                     alerts_data.append({
                         'id': f"detection_{student_id}_{int(time.time())}",
                         'type': 'detection',
@@ -1212,7 +1326,8 @@ def live_data(request):
                         'message': f"{student_name} is present in class",
                         'student_name': student_name,
                         'student_id': student_id,
-                        'time': timezone.now().strftime('%H:%M:%S'),
+                        'time': alert_now.strftime('%H:%M:%S'),
+                        'timestamp': alert_now.isoformat(),
                     })
             
             # Sort alerts by time (most recent first) and limit to 10
@@ -1236,6 +1351,7 @@ def live_data(request):
                 'student_name': 'Classroom',
                 'student_id': None,
                 'time': now.strftime('%H:%M:%S'),
+                'timestamp': now.isoformat(),
             })
 
             # Persist to DB if an active session exists, with short cooldown to avoid spam.
@@ -1273,9 +1389,13 @@ def live_data(request):
                     'student_name': db_alert.student.name if db_alert.student else 'Classroom',
                     'student_id': db_alert.student.student_id if db_alert.student else None,
                     'time': db_alert.timestamp.strftime('%H:%M:%S'),
+                    'timestamp': db_alert.timestamp.isoformat(),
                 })
 
-        alerts_data.sort(key=lambda x: x.get('time', ''), reverse=True)
+        alerts_data.sort(
+            key=lambda x: x.get('timestamp', x.get('time', '')),
+            reverse=True,
+        )
         alerts_data = alerts_data[:10]
 
         if analysis:
@@ -2112,7 +2232,10 @@ def list_reports(request):
     except Exception as e:
         return Response({'error': str(e)}, status=500)
 
+@csrf_exempt
 @api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
 def generate_report(request):
     """Generate a new report"""
     try:
@@ -2124,7 +2247,12 @@ def generate_report(request):
         report_type = data.get('type', 'engagement')
         date_range = data.get('date_range', '7')
         class_name = data.get('class', 'CS101')
-        format_type = data.get('format', 'csv')
+        format_type = str(data.get('format', 'csv')).strip().lower()
+        supported_formats = {'csv', 'xlsx'}
+        if format_type not in supported_formats:
+            return Response({
+                'error': f"Unsupported format '{format_type}'. Supported formats: CSV, Excel (XLSX)."
+            }, status=400)
         
         # FIXED: Actually generate a CSV report using pandas from real data
         # Create report record
@@ -2213,17 +2341,29 @@ def generate_report(request):
         reports_dir = os.path.join(settings.MEDIA_ROOT, 'reports')
         os.makedirs(reports_dir, exist_ok=True)
         
-        # Generate filename
-        filename = f"{report.name.replace(' ', '_').lower()}_{report.id}.{format_type}"
-        file_path = os.path.join(reports_dir, filename)
-        
-        # Save file
+        # Generate and save file. If XLSX writer is unavailable in the active
+        # server environment, gracefully fall back to CSV instead of failing.
+        base_filename = f"{report.name.replace(' ', '_').lower()}_{report.id}"
+        actual_format = format_type
+
         if format_type == 'csv':
+            filename = f"{base_filename}.csv"
+            file_path = os.path.join(reports_dir, filename)
             df.to_csv(file_path, index=False)
         elif format_type == 'xlsx':
-            df.to_excel(file_path, index=False)
+            filename = f"{base_filename}.xlsx"
+            file_path = os.path.join(reports_dir, filename)
+            try:
+                df.to_excel(file_path, index=False)
+            except Exception as excel_error:
+                logger.warning(f"Excel generation failed, falling back to CSV: {excel_error}")
+                actual_format = 'csv'
+                filename = f"{base_filename}.csv"
+                file_path = os.path.join(reports_dir, filename)
+                df.to_csv(file_path, index=False)
         
         # Update report record
+        report.format = actual_format
         report.file_path = f"reports/{filename}"
         report.status = 'completed'
         report.generated_at = timezone.now()
@@ -2286,16 +2426,25 @@ def download_report(request, report_id):
     except Exception as e:
         return Response({'error': str(e)}, status=500)
 
-@api_view(['DELETE'])
+@csrf_exempt
+@api_view(['DELETE', 'POST'])
+@authentication_classes([])
+@permission_classes([])
 def delete_report(request, report_id):
     """Delete a specific report"""
     try:
         import os
         from django.conf import settings
         
+        # Support both numeric and string payload IDs robustly.
+        try:
+            report_pk = int(str(report_id).strip())
+        except Exception:
+            return Response({'error': 'Invalid report id'}, status=400)
+
         # FIXED: Actually delete the report from database and file system
         try:
-            report = Report.objects.get(id=report_id)
+            report = Report.objects.get(id=report_pk)
         except Report.DoesNotExist:
             return Response({'error': 'Report not found'}, status=404)
         
@@ -2303,14 +2452,17 @@ def delete_report(request, report_id):
         if report.file_path:
             file_path = os.path.join(settings.MEDIA_ROOT, report.file_path)
             if os.path.exists(file_path):
-                os.remove(file_path)
+                try:
+                    os.remove(file_path)
+                except Exception as file_error:
+                    logger.warning(f"Report file delete warning (continuing): {file_error}")
         
         # Delete database record
         report.delete()
         
         return Response({
             'success': True,
-            'message': f'Report {report_id} deleted successfully'
+            'message': f'Report {report_pk} deleted successfully'
         })
     except Exception as e:
         return Response({'error': str(e)}, status=500)

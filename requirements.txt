@@ -8,3 +8,4 @@ mediapipe
 fer
 numpy
 pandas
+openpyxl

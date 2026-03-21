@@ -186,6 +186,7 @@ class CameraProcessor:
         return {
             'faces_detected': self.faces_detected,
             'total_faces': self.faces_detected,
+            'students_in_camera': self.faces_detected,
             'emotions': self.current_emotions,
             'emotion_distribution': self.current_emotions,
             'avg_engagement': self.avg_engagement,
@@ -203,6 +204,8 @@ class CameraProcessor:
             'students': safe_students,
             'recognized_students': self.recognized_students,
             'present_count': len(self.recognized_students),
+            'recognized_count': len(self.recognized_students),
+            'unregistered_count': max(0, self.faces_detected - len(self.recognized_students)),
         }
     
     def _process_loop(self):
@@ -486,7 +489,7 @@ class CameraProcessor:
                         if face_roi is not None and face_roi.size > 0:
                             detected_student_id, detected_student_name, match_confidence = self.face_recognition_system.identify_student(
                                 face_roi,
-                                confidence_threshold=0.45,
+                                confidence_threshold=float(os.getenv('FACE_MATCH_THRESHOLD', '0.62')),
                             )
                     except Exception as e:
                         logger.debug(f"Face identify failed for one face: {e}")
@@ -553,16 +556,18 @@ class CameraProcessor:
                     'face_bbox': box,
                 })
 
-                recognized_students.append({
-                    'student_id': detected_student_id,
-                    'name': detected_student_name or 'Unknown Person',
-                    'emotion': mapped_emotion,
-                    'engagement': round(engagement_score, 1),
-                    'fer_engagement': round(fer_engagement, 1),
-                    'daisee_engagement': round(daisee_engagement, 1),
-                    'confidence': round(float(match_confidence or confidence or 0.0), 3),
-                    'face_registered': bool(detected_student_id),
-                })
+                # Keep recognized_students for registered matches only.
+                if detected_student_id:
+                    recognized_students.append({
+                        'student_id': detected_student_id,
+                        'name': detected_student_name or 'Unknown Person',
+                        'emotion': mapped_emotion,
+                        'engagement': round(engagement_score, 1),
+                        'fer_engagement': round(fer_engagement, 1),
+                        'daisee_engagement': round(daisee_engagement, 1),
+                        'confidence': round(float(match_confidence or confidence or 0.0), 3),
+                        'face_registered': True,
+                    })
             
             face_count = len(fer_results)
             avg_engagement = (total_engagement / face_count) if face_count > 0 else 0
@@ -575,7 +580,11 @@ class CameraProcessor:
             self.recognized_students = recognized_students
             
             # Add info overlay
-            info_text = f"Faces: {face_count} | Avg Engagement: {avg_engagement:.1f}% | FPS: {len(self.fps_counter) / 30 if self.fps_counter else 0:.1f}"
+            registered_count = len(recognized_students)
+            info_text = (
+                f"Faces: {face_count} | Registered: {registered_count} | "
+                f"Avg Engagement: {avg_engagement:.1f}% | FPS: {len(self.fps_counter) / 30 if self.fps_counter else 0:.1f}"
+            )
             cv2.putText(analysis_frame, info_text, (10, 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             

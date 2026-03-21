@@ -98,7 +98,7 @@ class FaceRecognitionSystem:
         except Exception as e:
             logger.error(f"❌ Error loading student encodings: {e}")
     
-    def identify_student(self, face_roi, confidence_threshold=0.45):
+    def identify_student(self, face_roi, confidence_threshold=0.62):
         """
         Identify a student from face ROI with improved accuracy
         Returns: (student_id, student_name, confidence) or (None, None, 0)
@@ -162,8 +162,8 @@ class FaceRecognitionSystem:
             # relaxed margin only when absolute confidence is very high.
             confidence_margin = best_confidence - second_best_confidence
             has_single_candidate = len(all_similarities) <= 1
-            strict_margin_ok = confidence_margin >= 0.005
-            high_conf_relaxed_margin_ok = (best_confidence >= 0.90 and confidence_margin >= 0.002)
+            strict_margin_ok = confidence_margin >= 0.03
+            high_conf_relaxed_margin_ok = (best_confidence >= 0.92 and confidence_margin >= 0.015)
 
             if best_match and best_confidence >= confidence_threshold and (
                 has_single_candidate or strict_margin_ok or high_conf_relaxed_margin_ok

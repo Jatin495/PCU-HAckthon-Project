@@ -31,6 +31,7 @@ urlpatterns = [
     path('students/', views.list_students, name='list_students'),
     path('students/overview/', views.students_overview, name='students_overview'),
     path('students/add/', views.add_student, name='add_student'),
+    path('students/face-check/', views.face_capture_check, name='face_capture_check'),
     path('students/<str:student_id>/', views.student_detail, name='student_detail'),
     
     # Face Recognition

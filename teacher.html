@@ -4,9 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Teacher Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -45,70 +49,9 @@
       min-height: 100vh;
     }
 
-    .sidebar {
-      width: 260px;
-      background: var(--sidebar-bg);
-      color: #fff;
-      padding: 24px 18px;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      transition: transform 0.25s ease;
-      z-index: 20;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 28px;
-      font-size: 1.1rem;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-    }
-
-    .logo {
-      width: 46px;
-      height: 46px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #3b82f6, #2563eb);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 1.35rem;
-    }
-
-    .nav-links {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .nav-links a {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      color: #eceef9;
-      text-decoration: none;
-      padding: 12px 12px;
-      border-radius: 10px;
-      transition: all 0.2s ease;
-      font-size: 0.94rem;
-      font-weight: 500;
-    }
-
-    .nav-links a:hover,
-    .nav-links a.active {
-      background: var(--sidebar-hover);
-      color: #fff;
-      transform: translateX(3px);
-    }
-
     .main {
       flex: 1;
+      margin-left: 280px;
       padding: 24px;
       overflow-x: hidden;
     }
@@ -460,6 +403,7 @@
       }
 
       .main {
+        margin-left: 0;
         padding: 18px;
       }
 
@@ -470,26 +414,54 @@
   </style>
 </head>
 <body>
-  <div class="layout">
+  <div class="app-container">
   <aside class="sidebar" id="sidebar">
-    <div class="brand">
-    <div class="logo">SC</div>
-    <div>
-      <div style="font-size: 1rem; font-weight: 700; line-height: 1.2;">SmartClass</div>
-      <div style="font-size: 0.8rem; opacity: 0.9;">Monitor</div>
+    <div class="sidebar-header">
+      <div class="logo">SC</div>
+      <div>
+        <h3 style="font-size: 1rem; margin: 0;">SmartClass</h3>
+        <p style="font-size: 0.75rem; opacity: 0.8; margin: 0;">Monitor</p>
+      </div>
     </div>
-    </div>
-    <ul class="nav-links">
-    <li><a href="dashboard.html"><i class="fa-solid fa-chart-column"></i>Dashboard</a></li>
-    <li><a href="live_class.html"><i class="fa-solid fa-video"></i>Live Classroom</a></li>
-    <li><a href="attendance.html"><i class="fa-solid fa-user-check"></i>Attendance</a></li>
-    <li><a href="student.html"><i class="fa-solid fa-users"></i>Students</a></li>
-    <li><a href="teacher.html" class="active"><i class="fa-solid fa-chalkboard-user"></i>Teacher</a></li>
-    <li><a href="reports.html"><i class="fa-solid fa-file-lines"></i>Reports</a></li>
-    <li><a href="analytics.html"><i class="fa-solid fa-chart-line"></i>Analytics</a></li>
-    <li><a href="settings.html"><i class="fa-solid fa-gear"></i>Settings</a></li>
-    <li><a href="#" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i>Logout</a></li>
-    </ul>
+
+    <nav class="sidebar-nav">
+      <a href="dashboard.html" class="nav-item">
+        <span class="nav-icon">📊</span>
+        Dashboard
+      </a>
+      <a href="live_class.html" class="nav-item">
+        <span class="nav-icon">📹</span>
+        Live Classroom
+      </a>
+      <a href="attendance.html" class="nav-item">
+        <span class="nav-icon">✓</span>
+        Attendance
+      </a>
+      <a href="student.html" class="nav-item">
+        <span class="nav-icon">👥</span>
+        Students
+      </a>
+      <a href="teacher.html" class="nav-item active">
+        <span class="nav-icon">🧑‍🏫</span>
+        Teacher
+      </a>
+      <a href="reports.html" class="nav-item">
+        <span class="nav-icon">📄</span>
+        Reports
+      </a>
+      <a href="analytics.html" class="nav-item">
+        <span class="nav-icon">📈</span>
+        Analytics
+      </a>
+      <a href="settings.html" class="nav-item">
+        <span class="nav-icon">⚙️</span>
+        Settings
+      </a>
+      <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+        <span class="nav-icon">🚪</span>
+        Logout
+      </a>
+    </nav>
   </aside>
 
     <main class="main">

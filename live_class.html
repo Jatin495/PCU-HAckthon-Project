@@ -40,7 +40,7 @@
                     Students
                 </a>
                 <a href="teacher.html" class="nav-item">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">🧑‍🏫</span>
                     Teacher
                 </a>
                 <a href="reports.html" class="nav-item">
@@ -788,13 +788,8 @@
 
             const alerts = Array.isArray(lastLiveData.alerts) ? lastLiveData.alerts : [];
 
-            // Prefer local renderer to avoid dependency on cached/older api.js exports.
+            // Render locally so live_class controls timezone/ordering consistently.
             renderLiveAlertsLocal(alerts);
-
-            // Keep compatibility with shared renderer if available.
-            if (window.SmartClassAPI && typeof window.SmartClassAPI.renderLiveAlerts === 'function') {
-                window.SmartClassAPI.renderLiveAlerts(alerts);
-            }
         }
 
         function renderLiveAlertsLocal(alerts) {
@@ -812,6 +807,7 @@
                     minute: '2-digit',
                     second: '2-digit',
                     hour12: true,
+                    timeZone: 'Asia/Kolkata',
                 };
 
                 if (alert && alert.timestamp) {
@@ -1182,14 +1178,15 @@
                             <span>📊 ${alertData.percentage.toFixed(1)}% not engaged</span>
                         </div>
                         <div style="font-size: 0.75rem; color: #9ca3af; margin-top: 0.5rem;">
-                            ⏰ ${new Date(alertData.timestamp).toLocaleString(undefined, { 
+                            ⏰ ${new Date(alertData.timestamp).toLocaleString('en-IN', { 
                                 year: 'numeric',
                                 month: '2-digit', 
                                 day: '2-digit',
                                 hour: '2-digit', 
                                 minute: '2-digit', 
                                 second: '2-digit',
-                                hour12: true 
+                                hour12: true,
+                                timeZone: 'Asia/Kolkata',
                             })}
                         </div>
                     </div>

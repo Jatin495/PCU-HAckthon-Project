@@ -283,17 +283,21 @@ function renderLiveAlerts(alerts) {
 
     const formatAlertTime12h = (alert) => {
         const timeOptions = {
-            hour: 'numeric',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
             hour12: true,
+            timeZone: 'Asia/Kolkata',
         };
 
         // Prefer ISO timestamp when present.
         if (alert && alert.timestamp) {
             const d = new Date(alert.timestamp);
             if (!Number.isNaN(d.getTime())) {
-                return d.toLocaleTimeString('en-US', timeOptions);
+                return d.toLocaleString('en-IN', timeOptions);
             }
         }
 

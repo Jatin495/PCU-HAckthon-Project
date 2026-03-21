@@ -40,7 +40,7 @@
                     Students
                 </a>
                 <a href="teacher.html" class="nav-item">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">🧑‍🏫</span>
                     Teacher
                 </a>
                 <a href="reports.html" class="nav-item active">
@@ -139,10 +139,8 @@
                         <div class="form-group">
                             <label class="form-label">Format</label>
                             <select class="form-select" id="reportFormat">
-                                <option>PDF</option>
-                                <option>Excel</option>
                                 <option>CSV</option>
-                                <option>PowerPoint</option>
+                                <option>Excel</option>
                             </select>
                         </div>
                     </div>
@@ -172,16 +170,16 @@
                         </button>
                     </div>
                     
-                    <div class="table">
-                        <table style="width: 100%; border-collapse: collapse;">
+                    <div class="table" style="max-height: 460px; overflow-y: auto; overflow-x: auto; border-radius: 10px; position: relative;">
+                        <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
                             <thead>
                                 <tr>
-                                    <th>Report Name</th>
-                                    <th>Type</th>
-                                    <th>Date Generated</th>
-                                    <th>Format</th>
-                                    <th>Size</th>
-                                    <th>Actions</th>
+                                    <th style="position: sticky; top: 0; background: #ffffff; z-index: 10; box-shadow: inset 0 -1px 0 var(--border-color);">Report Name</th>
+                                    <th style="position: sticky; top: 0; background: #ffffff; z-index: 10; box-shadow: inset 0 -1px 0 var(--border-color);">Type</th>
+                                    <th style="position: sticky; top: 0; background: #ffffff; z-index: 10; box-shadow: inset 0 -1px 0 var(--border-color);">Date Generated</th>
+                                    <th style="position: sticky; top: 0; background: #ffffff; z-index: 10; box-shadow: inset 0 -1px 0 var(--border-color);">Format</th>
+                                    <th style="position: sticky; top: 0; background: #ffffff; z-index: 10; box-shadow: inset 0 -1px 0 var(--border-color);">Size</th>
+                                    <th style="position: sticky; top: 0; background: #ffffff; z-index: 10; box-shadow: inset 0 -1px 0 var(--border-color);">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="recentReportsTable">
@@ -798,8 +796,6 @@
             const formatMap = {
                 'CSV': 'csv',
                 'Excel': 'xlsx',
-                'PDF': 'csv',
-                'PowerPoint': 'csv'
             };
 
             const type = typeMap[typeLabel] || 'summary';
@@ -824,10 +820,10 @@
                     }
                     await loadRecentReports(); // Refresh reports list
                 } else {
-                    showAlert('Report generation failed', 'error');
+                    showAlert((response && response.error) ? `Report generation failed: ${response.error}` : 'Report generation failed', 'error');
                 }
             } catch (error) {
-                showAlert('Error generating report', 'error');
+                showAlert(`Error generating report: ${error.message || 'unknown error'}`, 'error');
             }
         }
         
@@ -854,8 +850,6 @@
             const formatMap = {
                 'CSV': 'csv',
                 'Excel': 'xlsx',
-                'PDF': 'csv',
-                'PowerPoint': 'csv'
             };
 
             const type = typeMap[typeLabel] || 'summary';
@@ -1008,16 +1002,16 @@
         async function deleteReportFromList(reportId) {
             if (confirm(`Are you sure you want to delete this report?`)) {
                 try {
-                    const response = await window.SmartClassAPI.API.delete(`/reports/delete/${reportId}/`);
+                    const response = await window.SmartClassAPI.API.post(`/reports/delete/${reportId}/`, {});
                     
                     if (response && response.success) {
                         showAlert(response.message || 'Report deleted successfully', 'success');
                         await loadRecentReports(); // Refresh the list
                     } else {
-                        showAlert('Delete failed', 'error');
+                        showAlert((response && response.error) ? `Delete failed: ${response.error}` : 'Delete failed', 'error');
                     }
                 } catch (error) {
-                    showAlert('Error deleting report', 'error');
+                    showAlert(`Error deleting report: ${error.message || 'unknown error'}`, 'error');
                 }
             }
         }

@@ -40,7 +40,7 @@
                     Students
                 </a>
                 <a href="teacher.html" class="nav-item">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">🧑‍🏫</span>
                     Teacher
                 </a>
                 <a href="reports.html" class="nav-item">
@@ -319,6 +319,9 @@
                             <button type="button" class="btn btn-secondary" onclick="captureFromCamera()">
                                 📷 Camera
                             </button>
+                            <button type="button" class="btn btn-primary" onclick="startGuidedCapture()">
+                                🎯 Guided Capture
+                            </button>
                         </div>
                     </div>
                     
@@ -332,7 +335,23 @@
                     
                     <!-- Camera Capture (hidden by default) -->
                     <div id="cameraCapture" style="display: none; margin-top: 1rem;">
-                        <video id="cameraVideo" style="width: 100%; max-width: 400px; border-radius: 8px;" autoplay></video>
+                        <div style="position: relative; width: 100%; max-width: 400px;">
+                            <video id="cameraVideo" style="width: 100%; border-radius: 8px;" autoplay></video>
+                            <div id="guidedOverlay" style="display:none; position:absolute; inset:0; pointer-events:none; border-radius:8px; overflow:hidden;">
+                                <div style="position:absolute; inset:0; display:flex;">
+                                    <div id="zoneLeft" style="flex:1; border:2px dashed rgba(255,255,255,0.65);"></div>
+                                    <div id="zoneStraight" style="flex:1; border-top:2px dashed rgba(255,255,255,0.65); border-bottom:2px dashed rgba(255,255,255,0.65);"></div>
+                                    <div id="zoneRight" style="flex:1; border:2px dashed rgba(255,255,255,0.65);"></div>
+                                </div>
+                                <div id="overlayHint" style="position:absolute; left:10px; right:10px; bottom:10px; background:rgba(0,0,0,0.5); color:#fff; font-size:0.75rem; padding:0.35rem 0.5rem; border-radius:6px; text-align:center;">
+                                    Move face to highlighted zone
+                                </div>
+                            </div>
+                        </div>
+                        <div id="guidedCapturePanel" style="display:none; margin-top: 0.75rem; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: #f8fafc;">
+                            <div id="guidedStepLabel" style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.35rem;"></div>
+                            <div id="guidedStepHint" style="font-size: 0.875rem; color: var(--text-secondary);"></div>
+                        </div>
                         <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
                             <button type="button" class="btn btn-primary" onclick="takePhoto()">📸 Capture Photo</button>
                             <button type="button" class="btn btn-secondary" onclick="stopCamera()">Cancel</button>
@@ -1050,6 +1069,10 @@
         
         // Face registration functions
         let cameraStream = null;
+        let guidedCaptureMode = false;
+        let guidedStepIndex = 0;
+        const guidedSteps = ['left', 'right', 'straight'];
+        const guidedBlobs = {};
 
         async function attachBackendFrameAsPhoto() {
             try {
@@ -1086,8 +1109,12 @@
         async function captureFromCamera() {
             const cameraDiv = document.getElementById('cameraCapture');
             const video = document.getElementById('cameraVideo');
+            const overlay = document.getElementById('guidedOverlay');
             
             cameraDiv.style.display = 'block';
+            if (overlay && !guidedCaptureMode) {
+                overlay.style.display = 'none';
+            }
             video.setAttribute('playsinline', 'true');
             video.muted = true;
 
@@ -1207,10 +1234,99 @@
             }
             cameraDiv.style.display = 'none';
         }
+
+        async function startGuidedCapture() {
+            guidedCaptureMode = true;
+            guidedStepIndex = 0;
+            guidedBlobs.left = null;
+            guidedBlobs.right = null;
+            guidedBlobs.straight = null;
+
+            await captureFromCamera();
+
+            const panel = document.getElementById('guidedCapturePanel');
+            if (panel) panel.style.display = 'block';
+            updateGuidedStepUI();
+            updateGuidedOverlay(guidedSteps[guidedStepIndex], null);
+        }
+
+        function updateGuidedStepUI(issues = []) {
+            const label = document.getElementById('guidedStepLabel');
+            const hint = document.getElementById('guidedStepHint');
+            if (!label || !hint) return;
+
+            const step = guidedSteps[guidedStepIndex] || 'straight';
+            label.textContent = `Step ${guidedStepIndex + 1}/${guidedSteps.length}: ${step.toUpperCase()}`;
+
+            const baseHint = step === 'straight'
+                ? 'Keep face in center of preview and look straight.'
+                : `Move your face to the ${step.toUpperCase()} side of preview.`;
+
+            if (issues.length) {
+                hint.innerHTML = `${baseHint}<br>⚠️ ${issues.join(' | ')}`;
+                hint.style.color = '#b45309';
+            } else {
+                hint.textContent = baseHint;
+                hint.style.color = 'var(--text-secondary)';
+            }
+        }
+
+        function updateGuidedOverlay(expectedPose, detectedPose = null) {
+            const overlay = document.getElementById('guidedOverlay');
+            const left = document.getElementById('zoneLeft');
+            const right = document.getElementById('zoneRight');
+            const straight = document.getElementById('zoneStraight');
+            const hint = document.getElementById('overlayHint');
+            if (!overlay || !left || !right || !straight || !hint) return;
+
+            overlay.style.display = guidedCaptureMode ? 'block' : 'none';
+
+            const resetZone = (el) => {
+                el.style.background = 'rgba(255,255,255,0.06)';
+                el.style.borderColor = 'rgba(255,255,255,0.65)';
+            };
+            resetZone(left);
+            resetZone(right);
+            resetZone(straight);
+
+            const zoneMap = { left, right, straight };
+            const expected = zoneMap[expectedPose];
+            if (expected) {
+                expected.style.background = 'rgba(16,185,129,0.25)';
+                expected.style.borderColor = 'rgba(16,185,129,0.95)';
+            }
+
+            const detected = zoneMap[detectedPose];
+            if (detected && detected !== expected) {
+                detected.style.background = 'rgba(239,68,68,0.22)';
+                detected.style.borderColor = 'rgba(239,68,68,0.95)';
+            }
+
+            if (detectedPose) {
+                hint.textContent = `Expected: ${String(expectedPose).toUpperCase()} | Detected: ${String(detectedPose).toUpperCase()}`;
+            } else {
+                hint.textContent = `Expected position: ${String(expectedPose).toUpperCase()}`;
+            }
+        }
+
+        async function validateGuidedCapture(blob, expectedPose) {
+            const formData = new FormData();
+            formData.append('face_image', blob, `guided_${expectedPose}_${Date.now()}.jpg`);
+            formData.append('expected_pose', expectedPose);
+
+            const res = await fetch('http://127.0.0.1:8000/api/students/face-check/', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+            });
+            return await res.json();
+        }
         
         function stopCamera() {
             const video = document.getElementById('cameraVideo');
             const cameraDiv = document.getElementById('cameraCapture');
+            const panel = document.getElementById('guidedCapturePanel');
+            const overlay = document.getElementById('guidedOverlay');
             
             if (cameraStream) {
                 cameraStream.getTracks().forEach(track => track.stop());
@@ -1219,6 +1335,10 @@
             }
             
             cameraDiv.style.display = 'none';
+            if (panel) panel.style.display = 'none';
+            if (overlay) overlay.style.display = 'none';
+            guidedCaptureMode = false;
+            guidedStepIndex = 0;
         }
         
         function takePhoto() {
@@ -1237,7 +1357,58 @@
             context.drawImage(video, 0, 0);
             
             // Convert to blob and set as file input
-            canvas.toBlob(blob => {
+            canvas.toBlob(async blob => {
+                if (!blob) {
+                    showAlert('Capture failed. Please try again.', 'error');
+                    return;
+                }
+
+                if (guidedCaptureMode) {
+                    const expectedPose = guidedSteps[guidedStepIndex] || 'straight';
+                    try {
+                        const check = await validateGuidedCapture(blob, expectedPose);
+                        if (!check || check.success === false) {
+                            showAlert((check && check.error) || 'Validation failed. Try again.', 'error');
+                            return;
+                        }
+
+                        if (!check.passed) {
+                            const issues = Array.isArray(check.issues) ? check.issues : ['Capture not accepted'];
+                            updateGuidedStepUI(issues);
+                            updateGuidedOverlay(expectedPose, String(check.detected_pose || '').toLowerCase() || null);
+                            showAlert(issues[0] || 'Adjust your position and try again.', 'warning');
+                            return;
+                        }
+
+                        guidedBlobs[expectedPose] = blob;
+                        guidedStepIndex += 1;
+
+                        if (guidedStepIndex < guidedSteps.length) {
+                            updateGuidedStepUI();
+                            updateGuidedOverlay(guidedSteps[guidedStepIndex], null);
+                            showAlert(`✅ ${expectedPose.toUpperCase()} accepted. Next step...`, 'success');
+                            return;
+                        }
+
+                        const finalBlob = guidedBlobs.straight || blob;
+                        const file = new File([finalBlob], 'student_photo_guided.jpg', { type: 'image/jpeg' });
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+
+                        const fileInput = document.getElementById('faceImage');
+                        fileInput.files = dataTransfer.files;
+                        showImagePreview(finalBlob);
+
+                        showAlert('✅ Guided capture complete. Ready for registration.', 'success');
+                        stopCamera();
+                        return;
+                    } catch (err) {
+                        console.error('Guided validation failed:', err);
+                        showAlert('Validation failed. Please capture again.', 'error');
+                        return;
+                    }
+                }
+
                 const file = new File([blob], 'student_photo.jpg', { type: 'image/jpeg' });
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(file);

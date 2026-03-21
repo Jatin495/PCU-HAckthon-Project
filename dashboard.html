@@ -40,7 +40,7 @@
                     Students
                 </a>
                   <a href="teacher.html" class="nav-item">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">🧑‍🏫</span>
                     Teacher
                 </a>
                 <a href="reports.html" class="nav-item">
@@ -96,7 +96,7 @@
             <!-- Page Content -->
             <div class="page-content">
                 <!-- Stats Overview -->
-                <div class="grid grid-cols-3" style="margin-bottom: 2rem;">
+                <div class="grid grid-cols-4" style="margin-bottom: 2rem;">
                     <div class="stat-card success">
                         <div class="stat-label">Total Students</div>
                         <div class="stat-value" id="totalStudents">24</div>
@@ -113,6 +113,12 @@
                         <div class="stat-label">Avg Engagement</div>
                         <div class="stat-value" id="averageEngagement">78%</div>
                         <div class="stat-change positive">↑ 5% improvement</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">Students In Camera</div>
+                        <div class="stat-value" id="studentsInCamera">0</div>
+                        <div class="stat-change" id="cameraRecognizedMeta">Recognized: 0</div>
                     </div>
                     
                 </div>
@@ -248,6 +254,8 @@
     <script>
         let todayPlannerTopics = [];
 
+        let cameraStatsInterval = null;
+
         // Initialize charts when page loads
         document.addEventListener('DOMContentLoaded', function() {
             // Check authentication
@@ -259,6 +267,10 @@
             
             // Load real dashboard data
             loadDashboardData();
+            loadLiveCameraCounts();
+
+            // Refresh live camera counts on dashboard.
+            cameraStatsInterval = setInterval(loadLiveCameraCounts, 3000);
             
             // Initialize charts with real data
             setTimeout(() => {
@@ -266,6 +278,12 @@
                 ChartUtils.createEngagementChart();
             }, 100);
             
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (cameraStatsInterval) {
+                clearInterval(cameraStatsInterval);
+            }
         });
         
         async function loadDashboardData() {
@@ -414,6 +432,30 @@
             const sessionElement = document.getElementById('activeSession');
             if (sessionElement) {
                 sessionElement.textContent = `${session.name} (${session.duration} min)`;
+            }
+        }
+
+        async function loadLiveCameraCounts() {
+            try {
+                const response = await API.get('/emotion_stats/');
+                if (!response || response.error) return;
+
+                const stats = response.stats || response || {};
+                const studentsInCamera = Number(
+                    stats.students_in_camera ?? stats.total_faces ?? stats.faces_detected ?? 0
+                );
+                const recognizedCount = Number(
+                    stats.recognized_count ?? stats.present_count ?? 0
+                );
+
+                updateStat('studentsInCamera', studentsInCamera);
+
+                const recognizedMeta = document.getElementById('cameraRecognizedMeta');
+                if (recognizedMeta) {
+                    recognizedMeta.textContent = `Recognized: ${recognizedCount}`;
+                }
+            } catch (error) {
+                console.warn('Camera stats unavailable:', error);
             }
         }
         
