@@ -409,7 +409,7 @@ class CameraProcessor:
             total_engagement = 0
             
             # Process each detected face
-            for face_data in fer_results:
+            for face_index, face_data in enumerate(fer_results, start=1):
                 raw_box = face_data.get('box', [0, 0, 0, 0])
                 if hasattr(raw_box, 'tolist'):
                     raw_box = raw_box.tolist()
@@ -540,6 +540,7 @@ class CameraProcessor:
                 
                 # Build student data for database
                 students_data.append({
+                    'face_index': face_index,
                     'student_id': detected_student_id,
                     'name': detected_student_name or 'Unknown Person',
                     'face_registered': bool(detected_student_id),
@@ -559,13 +560,17 @@ class CameraProcessor:
                 # Keep recognized_students for registered matches only.
                 if detected_student_id:
                     recognized_students.append({
+                        'face_index': face_index,
                         'student_id': detected_student_id,
                         'name': detected_student_name or 'Unknown Person',
                         'emotion': mapped_emotion,
                         'engagement': round(engagement_score, 1),
                         'fer_engagement': round(fer_engagement, 1),
                         'daisee_engagement': round(daisee_engagement, 1),
+                        'emotion_confidence': round(confidence, 2),
                         'confidence': round(float(match_confidence or confidence or 0.0), 3),
+                        'is_looking_forward': mapped_emotion in ['focused', 'happy', 'neutral'],
+                        'posture_score': 70.0,
                         'face_registered': True,
                     })
             

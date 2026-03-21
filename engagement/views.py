@@ -36,6 +36,9 @@ _last_engagement_write_by_student = {}
 _last_snapshot_write_by_session = {}
 _engagement_write_lock = threading.Lock()
 _active_session_topic_map = {}
+_student_behavior_state = {}
+_last_behavior_alert_at = {}
+_BEHAVIOR_ALERT_COOLDOWN_SECONDS = 20
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1127,6 +1130,90 @@ def _ensure_missing_session_reports(limit=50):
             _generate_session_auto_report(session)
 
 
+def _behavior_student_key(student_item, face_idx):
+    sid = student_item.get('student_id')
+    if sid:
+        return f"sid:{sid}"
+    return f"face:{face_idx}"
+
+
+def _compute_behavior_flags(student_item):
+    emotion = str(student_item.get('emotion') or 'neutral').lower()
+    engagement = float(
+        student_item.get('engagement_score')
+        or student_item.get('engagement')
+        or 0.0
+    )
+    emotion_conf = float(student_item.get('emotion_confidence') or 0.0)
+    face_conf = float(student_item.get('confidence') or 0.0)
+    is_looking_forward = bool(student_item.get('is_looking_forward'))
+
+    looking_down = not is_looking_forward
+    likely_occluded = (face_conf < 0.35 and emotion_conf < 0.45) or (face_conf < 0.25)
+    likely_note_taking = (
+        looking_down
+        and (not likely_occluded)
+        and emotion in {'neutral', 'focused', 'happy'}
+        and engagement >= 50
+    )
+
+    return {
+        'emotion': emotion,
+        'engagement': engagement,
+        'looking_down': looking_down,
+        'likely_occluded': likely_occluded,
+        'likely_note_taking': likely_note_taking,
+    }
+
+
+def _update_behavior_state(student_key, flags):
+    state = _student_behavior_state.get(student_key, {
+        'down_streak': 0,
+        'hidden_streak': 0,
+        'notes_streak': 0,
+        'last_seen': timezone.now(),
+    })
+
+    if flags['looking_down']:
+        state['down_streak'] += 1
+    else:
+        state['down_streak'] = 0
+
+    if flags['looking_down'] and flags['likely_occluded']:
+        state['hidden_streak'] += 1
+    else:
+        state['hidden_streak'] = 0
+
+    if flags['likely_note_taking']:
+        state['notes_streak'] += 1
+    else:
+        state['notes_streak'] = 0
+
+    state['last_seen'] = timezone.now()
+    _student_behavior_state[student_key] = state
+    return state
+
+
+def _can_emit_behavior_alert(student_key, alert_type, now):
+    key = f"{student_key}:{alert_type}"
+    last = _last_behavior_alert_at.get(key)
+    if last and (now - last).total_seconds() < _BEHAVIOR_ALERT_COOLDOWN_SECONDS:
+        return False
+    _last_behavior_alert_at[key] = now
+    return True
+
+
+def _cleanup_behavior_state(now, ttl_seconds=90):
+    stale_keys = []
+    for key, state in _student_behavior_state.items():
+        last_seen = state.get('last_seen', now)
+        if (now - last_seen).total_seconds() > ttl_seconds:
+            stale_keys.append(key)
+
+    for key in stale_keys:
+        _student_behavior_state.pop(key, None)
+
+
 # ─── Live Monitoring Endpoints ────────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -1176,6 +1263,7 @@ def live_data(request):
         analysis = stream.get_latest_analysis()
         active_session = ClassSession.objects.filter(status='active').first()
         now = timezone.now()
+        _cleanup_behavior_state(now)
 
         # If live monitoring is running without an explicit session start,
         # create a lightweight active session so attendance can be recorded.
@@ -1230,8 +1318,27 @@ def live_data(request):
             'present': s.present_count,
         } for s in reversed(list(recent_snapshots))]
 
-        # Generate real-time alerts ONLY for students actually detected in camera
+        # Generate real-time alerts from all currently detected faces/students.
         alerts_data = []
+        detected_students = []
+
+        if analysis:
+            detected_students = list(analysis.get('students') or [])
+            if not detected_students and analysis.get('recognized_students'):
+                # Compatibility fallback: convert recognized payload to common fields.
+                for item in analysis.get('recognized_students', []):
+                    detected_students.append({
+                        'face_index': item.get('face_index'),
+                        'student_id': item.get('student_id'),
+                        'name': item.get('name'),
+                        'emotion': item.get('emotion'),
+                        'engagement_score': item.get('engagement'),
+                        'confidence': item.get('confidence'),
+                        'emotion_confidence': item.get('emotion_confidence'),
+                        'is_looking_forward': item.get('is_looking_forward'),
+                        'face_registered': bool(item.get('student_id')),
+                    })
+
         if analysis and active_session and analysis.get('recognized_students'):
             try:
                 _mark_attendance_from_face_detections(active_session, analysis.get('recognized_students', []))
@@ -1244,95 +1351,69 @@ def live_data(request):
             except Exception as persist_error:
                 logger.warning(f"Live engagement persistence failed: {persist_error}")
 
-        if analysis and analysis.get('recognized_students'):
-            detected_students = analysis['recognized_students']
-            
-            # Show alerts for ALL detected students (both recognized and placeholder)
-            for student_data in detected_students:
-                student_name = student_data.get('name', 'Unknown Person')
+        if analysis and detected_students:
+            for idx, student_data in enumerate(detected_students, start=1):
+                student_name = student_data.get('name') or student_data.get('student_name') or f"Detected Face {idx}"
                 student_id = student_data.get('student_id')
-                emotion = student_data.get('emotion', 'neutral')
-                engagement = student_data.get('engagement', 0)
-                confidence = student_data.get('confidence', 0)
-                student_alert_created = False
-                
-                # Skip if no student name
-                if not student_name or student_name == 'Unknown Person':
-                    continue
-                
-                # Low engagement alert
-                if engagement < 60:
-                    alert_now = timezone.now()
+                behavior_flags = _compute_behavior_flags(student_data)
+                student_key = _behavior_student_key(student_data, idx)
+                state = _update_behavior_state(student_key, behavior_flags)
+
+                # Enrich outgoing student payload so frontend can explain why alert fired.
+                student_data['behavior_state'] = {
+                    'looking_down': behavior_flags['looking_down'],
+                    'likely_occluded': behavior_flags['likely_occluded'],
+                    'likely_note_taking': behavior_flags['likely_note_taking'],
+                    'down_streak': state['down_streak'],
+                    'hidden_streak': state['hidden_streak'],
+                    'notes_streak': state['notes_streak'],
+                }
+
+                # Hidden-face alert: sustained down-looking with likely occlusion.
+                if state['hidden_streak'] >= 2 and _can_emit_behavior_alert(student_key, 'hidden_face', now):
                     alerts_data.append({
-                        'id': f"engagement_{student_id}_{int(time.time())}",
-                        'type': 'low_engagement',
-                        'severity': 'medium',
-                        'message': f"{student_name} shows low engagement ({engagement}%)",
-                        'student_name': student_name,
-                        'student_id': student_id,
-                        'time': alert_now.strftime('%H:%M:%S'),
-                        'timestamp': alert_now.isoformat(),
-                    })
-                    student_alert_created = True
-                
-                # Emotion-based alerts (only 4 emotions: happy, bored, confused, neutral)
-                if emotion == 'confused':
-                    alert_now = timezone.now()
-                    alerts_data.append({
-                        'id': f"confused_{student_id}_{int(time.time())}",
-                        'type': 'confused',
+                        'id': f"hidden_face_{student_key}_{int(time.time())}",
+                        'type': 'hidden_face',
                         'severity': 'high',
-                        'message': f"{student_name} appears confused",
+                        'message': f"{student_name} may be hiding face while looking down.",
                         'student_name': student_name,
                         'student_id': student_id,
-                        'time': alert_now.strftime('%H:%M:%S'),
-                        'timestamp': alert_now.isoformat(),
+                        'time': now.strftime('%H:%M:%S'),
+                        'timestamp': now.isoformat(),
                     })
-                    student_alert_created = True
-                elif emotion == 'bored':
-                    alert_now = timezone.now()
+                    continue
+
+                # Note-taking inference: do not trigger low-attention alert in this case.
+                if state['notes_streak'] >= 2 and _can_emit_behavior_alert(student_key, 'note_taking', now):
                     alerts_data.append({
-                        'id': f"bored_{student_id}_{int(time.time())}",
-                        'type': 'bored',
+                        'id': f"notes_{student_key}_{int(time.time())}",
+                        'type': 'note_taking',
+                        'severity': 'info',
+                        'message': f"{student_name} appears to be writing notes (down-looking but attentive).",
+                        'student_name': student_name,
+                        'student_id': student_id,
+                        'time': now.strftime('%H:%M:%S'),
+                        'timestamp': now.isoformat(),
+                    })
+                    continue
+
+                # Sustained disengagement when looking down without note-taking evidence.
+                if (
+                    state['down_streak'] >= 3
+                    and state['notes_streak'] == 0
+                    and behavior_flags['engagement'] < 50
+                    and _can_emit_behavior_alert(student_key, 'low_attention', now)
+                ):
+                    alerts_data.append({
+                        'id': f"low_attention_{student_key}_{int(time.time())}",
+                        'type': 'low_attention',
                         'severity': 'medium',
-                        'message': f"{student_name} appears bored",
+                        'message': f"{student_name} is looking down for a long duration with low engagement.",
                         'student_name': student_name,
                         'student_id': student_id,
-                        'time': alert_now.strftime('%H:%M:%S'),
-                        'timestamp': alert_now.isoformat(),
+                        'time': now.strftime('%H:%M:%S'),
+                        'timestamp': now.isoformat(),
                     })
-                    student_alert_created = True
-                elif emotion == 'happy':
-                    alert_now = timezone.now()
-                    alerts_data.append({
-                        'id': f"happy_{student_id}_{int(time.time())}",
-                        'type': 'happy',
-                        'severity': 'info',
-                        'message': f"{student_name} appears happy and engaged",
-                        'student_name': student_name,
-                        'student_id': student_id,
-                        'time': alert_now.strftime('%H:%M:%S'),
-                        'timestamp': alert_now.isoformat(),
-                    })
-                    student_alert_created = True
-                
-                # Always show at least one info alert per detected student.
-                if not student_alert_created:
-                    alert_now = timezone.now()
-                    alerts_data.append({
-                        'id': f"detection_{student_id}_{int(time.time())}",
-                        'type': 'detection',
-                        'severity': 'info',
-                        'message': f"{student_name} is present in class",
-                        'student_name': student_name,
-                        'student_id': student_id,
-                        'time': alert_now.strftime('%H:%M:%S'),
-                        'timestamp': alert_now.isoformat(),
-                    })
-            
-            # Sort alerts by time (most recent first) and limit to 10
-            alerts_data.sort(key=lambda x: x['time'], reverse=True)
-            alerts_data = alerts_data[:10]
 
         # Class-level low engagement alert (persisted to DB).
         class_avg_engagement = 0
@@ -1401,32 +1482,19 @@ def live_data(request):
         if analysis:
             # Prepare students data - SHOW ALL DETECTED STUDENTS
             students_data = []
-            if analysis.get('recognized_students'):
-                for i, student_data in enumerate(analysis['recognized_students']):
-                    student_name = student_data.get('name') or f"Detected Face {i + 1}"
-                    student_id = student_data.get('student_id')
-
-                    students_data.append({
-                        'student_id': student_id,
-                        'name': student_name,
-                        'engagement_score': student_data.get('engagement', 0),
-                        'emotion': student_data.get('emotion', 'neutral'),
-                        'confidence': student_data.get('confidence', 0),
-                        'present_today': True,  # These are detected students
-                        'face_registered': student_data['student_id'] is not None
-                    })
-            elif analysis.get('students'):
-                # Fallback for RealCameraDetector: it returns analysis['students'] directly
-                for i, student_data in enumerate(analysis['students']):
-                    students_data.append({
-                        'student_id': student_data.get('student_id') or student_data.get('face_index') or f"FACE_{i+1}",
-                        'name': student_data.get('student_name') or student_data.get('name') or f"Detected Face {i+1}",
-                        'engagement_score': student_data.get('engagement_score', 0),
-                        'emotion': student_data.get('emotion', 'neutral'),
-                        'confidence': student_data.get('emotion_confidence', 0),
-                        'present_today': True,
-                        'face_registered': bool(student_data.get('student_id')),
-                    })
+            for i, student_data in enumerate(detected_students, start=1):
+                sid = student_data.get('student_id')
+                students_data.append({
+                    'student_id': sid or student_data.get('face_index') or f"FACE_{i}",
+                    'name': student_data.get('student_name') or student_data.get('name') or f"Detected Face {i}",
+                    'engagement_score': student_data.get('engagement_score', student_data.get('engagement', 0)),
+                    'emotion': student_data.get('emotion', 'neutral'),
+                    'confidence': student_data.get('confidence', student_data.get('emotion_confidence', 0)),
+                    'present_today': True,
+                    'face_registered': bool(sid),
+                    'is_looking_forward': bool(student_data.get('is_looking_forward')),
+                    'behavior_state': student_data.get('behavior_state', {}),
+                })
 
             return Response({
                 'stream_active': stream_status['is_running'],
