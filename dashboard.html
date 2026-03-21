@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -24,39 +24,55 @@
             
             <nav class="sidebar-nav">
                 <a href="dashboard.html" class="nav-item active">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon">&#128202;</span>
                     Dashboard
                 </a>
                 <a href="live_class.html" class="nav-item">
-                    <span class="nav-icon">📹</span>
+                    <span class="nav-icon">&#128249;</span>
                     Live Classroom
                 </a>
                 <a href="attendance.html" class="nav-item">
-                    <span class="nav-icon">✓</span>
+                    <span class="nav-icon">&#10003;</span>
                     Attendance
                 </a>
                 <a href="student.html" class="nav-item">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">&#128101;</span>
                     Students
                 </a>
                   <a href="teacher.html" class="nav-item">
-                    <span class="nav-icon">🧑‍🏫</span>
+                    <span class="nav-icon">&#128105;&#8205;&#127979;</span>
                     Teacher
                 </a>
                 <a href="reports.html" class="nav-item">
-                    <span class="nav-icon">📄</span>
+                    <span class="nav-icon">&#128196;</span>
                     Reports
                 </a>
                 <a href="analytics.html" class="nav-item">
-                    <span class="nav-icon">📈</span>
+                    <span class="nav-icon">&#128200;</span>
                     Analytics
                 </a>
                 <a href="settings.html" class="nav-item">
-                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-icon">&#9881;&#65039;</span>
                     Settings
                 </a>
-                <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
-                    <span class="nav-icon">🚪</span>
+                    <a href="notification_center.html" class="nav-item">
+                        <span class="nav-icon">&#128276;</span>
+                        Notifications
+                    </a>
+                    <a href="ai_insights.html" class="nav-item">
+                        <span class="nav-icon">&#129504;</span>
+                        AI Insights
+                    </a>
+                                <a href="teacher_profile.html" class="nav-item">
+                    <span class="nav-icon">&#128100;</span>
+                    My Profile
+                </a>
+                <a href="timetable.html" class="nav-item">
+                    <span class="nav-icon">&#128197;</span>
+                    Timetable
+                </a>
+<a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <span class="nav-icon">&#128682;</span>
                     Logout
                 </a>
             </nav>
@@ -67,19 +83,19 @@
             <!-- Top Navbar -->
             <header class="top-navbar">
                 <div class="navbar-left">
-                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">☰</button>
+                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">&#9776;</button>
                     <h1 style="font-size: 1.5rem; font-weight: 600;">Dashboard</h1>
-                    <span id="backendStatus" style="font-size: 0.7rem; margin-left: 1rem; padding: 0.2rem 0.6rem; background: rgba(255,255,255,0.05); border-radius: 20px;">⏳ Connecting...</span>
+                    <span id="backendStatus" style="font-size: 0.7rem; margin-left: 1rem; padding: 0.2rem 0.6rem; background: rgba(255,255,255,0.05); border-radius: 20px;"> Connecting...</span>
                 </div>
                 
                 <div class="navbar-right">
                     <div class="search-bar">
-                        <span class="search-icon">🔍</span>
+                        <span class="search-icon">&#128269;</span>
                         <input type="text" placeholder="Search students..." id="studentSearch">
                     </div>
                     
                     <div class="notification-bell">
-                        <span style="font-size: 1.25rem;">🔔</span>
+                        <span style="font-size: 1.25rem;">&#128276;</span>
                         <span class="notification-badge">3</span>
                     </div>
                     
@@ -100,19 +116,19 @@
                     <div class="stat-card success">
                         <div class="stat-label">Total Students</div>
                         <div class="stat-value" id="totalStudents">24</div>
-                        <div class="stat-change positive">↑ 2 from last week</div>
+                        <div class="stat-change positive">?' 2 from last week</div>
                     </div>
                     
                     <div class="stat-card info">
                         <div class="stat-label">Present Today</div>
                         <div class="stat-value" id="presentStudents">22</div>
-                        <div class="stat-change positive">↑ 91.7% attendance</div>
+                        <div class="stat-change positive">?' 91.7% attendance</div>
                     </div>
                     
                     <div class="stat-card warning">
                         <div class="stat-label">Avg Engagement</div>
                         <div class="stat-value" id="averageEngagement">78%</div>
-                        <div class="stat-change positive">↑ 5% improvement</div>
+                        <div class="stat-change positive">?' 5% improvement</div>
                     </div>
 
                     <div class="stat-card">
@@ -122,6 +138,32 @@
                     </div>
                     
                 </div>
+                    <!-- NEW: Additional Summary Cards -->
+                    <div class="grid grid-cols-4" style="margin-bottom: 2rem;">
+                        <div class="stat-card">
+                            <div class="stat-label">Avg Engagement Today</div>
+                            <div class="stat-value" id="avgEngagementTodayCard">-</div>
+                            <div class="stat-change" id="engagementTodayChange">Real-time</div>
+                        </div>
+                    
+                        <div class="stat-card warning">
+                            <div class="stat-label">Alerts This Week</div>
+                            <div class="stat-value" id="alertsWeekCard">0</div>
+                            <div class="stat-change" id="alertsWeekChange">Last 7 days</div>
+                        </div>
+                    
+                        <div class="stat-card" style="background: #fef3c7; border-color: #fcd34d;">
+                            <div class="stat-label" style="color: #92400e;">Students At Risk</div>
+                            <div class="stat-value" id="atRiskCard" style="color: #dc2626;">0</div>
+                            <div class="stat-change" style="color: #92400e;" id="atRiskChange">Risk Level ? High</div>
+                        </div>
+                    
+                        <div class="stat-card">
+                            <div class="stat-label">Syllabus Complete</div>
+                            <div class="stat-value" id="syllabusCompleteCard">0%</div>
+                            <div class="stat-change" id="syllabusCompleteChange">Topics tracked</div>
+                        </div>
+                    </div>
                 
                 <!-- Main Dashboard Grid -->
                 <div class="grid grid-cols-1" style="gap: 1.5rem;">
@@ -150,11 +192,44 @@
                             </div>
                             <div style="display: flex; align-items: flex-end; min-width: 220px;">
                                 <button onclick="startClassSession()" style="width: 100%; padding: 0.75rem; background: #10b981; border: none; border-radius: 6px; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">
-                                    ▶️ Start Live Session
+                                    - Start Live Session
                                 </button>
                             </div>
                         </div>
                     </div>
+                    
+                        <!-- Today's Schedule Widget -->
+                        <div class="grid grid-cols-2" style="gap: 1.5rem;">
+                            <div class="card">
+                                <div class="card-header">
+                                    <div>
+                                        <h2 class="card-title">Today's Schedule</h2>
+                                        <p class="card-subtitle">Planned topics for today's class</p>
+                                    </div>
+                                </div>
+                                <div id="todayScheduleContainer" style="padding: 1rem;">
+                                    <div style="text-align: center; color: var(--text-secondary); font-size: 0.875rem;">
+                                        Loading schedule...
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <!-- Recent Alerts Mini Feed -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <div>
+                                        <h2 class="card-title">Recent Alerts</h2>
+                                        <p class="card-subtitle">Last 5 alerts in real-time</p>
+                                    </div>
+                                    <a href="notification_center.html" style="font-size: 0.875rem; color: var(--primary-color); text-decoration: none; font-weight: 600;">View All &rarr;</a>
+                                </div>
+                                <div id="recentAlertsContainer" style="padding: 1rem;">
+                                    <div style="text-align: center; color: var(--text-secondary); font-size: 0.875rem;">
+                                        Loading alerts...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     
                     <!-- Student Cards -->
                     <div class="card">
@@ -240,7 +315,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title" id="studentModalTitle">Student Details</h2>
-                <button class="modal-close">×</button>
+                <button class="modal-close">x</button>
             </div>
             <div id="studentModalContent">
                 <!-- Content will be populated by JavaScript -->
@@ -272,6 +347,14 @@
             // Refresh live camera counts on dashboard.
             cameraStatsInterval = setInterval(loadLiveCameraCounts, 3000);
             
+                // Load new summary data
+                loadDashboardSummary();
+                loadTodaySchedule();
+                loadRecentAlerts();
+            
+                // Refresh summary data every 30 seconds
+                setInterval(loadDashboardSummary, 30000);
+                setInterval(loadRecentAlerts, 30000);
             // Initialize charts with real data
             setTimeout(() => {
                 ChartUtils.createEmotionChart();
@@ -285,13 +368,153 @@
                 clearInterval(cameraStatsInterval);
             }
         });
+
+        async function loadDashboardSummary() {
+            try {
+                const response = await fetch('/api/dashboard/summary/');
+                const data = await response.json();
+                if (data.success) {
+                    updateStat('avgEngagementTodayCard', data.summary_stats.avg_engagement_today + '%');
+                    updateStat('alertsWeekCard', data.summary_stats.total_alerts_week);
+                    updateStat('atRiskCard', data.summary_stats.students_at_risk);
+                    updateStat('syllabusCompleteCard', data.summary_stats.syllabus_completion_percent + '%');
+                }
+            } catch (error) {
+                console.warn('Dashboard summary unavailable:', error);
+            }
+        }
+
+        async function loadTodaySchedule() {
+            try {
+                const container = document.getElementById('todayScheduleContainer');
+
+                // Primary source: lecture-plan API used by Teacher Dashboard.
+                const planRes = await fetch('/api/lecture-plan/');
+                const planData = await planRes.json();
+                let topics = [];
+
+                if (planData && planData.success && Array.isArray(planData.plans)) {
+                    topics = planData.plans.filter(p => p.status !== 'done');
+                }
+
+                // Fallback source for backward compatibility.
+                if (topics.length === 0) {
+                    const fallbackRes = await fetch('/api/teacher/dashboard-data/');
+                    const fallbackData = await fallbackRes.json();
+                    if (fallbackData && fallbackData.success && Array.isArray(fallbackData.planner)) {
+                        topics = fallbackData.planner.filter(t => !t.done);
+                    }
+                }
+
+                if (topics.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); font-size: 0.875rem;">No scheduled topics for today</div>';
+                    return;
+                }
+
+                topics = getUniquePlannerTopics(topics);
+
+                container.innerHTML = topics.slice(0, 5).map(topic => {
+                    const rawStatus = String(topic.status || (topic.done ? 'done' : 'planned')).toLowerCase();
+                    const statusMap = {
+                        planned: 'Planned',
+                        in_progress: 'In Progress',
+                        done: 'Done',
+                        skipped: 'Skipped',
+                        pending: 'Pending'
+                    };
+                    const statusLabel = statusMap[rawStatus] || 'Planned';
+                    const start = topic.start_time || '';
+                    const end = topic.end_time || '';
+                    const start12 = formatTime12h(start);
+                    const end12 = formatTime12h(end);
+                    const timeLabel = start12 && end12 ? `${start12} - ${end12}` : (start12 || end12 || 'Time not set');
+                    return `
+                    <div style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: 600; color: var(--text-primary);">${topic.topic || 'Untitled'}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">${topic.unit || topic.subject || 'N/A'}</div>
+                            <div style="font-size: 0.72rem; color: var(--text-secondary);">${timeLabel}</div>
+                        </div>
+                        <span style="background: var(--primary-50); color: var(--primary-dark); padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">${statusLabel}</span>
+                    </div>
+                `;
+                }).join('');
+            } catch (error) {
+                console.warn('Today schedule unavailable:', error);
+            }
+        }
+
+        function formatTime12h(value) {
+            if (!value) return '';
+            const s = String(value).trim();
+            const m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+            if (!m) return s;
+            let h = Number(m[1]);
+            const min = m[2];
+            const suffix = h >= 12 ? 'PM' : 'AM';
+            h = h % 12;
+            if (h === 0) h = 12;
+            return `${h}:${min} ${suffix}`;
+        }
+
+        function getUniquePlannerTopics(items) {
+            const rows = Array.isArray(items) ? items : [];
+            const seen = new Set();
+            const unique = [];
+
+            rows.forEach((item) => {
+                const key = [
+                    String(item?.topic || '').trim().toLowerCase(),
+                    String(item?.unit || item?.subject || '').trim().toLowerCase(),
+                    String(item?.status || (item?.done ? 'done' : 'planned')).trim().toLowerCase()
+                ].join('|');
+
+                if (seen.has(key)) return;
+                seen.add(key);
+                unique.push(item);
+            });
+
+            return unique;
+        }
+
+        async function loadRecentAlerts() {
+            try {
+                const response = await fetch('/api/alerts/');
+                const data = await response.json();
+                const alertsPayload = data.alerts || [];
+                if (alertsPayload) {
+                    const container = document.getElementById('recentAlertsContainer');
+                    const alerts = alertsPayload.slice(0, 5);
+                    if (alerts.length === 0) {
+                        container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); font-size: 0.875rem; padding: 1rem;">No active alerts</div>';
+                        return;
+                    }
+                    container.innerHTML = alerts.map(alert => {
+                        const severity = alert.severity || 'medium';
+                        const severityColor = { 'low': '#10b981', 'medium': '#f59e0b', 'high': '#dc2626' };
+                        return `
+                            <div style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-light); display: flex; gap: 0.75rem;">
+                                <div style="width: 4px; background: ${severityColor[severity] || '#f59e0b'}; border-radius: 2px;"></div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; font-size: 0.875rem; color: var(--text-primary);">${alert.type || alert.alert_type || 'Alert'}</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">${alert.message}</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (error) {
+                console.warn('Recent alerts unavailable:', error);
+            }
+        }
         
         async function loadDashboardData() {
             try {
-                console.log('📊 Loading dashboard data...');
-                const [dashboardData, teacherData, heatmapData, timelineData, studentsData] = await Promise.all([
+                console.log('Y"S Loading dashboard data...');
+                const [dashboardData, teacherData, lecturePlanData, heatmapData, timelineData, studentsData] = await Promise.all([
                     API.get('/dashboard/stats/'),
                     API.get('/teacher/dashboard-data/').catch(() => null),
+                    API.get('/lecture-plan/').catch(() => null),
                     API.get('/dashboard/heatmap/').catch(() => null),
                     API.get('/dashboard/timeline/').catch(() => null),
                     API.get('/students/').catch(() => null),
@@ -299,12 +522,15 @@
                 
                 if (dashboardData && !dashboardData.error) {
                     updateDashboardStats(dashboardData);
-                    console.log('✅ Dashboard data loaded successfully');
+                    console.log('o. Dashboard data loaded successfully');
                 } else {
-                    console.error('❌ Failed to load dashboard data');
+                    console.error('O Failed to load dashboard data');
                 }
 
-                if (teacherData && teacherData.success !== false) {
+                if (lecturePlanData && lecturePlanData.success && Array.isArray(lecturePlanData.plans)) {
+                    todayPlannerTopics = lecturePlanData.plans;
+                    renderTodayPlannerTopics();
+                } else if (teacherData && teacherData.success !== false) {
                     todayPlannerTopics = Array.isArray(teacherData.planner) ? teacherData.planner : [];
                     renderTodayPlannerTopics();
                 } else {
@@ -359,7 +585,7 @@
                     ChartUtils.createEngagementChart();
                 }
             } catch (error) {
-                console.error('❌ Error loading dashboard data:', error);
+                console.error('O Error loading dashboard data:', error);
             }
         }
 
@@ -369,8 +595,10 @@
             const unitInput = document.getElementById('todayTopicUnit');
             if (!select || !subjectInput || !unitInput) return;
 
+            const plannerTopics = getUniquePlannerTopics(todayPlannerTopics);
+
             select.innerHTML = '';
-            if (!todayPlannerTopics.length) {
+            if (!plannerTopics.length) {
                 const emptyOption = document.createElement('option');
                 emptyOption.value = '';
                 emptyOption.textContent = 'No topics assigned for today';
@@ -382,7 +610,7 @@
                 return;
             }
 
-            todayPlannerTopics.forEach((item) => {
+            plannerTopics.forEach((item) => {
                 const option = document.createElement('option');
                 option.value = String(item.id);
                 option.textContent = item.topic || `Topic ${item.topicId}`;
@@ -392,9 +620,9 @@
             });
 
             const syncMeta = () => {
-                const selected = todayPlannerTopics.find((p) => String(p.id) === String(select.value));
+                const selected = plannerTopics.find((p) => String(p.id) === String(select.value));
                 subjectInput.value = selected?.subject || '-';
-                unitInput.value = selected?.unit || '-';
+                unitInput.value = selected?.unit || selected?.subject || '-';
             };
 
             select.onchange = syncMeta;
@@ -481,11 +709,12 @@
                 subject: subject,
                 unit: unit,
                 topic_name: topicName,
-                daily_plan_id: selectedPlan.id,
+                daily_plan_id: selectedPlan.topicId || null,
+                lecture_plan_id: selectedPlan.id,
                 started_at: new Date().toISOString()
             }));
             
-            console.log(`📚 Starting session: ${subject} | ${unit} | ${topicName}`);
+            console.log(`Y"s Starting session: ${subject} | ${unit} | ${topicName}`);
             
             // Redirect to live class page
             window.location.href = 'live_class.html';
@@ -493,3 +722,7 @@
     </script>
 </body>
 </html>
+
+
+
+

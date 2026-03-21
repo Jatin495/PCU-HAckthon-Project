@@ -8,7 +8,7 @@
 
 :root {
     /* Modern Professional Color Palette */
-    --primary-color: #2563eb;
+    --primary-color: #4f8ef7;
     --primary-dark: #1d4ed8;
     --primary-light: #3b82f6;
     --primary-50: #eff6ff;
@@ -16,6 +16,7 @@
     --secondary-color: #7c3aed;
     --secondary-dark: #6d28d9;
     --secondary-light: #8b5cf6;
+    --accent: #4f8ef7;
     --accent-color: #06b6d4;
     --accent-dark: #0891b2;
     --accent-light: #22d3ee;
@@ -52,6 +53,7 @@
     
     /* Theme Colors */
     --bg-primary: #ffffff;
+    --card-bg: #ffffff;
     --bg-secondary: #f8fafc;
     --bg-tertiary: #f1f5f9;
     --text-primary: #111827;
@@ -83,7 +85,7 @@
     --gradient-surface: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
     
     /* Sidebar */
-    --sidebar-bg: #1f2937;
+    --sidebar-bg: #1e1e2e;
     --sidebar-border: #374151;
     --sidebar-text: #f9fafb;
     --sidebar-text-secondary: #d1d5db;
@@ -1064,6 +1066,52 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+}
+
+/* Floating Quick Action Menu */
+.floating-quick-action {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 2000;
+}
+
+.quick-action-main {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: var(--primary-color);
+    color: #fff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    box-shadow: var(--shadow-lg);
+}
+
+.quick-action-menu {
+    position: absolute;
+    right: 0;
+    bottom: 66px;
+    display: none;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 220px;
+}
+
+.floating-quick-action.open .quick-action-menu {
+    display: flex;
+}
+
+.quick-action-item {
+    background: #fff;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+    color: var(--text-primary);
+    text-decoration: none;
+    box-shadow: var(--shadow-sm);
+    font-weight: 600;
+    font-size: 0.82rem;
 }
 
 /* Camera Feed */

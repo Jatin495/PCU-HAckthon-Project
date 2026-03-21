@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -11,7 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <div class="app-container">
+  <div class="app-container">
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -24,39 +24,55 @@
             
             <nav class="sidebar-nav">
                 <a href="dashboard.html" class="nav-item">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon">&#128202;</span>
                     Dashboard
                 </a>
-                <a href="live_class.html" class="nav-item">
-                    <span class="nav-icon">📹</span>
+                <a href="live_class.html" class="nav-item active">
+                    <span class="nav-icon">&#128249;</span>
                     Live Classroom
                 </a>
                 <a href="attendance.html" class="nav-item">
-                    <span class="nav-icon">✓</span>
+                    <span class="nav-icon">&#10003;</span>
                     Attendance
                 </a>
-                <a href="student.html" class="nav-item active">
-                    <span class="nav-icon">👥</span>
+                <a href="student.html" class="nav-item">
+                    <span class="nav-icon">&#128101;</span>
                     Students
                 </a>
                 <a href="teacher.html" class="nav-item">
-                    <span class="nav-icon">🧑‍🏫</span>
+                    <span class="nav-icon">&#128105;&#8205;&#127979;</span>
                     Teacher
                 </a>
                 <a href="reports.html" class="nav-item">
-                    <span class="nav-icon">📄</span>
+                    <span class="nav-icon">&#128196;</span>
                     Reports
                 </a>
                 <a href="analytics.html" class="nav-item">
-                    <span class="nav-icon">📈</span>
+                    <span class="nav-icon">&#128200;</span>
                     Analytics
                 </a>
                 <a href="settings.html" class="nav-item">
-                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-icon">&#9881;&#65039;</span>
                     Settings
                 </a>
-                <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
-                    <span class="nav-icon">🚪</span>
+                    <a href="notification_center.html" class="nav-item">
+                        <span class="nav-icon">&#128276;</span>
+                        Notifications
+                    </a>
+                    <a href="ai_insights.html" class="nav-item">
+                        <span class="nav-icon">&#129504;</span>
+                        AI Insights
+                    </a>
+                                <a href="teacher_profile.html" class="nav-item">
+                    <span class="nav-icon">&#128100;</span>
+                    My Profile
+                </a>
+                <a href="timetable.html" class="nav-item">
+                    <span class="nav-icon">&#128197;</span>
+                    Timetable
+                </a>
+<a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <span class="nav-icon">&#128682;</span>
                     Logout
                 </a>
             </nav>
@@ -708,51 +724,87 @@
                 });
         }
         
-        function showStudentDetails(studentId) {
-            // Load real student data from API
-            if (window.SmartClassAPI && window.SmartClassAPI.backendConnected()) {
-                window.SmartClassAPI.loadStudents()
-                    .then(students => {
-                        if (!students || students.length === 0) {
-                            alert('No students available');
-                            return;
-                        }
-                        
-                        const student = students.find(s => s.student_id === studentId);
-                        if (!student) {
-                            alert('Student not found');
-                            return;
-                        }
-                        
-                        displayStudentDetails(student);
-                    })
-                    .catch(error => {
-                        console.error('Error loading student details:', error);
-                        alert('Error loading student details');
-                    });
-            } else {
-                alert('Backend not connected');
+        function getApiRoot() {
+            if (window.SmartClassAPI && window.SmartClassAPI.API_BASE_URL) {
+                return window.SmartClassAPI.API_BASE_URL;
+            }
+            return `${window.location.protocol}//${window.location.hostname}:8000/api`;
+        }
+
+        async function showStudentDetails(studentId) {
+            try {
+                // 1) Always fetch student list directly; SmartClassAPI.loadStudents returns a boolean, not list data.
+                const listRes = await fetch(`${getApiRoot()}/students/`, { credentials: 'include' });
+                if (!listRes.ok) throw new Error(`students list HTTP ${listRes.status}`);
+                const listData = await listRes.json();
+                const students = Array.isArray(listData.students) ? listData.students : [];
+
+                // Support both student_id (e.g. STU001) and numeric id click paths.
+                let selected = students.find(s => String(s.student_id) === String(studentId));
+                if (!selected) {
+                    selected = students.find(s => String(s.id) === String(studentId));
+                }
+                if (!selected) {
+                    alert('Student not found');
+                    return;
+                }
+
+                // 2) Fetch richer student detail payload from backend and merge.
+                const sid = encodeURIComponent(selected.student_id);
+                const detailRes = await fetch(`${getApiRoot()}/students/${sid}/`, { credentials: 'include' });
+                if (detailRes.ok) {
+                    const detail = await detailRes.json();
+                    const detailStudent = detail && detail.student ? detail.student : {};
+                    const merged = {
+                        ...selected,
+                        ...detailStudent,
+                        engagement_history: Array.isArray(detail?.engagement_history) ? detail.engagement_history : [],
+                        emotion_frequency: detail?.emotion_frequency || {},
+                        attendance_rate: Number(detail?.attendance_rate || 0),
+                        // Keep expected field names used by modal renderer.
+                        current_engagement: Number(selected.current_engagement || selected.avg_engagement || 0),
+                        current_emotion: selected.current_emotion || 'neutral',
+                        present_today: Boolean(selected.present_today),
+                        face_registered: Boolean(selected.face_registered),
+                    };
+                    displayStudentDetails(merged);
+                    return;
+                }
+
+                // 3) Fallback: show list-level data if detail endpoint is unavailable for any reason.
+                displayStudentDetails(selected);
+            } catch (error) {
+                console.error('Error loading student details:', error);
+                const msg = (error && error.message) ? error.message : 'Unknown error';
+                alert(`Error loading student details: ${msg}`);
             }
         }
         
         function displayStudentDetails(student) {
             const modalTitle = document.getElementById('studentModalTitle');
             const modalContent = document.getElementById('studentModalContent');
+            if (!modalTitle || !modalContent) {
+                alert('Student details modal is not available on this page.');
+                return;
+            }
             
-            modalTitle.textContent = student.name;
+            const safeName = student?.name || 'Unknown Student';
+            const safeId = student?.student_id || student?.id || 'N/A';
+            modalTitle.textContent = safeName;
             
-            const engagement = student.current_engagement || 0;
-            const emotion = student.current_emotion || 'neutral';
-            const present = student.present_today || false;
+            const engagement = Number(student?.current_engagement || 0);
+            const emotion = student?.current_emotion || 'neutral';
+            const present = Boolean(student?.present_today);
+            const initials = safeName.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2) || 'S';
             
             modalContent.innerHTML = `
                 <div class="grid grid-cols-3" style="gap: 1.5rem; margin-bottom: 2rem;">
                     <div style="text-align: center;">
                         <div class="student-avatar" style="width: 80px; height: 80px; font-size: 2rem; margin: 0 auto 1rem;">
-                            ${student.name.split(' ').map(n => n[0]).join('')}
+                            ${initials}
                         </div>
-                        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.25rem;">${student.name}</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.875rem;">${student.student_id}</p>
+                        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.25rem;">${safeName}</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem;">${safeId}</p>
                     </div>
                     
                     <div>
@@ -774,7 +826,7 @@
                             </div>
                             <div style="display: flex; justify-content: space-between;">
                                 <span style="font-size: 0.875rem;">Email:</span>
-                                <strong>${student.email || 'Not provided'}</strong>
+                                <strong>${student?.email || 'Not provided'}</strong>
                             </div>
                         </div>
                     </div>
@@ -785,16 +837,16 @@
                             <div style="margin-bottom: 0.75rem;">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
                                     <span style="font-size: 0.875rem;">Face Registered:</span>
-                                    <strong>${student.face_registered ? 'Yes' : 'No'}</strong>
+                                    <strong>${student?.face_registered ? 'Yes' : 'No'}</strong>
                                 </div>
                                 <div class="progress-bar">
-                                    <div class="progress-fill progress-${student.face_registered ? 'success' : 'warning'}" style="width: ${student.face_registered ? '100' : '0'}%"></div>
+                                    <div class="progress-fill progress-${student?.face_registered ? 'success' : 'warning'}" style="width: ${student?.face_registered ? '100' : '0'}%"></div>
                                 </div>
                             </div>
                             <div style="margin-bottom: 0.75rem;">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
                                     <span style="font-size: 0.875rem;">Seat:</span>
-                                    <strong>Row ${student.seat_row || 1}, Col ${student.seat_col || 1}</strong>
+                                    <strong>Row ${student?.seat_row || 1}, Col ${student?.seat_col || 1}</strong>
                                 </div>
                             </div>
                         </div>
@@ -818,7 +870,7 @@
                 
                 <div style="display: flex; gap: 1rem; justify-content: flex-end;">
                     <button class="btn btn-secondary" onclick="closeModal('studentDetailsModal')">Close</button>
-                    <button class="btn btn-success" onclick="contactStudent('${student.student_id}')">
+                    <button class="btn btn-success" onclick="contactStudent('${safeId}')">
                         Contact Student
                     </button>
                 </div>
@@ -1017,16 +1069,49 @@
         function addStudent() {
             openModal('addStudentModal');
         }
+
+        async function validateFaceBeforeRegister(file) {
+            if (!file) {
+                return { passed: false, issues: ['Face image is required'] };
+            }
+
+            const formData = new FormData();
+            formData.append('face_image', file);
+            formData.append('expected_pose', 'straight');
+
+            try {
+                const res = await fetch('http://127.0.0.1:8000/api/students/face-check/', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include'
+                });
+                return await res.json();
+            } catch (error) {
+                console.error('Face pre-check failed:', error);
+                return { passed: false, issues: ['Face validation failed. Please try recapturing.'] };
+            }
+        }
         
-        function handleAddStudent(e) {
+        async function handleAddStudent(e) {
             e.preventDefault();
             const formData = new FormData(e.target);
+            const faceFile = formData.get('face_image');
             
             // Show loading state
             const submitBtn = e.target.querySelector('button[type="submit"]');
             const originalText = submitBtn.innerHTML;
             submitBtn.innerHTML = '⏳ Adding Student...';
             submitBtn.disabled = true;
+
+            // Validate face quality first to reduce Unknown detections in live class.
+            const faceCheck = await validateFaceBeforeRegister(faceFile);
+            if (!faceCheck || faceCheck.success === false || !faceCheck.passed) {
+                const issues = (faceCheck && Array.isArray(faceCheck.issues)) ? faceCheck.issues : ['Face quality check failed'];
+                showAlert(issues[0], 'error');
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+                return;
+            }
             
             // Call API to add student
             fetch('http://127.0.0.1:8000/api/students/add/', {

@@ -115,7 +115,7 @@ class VideoStream:
         frame = self.get_frame()
         if frame is None:
             return None
-        ok, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        ok, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
         if not ok:
             return None
         return base64.b64encode(buffer.tobytes()).decode('utf-8')
@@ -155,7 +155,7 @@ def generate_mjpeg_frames():
                 time.sleep(0.05)
                 continue
 
-            ok, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            ok, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
             if not ok:
                 time.sleep(0.01)
                 continue

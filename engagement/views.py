@@ -8,6 +8,8 @@ import logging
 import threading
 import base64
 import time
+import csv
+from collections import Counter
 from datetime import datetime, timedelta
 
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
@@ -15,6 +17,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.db.models import Avg, Count, Max, Min, Q
+from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password, check_password
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
@@ -25,11 +28,14 @@ from .models import (
     Teacher, Student, ClassSession, Attendance,
     EngagementRecord, ClassEngagementSnapshot, Alert, Report,
     SyllabusTopic, DailyLectureTopic, StudentTopicProgress,
-    ExtraLecturePlan, LectureFeedback,
+    ExtraLecturePlan, LectureFeedback, Notification, AIInsight,
+    Syllabus, LecturePlan, Checkpoint, CheckpointResult,
+    ExtraLecture, Feedback, TeacherProfile, ActivityLog, Timetable,
 )
 from .camera import generate_face_encoding
 
 logger = logging.getLogger(__name__)
+User = get_user_model()
 
 _ENGAGEMENT_WRITE_INTERVAL_SECONDS = 5
 _last_engagement_write_by_student = {}
@@ -73,6 +79,23 @@ def verify_and_upgrade_password(teacher, raw_password):
 
 def json_response(data, status_code=200):
     return JsonResponse(data, status=status_code, safe=False)
+
+
+def _create_notification_if_needed(notification_type, message, related_student=None, dedupe_hours=6):
+    """Create notification with basic dedupe window to avoid flooding."""
+    since = timezone.now() - timedelta(hours=dedupe_hours)
+    existing = Notification.objects.filter(
+        type=notification_type,
+        message=message,
+        created_at__gte=since,
+        related_student=related_student,
+    ).exists()
+    if not existing:
+        Notification.objects.create(
+            type=notification_type,
+            message=message,
+            related_student=related_student,
+        )
 
 
 def _mark_attendance_from_face_detections(active_session, detected_students):
@@ -296,7 +319,7 @@ def _persist_live_engagement_records(active_session, analysis, now):
                 avg_attention=round(avg_att, 1),
                 present_count=present_count,
                 emotion_distribution=json.dumps(emotion_distribution),
-                confusion_alert=confusion_ratio > 0.30,
+                confusion_alert=confusion_ratio >= 0.30,
                 low_engagement_alert=avg_eng < 60,
             )
             _last_snapshot_write_by_session[snapshot_key] = now_ts
@@ -622,21 +645,42 @@ def add_student(request):
                 if img is not None:
                     face_roi = None
 
-                    # Try OpenCV Haar detector first.
+                    # Strict registration checks: exactly one clear, frontal face.
                     try:
                         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                        h_img, w_img = img.shape[:2]
                         cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
                         faces = cascade.detectMultiScale(
                             gray,
                             scaleFactor=1.1,
-                            minNeighbors=4,
+                            minNeighbors=5,
                             minSize=(60, 60),
                         )
 
-                        if len(faces) > 0:
-                            # Select the largest detected face.
-                            x, y, w, h = max(faces, key=lambda f: int(f[2]) * int(f[3]))
-                            face_roi = img[y:y+h, x:x+w]
+                        if len(faces) == 0:
+                            logger.warning(f"No frontal face detected for {name}; registration rejected")
+                            return Response({'error': 'No clear frontal face detected. Look straight at camera and try again.'}, status=400)
+
+                        if len(faces) > 1:
+                            logger.warning(f"Multiple faces detected for {name}; registration rejected")
+                            return Response({'error': 'Multiple faces detected. Keep only one person in frame.'}, status=400)
+
+                        x, y, w, h = faces[0]
+                        face_roi = img[y:y+h, x:x+w]
+
+                        # Quality gates for robust live recognition.
+                        face_gray = gray[y:y+h, x:x+w]
+                        blur_score = float(cv2.Laplacian(face_gray, cv2.CV_64F).var()) if face_gray.size else 0.0
+                        brightness = float(np.mean(face_gray)) if face_gray.size else 0.0
+                        face_area_ratio = float((w * h) / float(max(1, w_img * h_img)))
+
+                        if face_area_ratio < 0.09:
+                            return Response({'error': 'Face is too small. Move closer and recapture.'}, status=400)
+                        if blur_score < 70.0:
+                            return Response({'error': 'Image is blurry. Hold still and recapture.'}, status=400)
+                        if brightness < 45.0 or brightness > 220.0:
+                            return Response({'error': 'Lighting is not suitable. Ensure face is clearly lit.'}, status=400)
+
                     except Exception as detect_error:
                         logger.warning(f"OpenCV face detection failed for {name}: {detect_error}")
 
@@ -730,12 +774,10 @@ def student_detail(request, student_id):
 def face_capture_check(request):
     """
     Validate guided registration frame quality and pose-position step.
-    expected_pose values: left, right, straight
+    expected_pose is forced to straight (left/right disabled).
     """
     try:
-        expected_pose = str(request.data.get('expected_pose', 'straight')).strip().lower()
-        if expected_pose not in {'left', 'right', 'straight'}:
-            expected_pose = 'straight'
+        expected_pose = 'straight'
 
         face_image = request.FILES.get('face_image')
         if not face_image:
@@ -752,29 +794,107 @@ def face_capture_check(request):
             return Response({'success': False, 'error': 'Could not decode image'}, status=400)
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        faces = face_cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.1,
-            minNeighbors=4,
-            minSize=(60, 60),
-        )
+        h_img, w_img = img.shape[:2]
 
-        if len(faces) == 0:
+        candidates = []
+
+        # 1) Frontal Haar detection
+        try:
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            frontal_faces = face_cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=3,
+                minSize=(50, 50),
+            )
+            for (fx, fy, fw, fh) in frontal_faces:
+                candidates.append({
+                    'box': (int(fx), int(fy), int(fw), int(fh)),
+                    'source': 'haar_frontal',
+                    'pose_hint': 'straight',
+                })
+        except Exception:
+            pass
+
+        # 2) Profile Haar detection (original + flipped)
+        try:
+            profile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_profileface.xml')
+
+            # Detector on original frame
+            profile_faces = profile_cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=3,
+                minSize=(50, 50),
+            )
+            for (px, py, pw, ph) in profile_faces:
+                candidates.append({
+                    'box': (int(px), int(py), int(pw), int(ph)),
+                    'source': 'haar_profile_original',
+                    'pose_hint': 'right',
+                })
+
+            # Detector on mirrored frame (map back to original x)
+            gray_flip = cv2.flip(gray, 1)
+            profile_faces_flip = profile_cascade.detectMultiScale(
+                gray_flip,
+                scaleFactor=1.1,
+                minNeighbors=3,
+                minSize=(50, 50),
+            )
+            for (px, py, pw, ph) in profile_faces_flip:
+                mapped_x = w_img - int(px) - int(pw)
+                candidates.append({
+                    'box': (mapped_x, int(py), int(pw), int(ph)),
+                    'source': 'haar_profile_flipped',
+                    'pose_hint': 'left',
+                })
+        except Exception:
+            pass
+
+        # 3) MediaPipe face-detection fallback
+        try:
+            import mediapipe as mp
+            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            with mp.solutions.face_detection.FaceDetection(
+                model_selection=0,
+                min_detection_confidence=0.4,
+            ) as face_detector:
+                fd_result = face_detector.process(rgb_img)
+
+            if fd_result and fd_result.detections:
+                for det in fd_result.detections:
+                    bbox = det.location_data.relative_bounding_box
+                    bx = max(0, int(bbox.xmin * w_img))
+                    by = max(0, int(bbox.ymin * h_img))
+                    bw = int(bbox.width * w_img)
+                    bh = int(bbox.height * h_img)
+                    if bw > 0 and bh > 0:
+                        candidates.append({
+                            'box': (bx, by, bw, bh),
+                            'source': 'mediapipe_fd',
+                            'pose_hint': 'unknown',
+                        })
+        except Exception:
+            pass
+
+        if len(candidates) == 0:
             return Response({
                 'success': True,
                 'passed': False,
-                'issues': ['No clear face detected. Keep one face visible and look at camera.'],
+                'issues': ['No clear face detected. Keep one face visible, turn less extreme, and ensure your face is well lit.'],
                 'expected_pose': expected_pose,
                 'detected_pose': 'unknown',
             })
 
-        x, y, w, h = max(faces, key=lambda f: int(f[2]) * int(f[3]))
-        h_img, w_img = img.shape[:2]
+        best = max(candidates, key=lambda c: int(c['box'][2]) * int(c['box'][3]))
+        x, y, w, h = best['box']
+        detection_source = best.get('source', 'unknown')
+        pose_hint = best.get('pose_hint', 'unknown')
 
         # Estimate head yaw using facial landmarks so side-pose checks require
         # actual head rotation (ear-visible profile), not just horizontal shift.
-        detected_pose = 'straight'
+        detected_pose = pose_hint if pose_hint in {'left', 'right', 'straight'} else 'straight'
         yaw_norm = 0.0
         pose_method = 'bbox_fallback'
 
@@ -820,6 +940,7 @@ def face_capture_check(request):
                     detected_pose = 'right'
                 else:
                     detected_pose = 'straight'
+                pose_method = 'bbox_fallback'
         except Exception:
             # Keep fallback path robust even if MediaPipe fails at runtime.
             face_center_x = x + (w / 2.0)
@@ -830,20 +951,20 @@ def face_capture_check(request):
                 detected_pose = 'right'
             else:
                 detected_pose = 'straight'
+            pose_method = 'bbox_fallback'
+
+        # Prefer explicit profile hints when face mesh yaw is unavailable.
+        if pose_method != 'face_mesh_yaw' and pose_hint in {'left', 'right'}:
+            detected_pose = pose_hint
+            pose_method = 'profile_hint'
 
         face_roi = gray[y:y + h, x:x + w]
         blur_score = float(cv2.Laplacian(face_roi, cv2.CV_64F).var()) if face_roi.size else 0.0
         brightness = float(np.mean(face_roi)) if face_roi.size else 0.0
         face_area_ratio = float((w * h) / float(max(1, w_img * h_img)))
 
-        if pose_method != 'face_mesh_yaw' and expected_pose in {'left', 'right'}:
-            pose_ok = False
-        elif expected_pose == 'straight':
+        if expected_pose == 'straight':
             pose_ok = abs(yaw_norm) <= 0.06 if pose_method == 'face_mesh_yaw' else (detected_pose == 'straight')
-        elif expected_pose == 'left':
-            pose_ok = yaw_norm >= 0.18 if pose_method == 'face_mesh_yaw' else (detected_pose == 'left')
-        else:  # right
-            pose_ok = yaw_norm <= -0.18 if pose_method == 'face_mesh_yaw' else (detected_pose == 'right')
 
         size_ok = face_area_ratio >= 0.08
         blur_ok = blur_score >= 70.0
@@ -851,16 +972,9 @@ def face_capture_check(request):
 
         issues = []
         if not pose_ok:
-            if pose_method != 'face_mesh_yaw' and expected_pose in {'left', 'right'}:
-                issues.append('Cannot verify side pose clearly. Keep one face visible and turn head more to side, then recapture.')
-            if expected_pose == 'straight':
-                issues.append(
-                    f"Pose mismatch: expected STRAIGHT, detected {detected_pose.upper()}. Keep your face centered and look directly at camera."
-                )
-            else:
-                issues.append(
-                    f"Pose mismatch: expected {expected_pose.upper()}, detected {detected_pose.upper()}. Turn your head to show your {expected_pose.upper()} side (ear/cheek visible), not just move position."
-                )
+            issues.append(
+                f"Pose mismatch: expected STRAIGHT, detected {detected_pose.upper()}. Keep your face centered and look directly at camera."
+            )
         if not size_ok:
             issues.append('Face is too small. Move closer to camera.')
         if not blur_ok:
@@ -881,6 +995,7 @@ def face_capture_check(request):
                 'face_area_ratio': round(face_area_ratio, 4),
                 'yaw_norm': round(float(yaw_norm), 4),
                 'pose_method': pose_method,
+                'detection_source': detection_source,
             },
             'issues': issues,
             'message': 'Capture accepted' if passed else 'Please adjust and try again',
@@ -916,6 +1031,7 @@ def start_session(request):
         unit = str(data.get('unit') or '').strip()
         topic_name = str(data.get('topic_name') or data.get('topic') or '').strip()
         daily_plan_id_raw = data.get('daily_plan_id')
+        lecture_plan_id_raw = data.get('lecture_plan_id')
         camera_source = data.get('camera_source', '0')
         teacher_id_raw = data.get('teacher_id', 1)
         teacher_id = 1
@@ -932,6 +1048,21 @@ def start_session(request):
             )
 
         daily_plan = None
+        lecture_plan = None
+        if lecture_plan_id_raw not in (None, '', 'null'):
+            try:
+                lecture_plan = (
+                    LecturePlan.objects
+                    .select_related('topic')
+                    .get(id=int(lecture_plan_id_raw), teacher=teacher)
+                )
+                subject = lecture_plan.topic.subject
+                unit = lecture_plan.topic.unit
+                topic_name = lecture_plan.topic.topic
+            except Exception as plan_error:
+                logger.warning(f"Invalid lecture_plan_id '{lecture_plan_id_raw}' at session start: {plan_error}")
+                lecture_plan = None
+
         if daily_plan_id_raw not in (None, '', 'null'):
             try:
                 daily_plan = (
@@ -997,6 +1128,7 @@ def start_session(request):
 
         _active_session_topic_map[session.id] = {
             'daily_plan_id': daily_plan.id if daily_plan else (int(daily_plan_id_raw) if str(daily_plan_id_raw).isdigit() else None),
+            'lecture_plan_id': lecture_plan.id if lecture_plan else (int(lecture_plan_id_raw) if str(lecture_plan_id_raw).isdigit() else None),
             'subject': subject,
             'unit': unit,
             'topic_name': topic_name,
@@ -1008,6 +1140,7 @@ def start_session(request):
             'unit': unit,
             'topic_name': topic_name,
             'daily_plan_id': _active_session_topic_map[session.id].get('daily_plan_id'),
+            'lecture_plan_id': _active_session_topic_map[session.id].get('lecture_plan_id'),
             'start_time': session.start_time.isoformat(),
             'camera_started': camera_started,
             'camera_source': str(selected_source),
@@ -1026,7 +1159,8 @@ def end_session(request, session_id):
         logger.info(f"🛑 Ending session {session_id}")
         
         session = ClassSession.objects.get(id=session_id)
-        topic_updated = bool(_active_session_topic_map.get(session.id, {}).get('daily_plan_id'))
+        topic_ctx = _active_session_topic_map.get(session.id, {})
+        topic_updated = bool(topic_ctx.get('daily_plan_id') or topic_ctx.get('lecture_plan_id'))
         
         # Stop the video stream immediately
         from .video_stream import stop_stream
@@ -1168,6 +1302,7 @@ def _finalize_session(session):
 
     topic_ctx = _active_session_topic_map.get(session.id, {})
     daily_plan_id = topic_ctx.get('daily_plan_id')
+    lecture_plan_id = topic_ctx.get('lecture_plan_id')
     if daily_plan_id:
         try:
             plan = DailyLectureTopic.objects.select_related('topic').get(id=daily_plan_id)
@@ -1184,6 +1319,20 @@ def _finalize_session(session):
                 topic.save(update_fields=['status', 'checkpoint_assigned', 'checkpoint_completion_rate'])
         except Exception as topic_close_error:
             logger.warning(f"Failed to update selected daily topic on session end: {topic_close_error}")
+
+    if lecture_plan_id:
+        try:
+            lecture_plan = LecturePlan.objects.select_related('topic').get(id=lecture_plan_id)
+            if lecture_plan.status != 'done':
+                lecture_plan.status = 'done'
+                lecture_plan.save(update_fields=['status'])
+
+            topic = lecture_plan.topic
+            if topic.status != 'completed':
+                topic.status = 'completed'
+                topic.save(update_fields=['status'])
+        except Exception as lecture_close_error:
+            logger.warning(f"Failed to update selected lecture plan on session end: {lecture_close_error}")
 
     _active_session_topic_map.pop(session.id, None)
     return _generate_session_auto_report(session)
@@ -1216,6 +1365,10 @@ def _compute_behavior_flags(student_item):
     emotion_conf = float(student_item.get('emotion_confidence') or 0.0)
     face_conf = float(student_item.get('confidence') or 0.0)
     is_looking_forward = bool(student_item.get('is_looking_forward'))
+    head_direction_score = float(student_item.get('head_direction_score') or 0.0)
+    eye_contact_score = float(student_item.get('eye_contact_score') or 0.0)
+    vertical_offset = float(student_item.get('vertical_offset') or 0.0)
+    horizontal_offset = float(student_item.get('horizontal_offset') or 0.0)
 
     looking_down = not is_looking_forward
     likely_occluded = (face_conf < 0.35 and emotion_conf < 0.45) or (face_conf < 0.25)
@@ -1223,7 +1376,23 @@ def _compute_behavior_flags(student_item):
         looking_down
         and (not likely_occluded)
         and emotion in {'neutral', 'focused', 'happy'}
-        and engagement >= 50
+        and engagement >= 58
+        and (head_direction_score >= 42 or eye_contact_score >= 40)
+    )
+
+    # Looking-away proxy (e.g., up/up-right) when not forward, not occluded,
+    # and not likely writing notes.
+    likely_looking_away = (
+        looking_down
+        and (not likely_occluded)
+        and (not likely_note_taking)
+        and emotion in {'neutral', 'focused', 'happy', 'confused'}
+        and (engagement >= 40 or eye_contact_score >= 30)
+        and (
+            head_direction_score < 55
+            or vertical_offset > 0.08
+            or abs(horizontal_offset) > 0.18
+        )
     )
 
     return {
@@ -1232,6 +1401,9 @@ def _compute_behavior_flags(student_item):
         'looking_down': looking_down,
         'likely_occluded': likely_occluded,
         'likely_note_taking': likely_note_taking,
+        'likely_looking_away': likely_looking_away,
+        'head_direction_score': head_direction_score,
+        'eye_contact_score': eye_contact_score,
     }
 
 
@@ -1240,6 +1412,7 @@ def _update_behavior_state(student_key, flags):
         'down_streak': 0,
         'hidden_streak': 0,
         'notes_streak': 0,
+        'away_streak': 0,
         'last_seen': timezone.now(),
     })
 
@@ -1257,6 +1430,11 @@ def _update_behavior_state(student_key, flags):
         state['notes_streak'] += 1
     else:
         state['notes_streak'] = 0
+
+    if flags.get('likely_looking_away'):
+        state['away_streak'] += 1
+    else:
+        state['away_streak'] = 0
 
     state['last_seen'] = timezone.now()
     _student_behavior_state[student_key] = state
@@ -1405,6 +1583,10 @@ def live_data(request):
                         'confidence': item.get('confidence'),
                         'emotion_confidence': item.get('emotion_confidence'),
                         'is_looking_forward': item.get('is_looking_forward'),
+                        'head_direction_score': item.get('head_direction_score'),
+                        'eye_contact_score': item.get('eye_contact_score'),
+                        'vertical_offset': item.get('vertical_offset'),
+                        'horizontal_offset': item.get('horizontal_offset'),
                         'face_registered': bool(item.get('student_id')),
                     })
 
@@ -1433,9 +1615,11 @@ def live_data(request):
                     'looking_down': behavior_flags['looking_down'],
                     'likely_occluded': behavior_flags['likely_occluded'],
                     'likely_note_taking': behavior_flags['likely_note_taking'],
+                    'likely_looking_away': behavior_flags.get('likely_looking_away', False),
                     'down_streak': state['down_streak'],
                     'hidden_streak': state['hidden_streak'],
                     'notes_streak': state['notes_streak'],
+                    'away_streak': state.get('away_streak', 0),
                 }
 
                 # Hidden-face alert: sustained down-looking with likely occlusion.
@@ -1466,6 +1650,20 @@ def live_data(request):
                     })
                     continue
 
+                # Looking-away behavior (up/up-right proxy) with name-specific message.
+                if state.get('away_streak', 0) >= 2 and _can_emit_behavior_alert(student_key, 'looking_away', now):
+                    alerts_data.append({
+                        'id': f"away_{student_key}_{int(time.time())}",
+                        'type': 'looking_away',
+                        'severity': 'medium',
+                        'message': f"{student_name} appears to be looking up/up-right and away from class focus.",
+                        'student_name': student_name,
+                        'student_id': student_id,
+                        'time': now.strftime('%H:%M:%S'),
+                        'timestamp': now.isoformat(),
+                    })
+                    continue
+
                 # Sustained disengagement when looking down without note-taking evidence.
                 if (
                     state['down_streak'] >= 3
@@ -1486,10 +1684,17 @@ def live_data(request):
 
         # Class-level low engagement alert (persisted to DB).
         class_avg_engagement = 0
+        class_present_count = 0
         if analysis:
             class_avg_engagement = analysis.get('class_avg_engagement', analysis.get('avg_engagement', 0)) or 0
+            class_present_count = int(
+                analysis.get('present_count')
+                or analysis.get('faces_detected')
+                or len(analysis.get('students') or [])
+                or 0
+            )
 
-        if class_avg_engagement < 30:
+        if class_present_count > 0 and class_avg_engagement > 0 and class_avg_engagement < 30:
             class_alert_msg = f"Class average engagement is low ({round(class_avg_engagement, 1)}%). Immediate intervention recommended."
 
             # Always surface on live panel.
@@ -1522,6 +1727,16 @@ def live_data(request):
                         severity='high',
                         message=class_alert_msg,
                     )
+        elif active_session:
+            # Class is not currently in a low-engagement state.
+            # Auto-resolve previous unresolved class-level low engagement alerts
+            # so stale "0%" messages do not remain visible.
+            Alert.objects.filter(
+                session=active_session,
+                student__isnull=True,
+                alert_type='low_engagement',
+                is_resolved=False,
+            ).update(is_resolved=True, resolved_at=now)
 
         # Include unresolved DB alerts so Live Alerts box always reflects persisted records.
         if active_session:
@@ -1531,6 +1746,12 @@ def live_data(request):
             ).order_by('-timestamp')[:10]
 
             for db_alert in db_alerts:
+                # Surface low-engagement DB alerts only when class is currently low.
+                if (
+                    db_alert.alert_type == 'low_engagement'
+                    and not (class_present_count > 0 and class_avg_engagement > 0 and class_avg_engagement < 30)
+                ):
+                    continue
                 alerts_data.append({
                     'id': f"db_{db_alert.id}",
                     'type': db_alert.alert_type,
@@ -1705,6 +1926,12 @@ def check_engagement_alert(request):
                     message=f'⚠ ALERT: More than 30% students appear confused or not engaged ({percentage_confused:.1f}%).',
                     timestamp=timezone.now()
                 )
+                _create_notification_if_needed(
+                    'alert',
+                    f'Class confusion alert: {percentage_confused:.1f}% students appear confused.',
+                    related_student=None,
+                    dedupe_hours=2,
+                )
         
         return Response({
             'alert': alert_triggered,
@@ -1765,6 +1992,23 @@ def attendance_report(request):
         from datetime import date
         target_date = date.fromisoformat(date_str) if date_str else timezone.now().date()
         attendances = Attendance.objects.filter(date=target_date).select_related('student')
+
+        # Auto-create notification for students whose rolling attendance is below 50%.
+        for student in Student.objects.filter(is_active=True):
+            student_att = Attendance.objects.filter(student=student)
+            total = student_att.count()
+            if total == 0:
+                continue
+            present = student_att.filter(is_present=True).count()
+            rate = (present / total) * 100
+            if rate < 50:
+                _create_notification_if_needed(
+                    'alert',
+                    f'Attendance below 50% for {student.name} ({rate:.1f}%).',
+                    related_student=student,
+                    dedupe_hours=24,
+                )
+
         return Response({
             'date': target_date.isoformat(),
             'attendance': [{
@@ -2201,7 +2445,7 @@ def seed_demo_data(request):
                         avg_eng = sum(eng_vals) / len(eng_vals)
                         avg_att = sum(att_vals) / len(att_vals)
                         present_count = len(eng_vals)
-                        confusion_alert = (emo_dist.get('confused', 0) / max(present_count, 1)) > 0.30
+                        confusion_alert = (emo_dist.get('confused', 0) / max(present_count, 1)) >= 0.30
                         low_eng_alert = avg_eng < 60
                         _, was_created = ClassEngagementSnapshot.objects.get_or_create(
                             session=seed_session,
@@ -2385,10 +2629,10 @@ def generate_report(request):
         date_range = data.get('date_range', '7')
         class_name = data.get('class', 'CS101')
         format_type = str(data.get('format', 'csv')).strip().lower()
-        supported_formats = {'csv', 'xlsx'}
+        supported_formats = {'csv', 'xlsx', 'pdf'}
         if format_type not in supported_formats:
             return Response({
-                'error': f"Unsupported format '{format_type}'. Supported formats: CSV, Excel (XLSX)."
+                'error': f"Unsupported format '{format_type}'. Supported formats: CSV, Excel (XLSX), PDF."
             }, status=400)
         
         # FIXED: Actually generate a CSV report using pandas from real data
@@ -2494,6 +2738,49 @@ def generate_report(request):
                 df.to_excel(file_path, index=False)
             except Exception as excel_error:
                 logger.warning(f"Excel generation failed, falling back to CSV: {excel_error}")
+                actual_format = 'csv'
+                filename = f"{base_filename}.csv"
+                file_path = os.path.join(reports_dir, filename)
+                df.to_csv(file_path, index=False)
+        elif format_type == 'pdf':
+            filename = f"{base_filename}.pdf"
+            file_path = os.path.join(reports_dir, filename)
+            try:
+                from reportlab.lib import colors
+                from reportlab.lib.pagesizes import A4, landscape
+                from reportlab.lib.styles import getSampleStyleSheet
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
+                doc = SimpleDocTemplate(file_path, pagesize=landscape(A4))
+                styles = getSampleStyleSheet()
+                story = []
+
+                story.append(Paragraph(f"SmartClass Monitor - {report.name}", styles['Title']))
+                story.append(Paragraph(f"Generated: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+                story.append(Spacer(1, 12))
+
+                display_df = df.fillna('')
+                header = list(display_df.columns)
+                rows = display_df.astype(str).values.tolist()
+                table_data = [header] + rows
+
+                if len(table_data) > 401:
+                    table_data = table_data[:401]
+
+                table = Table(table_data, repeatRows=1)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4f8ef7')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+                ]))
+                story.append(table)
+                doc.build(story)
+            except Exception as pdf_error:
+                logger.warning(f"PDF generation failed, falling back to CSV: {pdf_error}")
                 actual_format = 'csv'
                 filename = f"{base_filename}.csv"
                 file_path = os.path.join(reports_dir, filename)
@@ -3035,6 +3322,306 @@ def teacher_add_feedback(request):
 @api_view(['GET'])
 @authentication_classes([])
 @permission_classes([])
+def api_notifications(request):
+    """Get all notifications for the current teacher"""
+    try:
+        notifications = Notification.objects.all().order_by('-created_at')
+        unread_count = notifications.filter(is_read=False).count()
+        
+        data = {
+            'success': True,
+            'total': notifications.count(),
+            'unread': unread_count,
+            'notifications': [
+                {
+                    'id': n.id,
+                    'type': n.type,
+                    'message': n.message,
+                    'is_read': n.is_read,
+                    'created_at': n.created_at.isoformat(),
+                    'student_id': n.related_student.student_id if n.related_student else None,
+                    'student_name': n.related_student.name if n.related_student else None,
+                }
+                for n in notifications[:100]  # Latest 100
+            ]
+        }
+        return Response(data)
+    except Exception as e:
+        logger.error(f"Notifications error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_mark_notification_read(request):
+    """Mark notification(s) as read"""
+    try:
+        notification_id = request.data.get('notification_id')
+        mark_all = request.data.get('mark_all', False)
+        
+        if mark_all:
+            Notification.objects.update(is_read=True)
+            return Response({'success': True, 'message': 'All notifications marked as read'})
+        elif notification_id:
+            notif = Notification.objects.get(id=notification_id)
+            notif.is_read = True
+            notif.save()
+            return Response({'success': True, 'message': f'Notification {notification_id} marked as read'})
+        else:
+            return Response({'success': False, 'error': 'No notification_id or mark_all provided'}, status=400)
+    except Notification.DoesNotExist:
+        return Response({'success': False, 'error': 'Notification not found'}, status=404)
+    except Exception as e:
+        logger.error(f"Mark notification read error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_ai_insights(request):
+    """Get AI insights for all students"""
+    try:
+        student_id = request.query_params.get('student_id')
+        
+        if student_id:
+            # Get insights for specific student
+            insights = AIInsight.objects.filter(student__student_id=student_id).order_by('-week_start_date')
+        else:
+            # Get all insights
+            insights = AIInsight.objects.all().order_by('-week_start_date')
+        
+        data = {
+            'success': True,
+            'total': insights.count(),
+            'insights': [
+                {
+                    'id': i.id,
+                    'student_id': i.student.student_id,
+                    'student_name': i.student.name,
+                    'week_start_date': i.week_start_date.isoformat(),
+                    'engagement_trend': i.get_engagement_trend(),
+                    'risk_level': i.risk_level,
+                    'recommendation_text': i.recommendation_text,
+                    'generated_at': i.generated_at.isoformat(),
+                }
+                for i in insights[:50]
+            ]
+        }
+        return Response(data)
+    except Exception as e:
+        logger.error(f"AI insights error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_ai_insights_by_student(request, student_id):
+    """Get AI insights for a single student ID"""
+    try:
+        insights = AIInsight.objects.filter(student__student_id=student_id).order_by('-week_start_date')
+        if not insights.exists():
+            return Response({'success': True, 'student_id': student_id, 'insights': [], 'total': 0})
+
+        return Response({
+            'success': True,
+            'student_id': student_id,
+            'total': insights.count(),
+            'insights': [
+                {
+                    'id': i.id,
+                    'student_id': i.student.student_id,
+                    'student_name': i.student.name,
+                    'week_start_date': i.week_start_date.isoformat(),
+                    'engagement_trend': i.get_engagement_trend(),
+                    'risk_level': i.risk_level,
+                    'recommendation_text': i.recommendation_text,
+                    'generated_at': i.generated_at.isoformat(),
+                }
+                for i in insights
+            ]
+        })
+    except Exception as e:
+        logger.error(f"AI insights by student error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_students_at_risk(request):
+    """Get students with high risk level"""
+    try:
+        threshold_days = int(request.query_params.get('threshold_days', 3))
+        
+        # Students with risk_level = high
+        at_risk_students = Student.objects.filter(risk_level='high')
+        
+        # Build data with engagement history
+        data = {
+            'success': True,
+            'threshold_days': threshold_days,
+            'total_at_risk': at_risk_students.count(),
+            'students': []
+        }
+        
+        for student in at_risk_students:
+            # Get recent engagement records
+            recent_records = EngagementRecord.objects.filter(
+                student=student
+            ).order_by('-timestamp')[:100]
+            
+            avg_engagement = 0
+            if recent_records:
+                avg_engagement = sum(r.engagement_score for r in recent_records) / len(recent_records)
+            
+            data['students'].append({
+                'student_id': student.student_id,
+                'name': student.name,
+                'email': student.email,
+                'risk_level': student.risk_level,
+                'avg_engagement': round(avg_engagement, 2),
+                'recent_engagement_count': len(recent_records),
+            })
+        
+        return Response(data)
+    except Exception as e:
+        logger.error(f"At-risk students error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_attendance_bulk_mark(request):
+    """Mark attendance for multiple students in a session"""
+    try:
+        session_id = request.data.get('session_id')
+        attendance_data = request.data.get('attendance_data', [])  # [{'student_id': '...', 'is_present': bool}, ...]
+        
+        if not session_id:
+            return Response({'success': False, 'error': 'session_id required'}, status=400)
+        
+        session = ClassSession.objects.get(id=session_id)
+        today = timezone.now().date()
+        marked_count = 0
+        
+        for item in attendance_data:
+            student_id = item.get('student_id')
+            is_present = item.get('is_present', False)
+            
+            try:
+                student = Student.objects.get(student_id=student_id)
+                attendance, created = Attendance.objects.get_or_create(
+                    student=student,
+                    session=session,
+                    date=today,
+                    defaults={'is_present': is_present}
+                )
+                if not created:
+                    attendance.is_present = is_present
+                    attendance.save()
+                if not is_present:
+                    # If explicitly marked absent in bulk, evaluate low attendance trend quickly.
+                    student_total = Attendance.objects.filter(student=student).count()
+                    student_present = Attendance.objects.filter(student=student, is_present=True).count()
+                    if student_total > 0:
+                        attendance_rate = (student_present / student_total) * 100
+                        if attendance_rate < 50:
+                            _create_notification_if_needed(
+                                'alert',
+                                f'Attendance below 50% for {student.name} ({attendance_rate:.1f}%).',
+                                related_student=student,
+                                dedupe_hours=24,
+                            )
+                marked_count += 1
+            except Student.DoesNotExist:
+                continue
+        
+        return Response({
+            'success': True,
+            'message': f'Marked attendance for {marked_count} students',
+            'marked': marked_count
+        })
+    except ClassSession.DoesNotExist:
+        return Response({'success': False, 'error': 'Session not found'}, status=404)
+    except Exception as e:
+        logger.error(f"Bulk mark attendance error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_dashboard_summary(request):
+    """Get summary data for all dashboard stat cards"""
+    try:
+        today = timezone.now().date()
+        session_id = request.query_params.get('session_id')
+        
+        # Get today's session if not specified
+        if not session_id:
+            session = ClassSession.objects.filter(
+                status='active',
+                start_time__date=today
+            ).first()
+        else:
+            session = ClassSession.objects.get(id=session_id) if session_id else None
+        
+        # Average Class Engagement Today
+        today_records = EngagementRecord.objects.filter(
+            timestamp__date=today
+        )
+        avg_engagement_today = 0
+        if today_records:
+            avg_engagement_today = today_records.aggregate(
+                avg=Avg('engagement_score')
+            )['avg'] or 0
+        
+        # Total Alerts This Week
+        week_start = today - timedelta(days=7)
+        alerts_this_week = Alert.objects.filter(
+            timestamp__date__gte=week_start,
+            timestamp__date__lte=today
+        ).count()
+        
+        # Students At Risk
+        at_risk_count = Student.objects.filter(risk_level='high').count()
+        
+        # Syllabus Completion %
+        total_topics = SyllabusTopic.objects.count()
+        completed_topics = SyllabusTopic.objects.filter(status='completed').count()
+        syllabus_completion = 0
+        if total_topics > 0:
+            syllabus_completion = (completed_topics / total_topics) * 100
+        
+        data = {
+            'success': True,
+            'date': today.isoformat(),
+            'summary_stats': {
+                'avg_engagement_today': round(avg_engagement_today, 2),
+                'total_alerts_week': alerts_this_week,
+                'students_at_risk': at_risk_count,
+                'syllabus_completion_percent': round(syllabus_completion, 2),
+            },
+            'session_info': {
+                'session_id': session.id if session else None,
+                'session_active': session.status == 'active' if session else False,
+                'session_start': session.start_time.isoformat() if session else None,
+            }
+        }
+        
+        return Response(data)
+    except Exception as e:
+        logger.error(f"Dashboard summary error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
 def database_tables_overview(request):
     try:
         tables = {
@@ -3053,4 +3640,1063 @@ def database_tables_overview(request):
         return Response({'success': True, 'tables': tables})
     except Exception as e:
         logger.error(f"Database tables overview error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+# ─── Teacher Module V2 APIs ────────────────────────────────────────────────
+
+def _fmt_date_indian(value):
+    if not value:
+        return None
+    try:
+        return value.strftime('%d-%m-%Y')
+    except Exception:
+        return None
+
+
+def _seed_syllabus_if_empty(teacher):
+    if Syllabus.objects.filter(teacher=teacher).exists():
+        return
+
+    today = timezone.localdate()
+    seed = [
+        ('Computer Science', 'Unit 1', 'Introduction to Programming', 2.0, 0, 'high', 'completed'),
+        ('Computer Science', 'Unit 1', 'Control Flow and Loops', 2.5, 1, 'high', 'in_progress'),
+        ('Computer Science', 'Unit 2', 'Functions and Modules', 3.0, 3, 'medium', 'pending'),
+        ('Computer Science', 'Unit 2', 'Data Structures Basics', 2.5, 5, 'medium', 'pending'),
+        ('Computer Science', 'Unit 3', 'File Handling', 1.5, 7, 'low', 'pending'),
+    ]
+
+    for subject, unit, topic, est_hours, day_offset, priority, status_code in seed:
+        Syllabus.objects.create(
+            teacher=teacher,
+            subject=subject,
+            unit=unit,
+            topic=topic,
+            estimated_hours=est_hours,
+            target_date=today + timedelta(days=day_offset),
+            priority=priority,
+            status=status_code,
+        )
+
+
+def _serialize_syllabus(item):
+    delayed = bool(item.target_date and item.target_date < timezone.localdate() and item.status != 'completed')
+    return {
+        'id': item.id,
+        'subject': item.subject,
+        'unit': item.unit,
+        'topic': item.topic,
+        'estimated_hours': float(item.estimated_hours or 0),
+        'target_date': _fmt_date_indian(item.target_date),
+        'priority': item.priority,
+        'status': item.status,
+        'is_delayed': delayed,
+        'auto_healing_date': _fmt_date_indian(item.auto_healing_date),
+        'is_auto_healed': bool(item.is_auto_healed),
+        'created_at': item.created_at.isoformat(),
+        'updated_at': item.updated_at.isoformat(),
+    }
+
+
+def _log_teacher_activity(teacher, action_text):
+    if not teacher:
+        return
+    ActivityLog.objects.create(teacher=teacher, action_text=action_text[:255])
+
+
+def _risk_level_from_metrics(engagement, attendance, pass_rate):
+    if engagement < 50 or attendance < 60 or pass_rate < 50:
+        return 'high'
+    if engagement < 70 or attendance < 75 or pass_rate < 70:
+        return 'medium'
+    return 'low'
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_syllabus(request):
+    try:
+        teacher = _get_request_teacher(request)
+        _seed_syllabus_if_empty(teacher)
+
+        if request.method == 'POST':
+            subject = str(request.data.get('subject') or '').strip()
+            unit = str(request.data.get('unit') or '').strip()
+            topic = str(request.data.get('topic') or '').strip()
+            if not subject or not unit or not topic:
+                return Response({'success': False, 'error': 'subject, unit and topic are required'}, status=400)
+
+            item = Syllabus.objects.create(
+                teacher=teacher,
+                subject=subject,
+                unit=unit,
+                topic=topic,
+                estimated_hours=float(request.data.get('estimated_hours') or 1.0),
+                target_date=datetime.strptime(request.data.get('target_date'), '%Y-%m-%d').date() if request.data.get('target_date') else timezone.localdate(),
+                priority=str(request.data.get('priority') or 'medium'),
+                status=str(request.data.get('status') or 'pending'),
+            )
+            return Response({'success': True, 'item': _serialize_syllabus(item)})
+
+        qs = Syllabus.objects.filter(teacher=teacher).order_by('target_date', '-created_at')
+        subject = request.query_params.get('subject')
+        status_filter = request.query_params.get('status')
+        priority = request.query_params.get('priority')
+        if subject:
+            qs = qs.filter(subject=subject)
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        if priority:
+            qs = qs.filter(priority=priority)
+
+        items = list(qs)
+        subjects = sorted(Syllabus.objects.filter(teacher=teacher).values_list('subject', flat=True).distinct())
+        units = sorted(Syllabus.objects.filter(teacher=teacher).values_list('unit', flat=True).distinct())
+        return Response({'success': True, 'items': [_serialize_syllabus(i) for i in items], 'subjects': subjects, 'units': units})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['PUT', 'DELETE'])
+@authentication_classes([])
+@permission_classes([])
+def api_syllabus_detail(request, syllabus_id):
+    try:
+        teacher = _get_request_teacher(request)
+        item = Syllabus.objects.get(id=syllabus_id, teacher=teacher)
+        if request.method == 'DELETE':
+            item.delete()
+            return Response({'success': True, 'message': 'Topic deleted'})
+
+        for field in ['subject', 'unit', 'topic', 'priority', 'status']:
+            if field in request.data:
+                setattr(item, field, str(request.data.get(field) or '').strip())
+        if 'estimated_hours' in request.data:
+            item.estimated_hours = float(request.data.get('estimated_hours') or 0.0)
+        if 'target_date' in request.data and request.data.get('target_date'):
+            item.target_date = datetime.strptime(request.data.get('target_date'), '%Y-%m-%d').date()
+        item.save()
+        return Response({'success': True, 'item': _serialize_syllabus(item)})
+    except Syllabus.DoesNotExist:
+        return Response({'success': False, 'error': 'Topic not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_syllabus_progress(request):
+    try:
+        teacher = _get_request_teacher(request)
+        total = Syllabus.objects.filter(teacher=teacher).count()
+        pending = Syllabus.objects.filter(teacher=teacher, status='pending').count()
+        in_progress = Syllabus.objects.filter(teacher=teacher, status='in_progress').count()
+        completed = Syllabus.objects.filter(teacher=teacher, status='completed').count()
+        completion_pct = round((completed / total) * 100.0, 1) if total else 0.0
+        return Response({
+            'success': True,
+            'completion_percent': completion_pct,
+            'distribution': {
+                'pending': pending,
+                'in_progress': in_progress,
+                'completed': completed,
+            },
+        })
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_syllabus_delayed(request):
+    try:
+        teacher = _get_request_teacher(request)
+        today = timezone.localdate()
+        delayed = Syllabus.objects.filter(teacher=teacher, target_date__lt=today).exclude(status='completed').order_by('target_date')
+        rows = []
+        for item in delayed:
+            days = (today - item.target_date).days
+            rows.append({
+                'id': item.id,
+                'topic': item.topic,
+                'subject': item.subject,
+                'unit': item.unit,
+                'target_date': _fmt_date_indian(item.target_date),
+                'days_delayed': int(days),
+                'severity': 'red' if days > 7 else ('orange' if days >= 3 else 'yellow'),
+                'auto_healing_date': _fmt_date_indian(item.auto_healing_date),
+            })
+        return Response({'success': True, 'items': rows})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_syllabus_auto_heal(request):
+    try:
+        teacher = _get_request_teacher(request)
+        today = timezone.localdate()
+        delayed = list(Syllabus.objects.filter(teacher=teacher, target_date__lt=today).exclude(status='completed').order_by('target_date'))
+        cursor = today + timedelta(days=1)
+        suggestions = []
+        for item in delayed:
+            item.auto_healing_date = cursor
+            item.save(update_fields=['auto_healing_date'])
+            suggestions.append({
+                'id': item.id,
+                'topic': item.topic,
+                'old_date': _fmt_date_indian(item.target_date),
+                'suggested_date': _fmt_date_indian(cursor),
+                'estimated_hours': float(item.estimated_hours or 0),
+            })
+            step = max(1, int(round((item.estimated_hours or 1.0) / 2.0)))
+            cursor = cursor + timedelta(days=step)
+        return Response({'success': True, 'suggestions': suggestions})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_syllabus_auto_heal_accept(request):
+    try:
+        teacher = _get_request_teacher(request)
+        qs = Syllabus.objects.filter(teacher=teacher, auto_healing_date__isnull=False).exclude(status='completed')
+        count = 0
+        for item in qs:
+            item.target_date = item.auto_healing_date
+            item.is_auto_healed = True
+            item.save(update_fields=['target_date', 'is_auto_healed'])
+            count += 1
+        return Response({'success': True, 'updated': count})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_syllabus_reschedule(request, syllabus_id):
+    try:
+        teacher = _get_request_teacher(request)
+        item = Syllabus.objects.get(id=syllabus_id, teacher=teacher)
+        target_date = request.data.get('target_date')
+        if not target_date:
+            return Response({'success': False, 'error': 'target_date is required'}, status=400)
+        item.target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+        item.is_auto_healed = False
+        item.save(update_fields=['target_date', 'is_auto_healed'])
+        return Response({'success': True, 'item': _serialize_syllabus(item)})
+    except Syllabus.DoesNotExist:
+        return Response({'success': False, 'error': 'Topic not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+def _serialize_lecture_plan(plan):
+    return {
+        'id': plan.id,
+        'topic_id': plan.topic_id,
+        'topic': plan.topic.topic,
+        'subject': plan.topic.subject,
+        'unit': plan.topic.unit,
+        'lecture_date': _fmt_date_indian(plan.lecture_date),
+        'start_time': plan.start_time.strftime('%H:%M') if plan.start_time else None,
+        'end_time': plan.end_time.strftime('%H:%M') if plan.end_time else None,
+        'notes': plan.notes,
+        'status': plan.status,
+    }
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_lecture_plan(request):
+    try:
+        teacher = _get_request_teacher(request)
+        today = timezone.localdate()
+        if request.method == 'POST':
+            topic_id = request.data.get('topic_id')
+            if not topic_id:
+                return Response({'success': False, 'error': 'topic_id is required'}, status=400)
+            topic = Syllabus.objects.get(id=topic_id, teacher=teacher)
+            lecture_date = datetime.strptime(request.data.get('lecture_date'), '%Y-%m-%d').date() if request.data.get('lecture_date') else today
+            start_time = datetime.strptime(request.data.get('start_time'), '%H:%M').time() if request.data.get('start_time') else None
+            end_time = datetime.strptime(request.data.get('end_time'), '%H:%M').time() if request.data.get('end_time') else None
+            plan = LecturePlan.objects.create(
+                teacher=teacher,
+                topic=topic,
+                lecture_date=lecture_date,
+                start_time=start_time,
+                end_time=end_time,
+                notes=str(request.data.get('notes') or '').strip(),
+                status='planned',
+            )
+            return Response({'success': True, 'plan': _serialize_lecture_plan(plan)})
+
+        plans = LecturePlan.objects.filter(teacher=teacher, lecture_date=today).select_related('topic').order_by('start_time', 'created_at')
+        planned_hours = 0.0
+        completed_hours = 0.0
+        for p in plans:
+            if p.start_time and p.end_time:
+                diff = datetime.combine(today, p.end_time) - datetime.combine(today, p.start_time)
+                hours = max(0.0, diff.total_seconds() / 3600.0)
+                planned_hours += hours
+                if p.status == 'done':
+                    completed_hours += hours
+        return Response({
+            'success': True,
+            'plans': [_serialize_lecture_plan(p) for p in plans],
+            'duration_tracker': {
+                'planned_hours': round(planned_hours, 1),
+                'completed_hours': round(completed_hours, 1),
+            },
+        })
+    except Syllabus.DoesNotExist:
+        return Response({'success': False, 'error': 'Topic not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['PUT', 'DELETE'])
+@authentication_classes([])
+@permission_classes([])
+def api_lecture_plan_detail(request, plan_id):
+    try:
+        teacher = _get_request_teacher(request)
+        plan = LecturePlan.objects.select_related('topic').get(id=plan_id, teacher=teacher)
+        if request.method == 'DELETE':
+            plan.delete()
+            return Response({'success': True, 'message': 'Plan removed'})
+
+        if 'status' in request.data:
+            new_status = str(request.data.get('status') or '').strip()
+            if new_status not in {'planned', 'done', 'skipped', 'in_progress'}:
+                return Response({'success': False, 'error': 'Invalid status'}, status=400)
+            plan.status = new_status
+            plan.save(update_fields=['status'])
+            if new_status == 'done':
+                topic = plan.topic
+                topic.status = 'completed'
+                topic.save(update_fields=['status'])
+                _log_teacher_activity(teacher, f"Marked {topic.topic} as Done")
+        for field in ['notes']:
+            if field in request.data:
+                setattr(plan, field, str(request.data.get(field) or '').strip())
+        if 'start_time' in request.data and request.data.get('start_time'):
+            plan.start_time = datetime.strptime(request.data.get('start_time'), '%H:%M').time()
+        if 'end_time' in request.data and request.data.get('end_time'):
+            plan.end_time = datetime.strptime(request.data.get('end_time'), '%H:%M').time()
+        plan.save()
+        return Response({'success': True, 'plan': _serialize_lecture_plan(plan), 'checkpoint_prompt': plan.status == 'done'})
+    except LecturePlan.DoesNotExist:
+        return Response({'success': False, 'error': 'Plan not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_lecture_plan_history(request):
+    try:
+        teacher = _get_request_teacher(request)
+        today = timezone.localdate()
+        plans = LecturePlan.objects.filter(teacher=teacher, lecture_date__lt=today).select_related('topic').order_by('-lecture_date', '-created_at')[:100]
+        return Response({'success': True, 'history': [_serialize_lecture_plan(p) for p in plans]})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+def _serialize_checkpoint(cp):
+    result_qs = cp.results.all()
+    avg_score = result_qs.aggregate(v=Avg('score')).get('v') or 0.0
+    total = result_qs.count()
+    passed = result_qs.filter(passed=True).count()
+    pass_rate = (passed / total * 100.0) if total else 0.0
+    return {
+        'id': cp.id,
+        'topic_id': cp.topic_id,
+        'topic': cp.topic.topic,
+        'type': cp.checkpoint_type,
+        'title': cp.title,
+        'passing_score': cp.passing_score,
+        'deadline': _fmt_date_indian(cp.deadline),
+        'assigned_date': _fmt_date_indian(cp.created_at.date()),
+        'avg_score': round(float(avg_score), 1),
+        'pass_rate': round(float(pass_rate), 1),
+        'status': 'closed' if cp.deadline < timezone.localdate() else 'active',
+    }
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_checkpoints(request):
+    try:
+        teacher = _get_request_teacher(request)
+        if request.method == 'POST':
+            topic = Syllabus.objects.get(id=request.data.get('topic_id'), teacher=teacher)
+            cp = Checkpoint.objects.create(
+                topic=topic,
+                title=str(request.data.get('title') or '').strip() or f"Checkpoint - {topic.topic}",
+                checkpoint_type=str(request.data.get('checkpoint_type') or 'mcq'),
+                passing_score=int(request.data.get('passing_score') or 60),
+                deadline=datetime.strptime(request.data.get('deadline'), '%Y-%m-%d').date() if request.data.get('deadline') else timezone.localdate() + timedelta(days=7),
+            )
+            _log_teacher_activity(teacher, f"Created checkpoint {cp.title}")
+            return Response({'success': True, 'checkpoint': _serialize_checkpoint(cp)})
+
+        checkpoints = Checkpoint.objects.filter(topic__teacher=teacher).select_related('topic').order_by('-created_at')
+        return Response({'success': True, 'checkpoints': [_serialize_checkpoint(c) for c in checkpoints]})
+    except Syllabus.DoesNotExist:
+        return Response({'success': False, 'error': 'Topic not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['PUT', 'DELETE'])
+@authentication_classes([])
+@permission_classes([])
+def api_checkpoint_detail(request, checkpoint_id):
+    try:
+        teacher = _get_request_teacher(request)
+        cp = Checkpoint.objects.select_related('topic').get(id=checkpoint_id, topic__teacher=teacher)
+        if request.method == 'DELETE':
+            cp.delete()
+            return Response({'success': True, 'message': 'Checkpoint deleted'})
+        for field in ['title', 'checkpoint_type']:
+            if field in request.data:
+                setattr(cp, field, str(request.data.get(field) or '').strip())
+        if 'passing_score' in request.data:
+            cp.passing_score = int(request.data.get('passing_score') or 60)
+        if 'deadline' in request.data and request.data.get('deadline'):
+            cp.deadline = datetime.strptime(request.data.get('deadline'), '%Y-%m-%d').date()
+        cp.save()
+        return Response({'success': True, 'checkpoint': _serialize_checkpoint(cp)})
+    except Checkpoint.DoesNotExist:
+        return Response({'success': False, 'error': 'Checkpoint not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_checkpoint_results(request, checkpoint_id):
+    try:
+        teacher = _get_request_teacher(request)
+        cp = Checkpoint.objects.get(id=checkpoint_id, topic__teacher=teacher)
+        results = CheckpointResult.objects.filter(checkpoint=cp).select_related('student').order_by('-attempted_at')
+        rows = [{
+            'student_id': r.student.student_id,
+            'student_name': r.student.name,
+            'score': round(float(r.score), 1),
+            'passed': bool(r.passed),
+            'attempted_at': r.attempted_at.isoformat(),
+        } for r in results]
+        return Response({'success': True, 'checkpoint': _serialize_checkpoint(cp), 'results': rows})
+    except Checkpoint.DoesNotExist:
+        return Response({'success': False, 'error': 'Checkpoint not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_checkpoint_send_reminder(request):
+    try:
+        teacher = _get_request_teacher(request)
+        checkpoint_id = request.data.get('checkpoint_id')
+        if not checkpoint_id:
+            return Response({'success': False, 'error': 'checkpoint_id is required'}, status=400)
+        cp = Checkpoint.objects.select_related('topic').get(id=checkpoint_id, topic__teacher=teacher)
+
+        attempted_ids = set(CheckpointResult.objects.filter(checkpoint=cp).values_list('student_id', flat=True))
+        target_students = Student.objects.exclude(id__in=list(attempted_ids))
+        for student in target_students:
+            Notification.objects.create(
+                type='info',
+                message=f"Reminder: complete checkpoint '{cp.title}' before {_fmt_date_indian(cp.deadline)}",
+                related_student=student,
+            )
+        return Response({'success': True, 'reminders_sent': target_students.count()})
+    except Checkpoint.DoesNotExist:
+        return Response({'success': False, 'error': 'Checkpoint not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_checkpoint_summary(request):
+    try:
+        teacher = _get_request_teacher(request)
+        cps = Checkpoint.objects.filter(topic__teacher=teacher)
+        result_qs = CheckpointResult.objects.filter(checkpoint__in=cps)
+        avg_score = result_qs.aggregate(v=Avg('score')).get('v') or 0.0
+        total = result_qs.count()
+        passed = result_qs.filter(passed=True).count()
+        pass_rate = (passed / total * 100.0) if total else 0.0
+        return Response({'success': True, 'class_avg': round(float(avg_score), 1), 'pass_rate': round(float(pass_rate), 1), 'total_attempts': total})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_students_lagging(request):
+    try:
+        teacher = _get_request_teacher(request)
+        students = Student.objects.filter(is_active=True).order_by('name')
+        rows = []
+        for student in students:
+            eng = EngagementRecord.objects.filter(student=student).aggregate(v=Avg('engagement_score')).get('v') or 0.0
+            att_total = Attendance.objects.filter(student=student).count()
+            att_present = Attendance.objects.filter(student=student, is_present=True).count()
+            attendance_pct = (att_present / att_total * 100.0) if att_total else 0.0
+            if eng < 60 or attendance_pct < 50:
+                lag_topic = Syllabus.objects.filter(teacher=teacher, status__in=['pending', 'in_progress']).order_by('target_date').first()
+                rows.append({
+                    'student_id': student.student_id,
+                    'student_name': student.name,
+                    'roll_no': student.student_id,
+                    'lagging_topic': lag_topic.topic if lag_topic else 'General support',
+                    'topic_id': lag_topic.id if lag_topic else None,
+                    'engagement_percent': round(float(eng), 1),
+                    'attendance_percent': round(float(attendance_pct), 1),
+                    'risk_level': student.risk_level,
+                })
+        return Response({'success': True, 'students': rows})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+def _serialize_extra_lecture(row):
+    return {
+        'id': row.id,
+        'student_id': row.student.student_id,
+        'student_name': row.student.name,
+        'topic_id': row.topic_id,
+        'topic': row.topic.topic,
+        'scheduled_date': _fmt_date_indian(row.scheduled_date),
+        'scheduled_time': row.scheduled_time.strftime('%H:%M') if row.scheduled_time else None,
+        'notes': row.notes,
+        'status': row.status,
+    }
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_extra_lectures(request):
+    try:
+        teacher = _get_request_teacher(request)
+        if request.method == 'POST':
+            student = Student.objects.get(student_id=request.data.get('student_id'))
+            topic = Syllabus.objects.get(id=request.data.get('topic_id'), teacher=teacher)
+            scheduled_date = datetime.strptime(request.data.get('scheduled_date'), '%Y-%m-%d').date() if request.data.get('scheduled_date') else timezone.localdate() + timedelta(days=1)
+            scheduled_time = datetime.strptime(request.data.get('scheduled_time'), '%H:%M').time() if request.data.get('scheduled_time') else None
+            row = ExtraLecture.objects.create(
+                teacher=teacher,
+                student=student,
+                topic=topic,
+                scheduled_date=scheduled_date,
+                scheduled_time=scheduled_time,
+                notes=str(request.data.get('notes') or '').strip(),
+                status='scheduled',
+            )
+            _log_teacher_activity(teacher, f"Scheduled extra lecture for {student.name}")
+            return Response({'success': True, 'extra_lecture': _serialize_extra_lecture(row)})
+
+        rows = ExtraLecture.objects.filter(teacher=teacher).select_related('student', 'topic').order_by('-scheduled_date', '-created_at')
+        return Response({'success': True, 'items': [_serialize_extra_lecture(r) for r in rows]})
+    except (Student.DoesNotExist, Syllabus.DoesNotExist):
+        return Response({'success': False, 'error': 'Student or topic not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['PUT', 'DELETE'])
+@authentication_classes([])
+@permission_classes([])
+def api_extra_lecture_detail(request, lecture_id):
+    try:
+        teacher = _get_request_teacher(request)
+        row = ExtraLecture.objects.select_related('student', 'topic').get(id=lecture_id, teacher=teacher)
+        if request.method == 'DELETE':
+            row.status = 'cancelled'
+            row.save(update_fields=['status'])
+            return Response({'success': True, 'message': 'Extra lecture cancelled'})
+        if 'status' in request.data:
+            row.status = str(request.data.get('status') or 'scheduled')
+        if 'scheduled_date' in request.data and request.data.get('scheduled_date'):
+            row.scheduled_date = datetime.strptime(request.data.get('scheduled_date'), '%Y-%m-%d').date()
+        if 'scheduled_time' in request.data and request.data.get('scheduled_time'):
+            row.scheduled_time = datetime.strptime(request.data.get('scheduled_time'), '%H:%M').time()
+        if 'notes' in request.data:
+            row.notes = str(request.data.get('notes') or '').strip()
+        row.save()
+        return Response({'success': True, 'extra_lecture': _serialize_extra_lecture(row)})
+    except ExtraLecture.DoesNotExist:
+        return Response({'success': False, 'error': 'Extra lecture not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_extra_lecture_send_note(request):
+    try:
+        student = Student.objects.get(student_id=request.data.get('student_id'))
+        note = str(request.data.get('note') or '').strip() or 'Please attend your extra support lecture.'
+        Notification.objects.create(type='info', message=note, related_student=student)
+        return Response({'success': True, 'message': 'Note sent'})
+    except Student.DoesNotExist:
+        return Response({'success': False, 'error': 'Student not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_students_performance(request):
+    try:
+        teacher = _get_request_teacher(request)
+        students = Student.objects.filter(is_active=True).order_by('name')
+        items = []
+        for s in students:
+            eng = EngagementRecord.objects.filter(student=s).aggregate(v=Avg('engagement_score')).get('v') or 0.0
+            att_total = Attendance.objects.filter(student=s).count()
+            att_present = Attendance.objects.filter(student=s, is_present=True).count()
+            attendance = (att_present / att_total * 100.0) if att_total else 0.0
+            topic_total = Syllabus.objects.filter(teacher=teacher).count()
+            topic_done = LecturePlan.objects.filter(teacher=teacher, status='done').count()
+            completion = (topic_done / topic_total * 100.0) if topic_total else 0.0
+
+            student_results = CheckpointResult.objects.filter(student=s)
+            pass_rate = (student_results.filter(passed=True).count() / student_results.count() * 100.0) if student_results.exists() else 100.0
+            risk = _risk_level_from_metrics(eng, attendance, pass_rate)
+            if s.risk_level != risk:
+                s.risk_level = risk
+                s.save(update_fields=['risk_level'])
+
+            items.append({
+                'id': s.id,
+                'student_id': s.student_id,
+                'name': s.name,
+                'roll_no': s.student_id,
+                'engagement_percent': round(float(eng), 1),
+                'attendance_percent': round(float(attendance), 1),
+                'topic_completion_percent': round(float(completion), 1),
+                'risk_level': risk,
+                'profile_photo': s.profile_photo.url if s.profile_photo else None,
+            })
+        return Response({'success': True, 'students': items})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_student_performance_detail(request, student_pk):
+    try:
+        student = Student.objects.get(id=student_pk)
+        trend = list(
+            EngagementRecord.objects.filter(student=student).order_by('-timestamp')[:30].values('timestamp', 'engagement_score')
+        )
+        trend.reverse()
+        checkpoint_scores = []
+        for row in CheckpointResult.objects.filter(student=student).select_related('checkpoint', 'checkpoint__topic').order_by('-attempted_at')[:50]:
+            checkpoint_scores.append({
+                'topic': row.checkpoint.topic.topic,
+                'checkpoint': row.checkpoint.title,
+                'score': round(float(row.score), 1),
+                'passed': bool(row.passed),
+            })
+        return Response({
+            'success': True,
+            'student': {
+                'student_id': student.student_id,
+                'name': student.name,
+                'risk_level': student.risk_level,
+            },
+            'engagement_trend': [
+                {
+                    'date': _fmt_date_indian(t['timestamp'].date()),
+                    'engagement': round(float(t['engagement_score']), 1),
+                }
+                for t in trend
+            ],
+            'checkpoint_scores': checkpoint_scores,
+        })
+    except Student.DoesNotExist:
+        return Response({'success': False, 'error': 'Student not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_student_engagement_trend(request, student_pk):
+    try:
+        student = Student.objects.get(id=student_pk)
+        since = timezone.now() - timedelta(days=30)
+        rows = EngagementRecord.objects.filter(student=student, timestamp__gte=since).order_by('timestamp')
+        data = [{'date': _fmt_date_indian(r.timestamp.date()), 'engagement': round(float(r.engagement_score), 1)} for r in rows]
+        return Response({'success': True, 'student_id': student.student_id, 'trend': data})
+    except Student.DoesNotExist:
+        return Response({'success': False, 'error': 'Student not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_student_attendance_calendar(request, student_pk):
+    try:
+        student = Student.objects.get(id=student_pk)
+        rows = Attendance.objects.filter(student=student).order_by('-date')[:90]
+        data = [{'date': _fmt_date_indian(r.date), 'present': bool(r.is_present)} for r in rows]
+        return Response({'success': True, 'student_id': student.student_id, 'calendar': data})
+    except Student.DoesNotExist:
+        return Response({'success': False, 'error': 'Student not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_student_ai_recommendation(request, student_pk):
+    try:
+        student = Student.objects.get(id=student_pk)
+        eng_rows = list(EngagementRecord.objects.filter(student=student).order_by('-timestamp')[:10])
+        low_days = sum(1 for r in eng_rows if float(r.engagement_score or 0) < 50)
+        att_total = Attendance.objects.filter(student=student).count()
+        att_present = Attendance.objects.filter(student=student, is_present=True).count()
+        attendance = (att_present / att_total * 100.0) if att_total else 100.0
+        cp_qs = CheckpointResult.objects.filter(student=student)
+        pass_rate = (cp_qs.filter(passed=True).count() / cp_qs.count() * 100.0) if cp_qs.exists() else 100.0
+
+        if low_days >= 5:
+            msg = 'Student shows consistent disengagement. Recommend one-on-one session.'
+        elif attendance < 60:
+            msg = 'Frequent absences detected. Contact student/parents.'
+        elif pass_rate < 50:
+            msg = 'Student struggling with topics. Schedule revision lecture.'
+        else:
+            msg = 'Student is performing well. Keep it up!'
+
+        return Response({'success': True, 'student_id': student.student_id, 'recommendation': msg})
+    except Student.DoesNotExist:
+        return Response({'success': False, 'error': 'Student not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_feedback_v2(request):
+    try:
+        if request.method == 'POST':
+            lecture = None
+            if request.data.get('lecture_id'):
+                lecture = LecturePlan.objects.filter(id=request.data.get('lecture_id')).first()
+            student = Student.objects.filter(student_id=request.data.get('student_id')).first() if request.data.get('student_id') else None
+            fb = Feedback.objects.create(
+                lecture=lecture,
+                student=student,
+                rating=int(request.data.get('rating') or 5),
+                comment=str(request.data.get('comment') or '').strip(),
+                is_anonymous=bool(request.data.get('is_anonymous', False)),
+            )
+            return Response({'success': True, 'feedback_id': fb.id})
+
+        qs = Feedback.objects.select_related('lecture', 'lecture__topic', 'student').order_by('-created_at')
+        rating = request.query_params.get('rating')
+        if rating:
+            qs = qs.filter(rating=int(rating))
+        items = []
+        for f in qs[:300]:
+            lecture_title = f.lecture.topic.topic if f.lecture and f.lecture.topic else 'General Lecture'
+            items.append({
+                'id': f.id,
+                'lecture': lecture_title,
+                'rating': f.rating,
+                'comment': f.comment,
+                'date': _fmt_date_indian(f.created_at.date()),
+                'student_name': 'Anonymous' if f.is_anonymous else (f.student.name if f.student else 'Unknown'),
+                'is_anonymous': bool(f.is_anonymous),
+                'teacher_reply': f.teacher_reply,
+            })
+        return Response({'success': True, 'items': items})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['PUT'])
+@authentication_classes([])
+@permission_classes([])
+def api_feedback_reply(request, feedback_id):
+    try:
+        fb = Feedback.objects.get(id=feedback_id)
+        fb.teacher_reply = str(request.data.get('teacher_reply') or '').strip()
+        fb.save(update_fields=['teacher_reply'])
+        return Response({'success': True})
+    except Feedback.DoesNotExist:
+        return Response({'success': False, 'error': 'Feedback not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['DELETE'])
+@authentication_classes([])
+@permission_classes([])
+def api_feedback_delete(request, feedback_id):
+    try:
+        fb = Feedback.objects.get(id=feedback_id)
+        fb.delete()
+        return Response({'success': True})
+    except Feedback.DoesNotExist:
+        return Response({'success': False, 'error': 'Feedback not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_feedback_summary(request):
+    try:
+        qs = Feedback.objects.all()
+        total = qs.count()
+        avg = qs.aggregate(v=Avg('rating')).get('v') or 0.0
+        dist = {str(i): qs.filter(rating=i).count() for i in [1, 2, 3, 4, 5]}
+
+        keywords = Counter()
+        for text in qs.values_list('comment', flat=True):
+            for word in str(text or '').lower().split():
+                clean = ''.join(ch for ch in word if ch.isalpha())
+                if len(clean) >= 4:
+                    keywords[clean] += 1
+
+        common = keywords.most_common(1)[0][0] if keywords else ''
+        return Response({'success': True, 'average_rating': round(float(avg), 2), 'distribution': dist, 'total_count': total, 'most_common_keyword': common})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_feedback_export(request):
+    try:
+        rows = Feedback.objects.select_related('lecture', 'lecture__topic', 'student').order_by('-created_at')
+        output = []
+        output.append(['Lecture', 'Rating', 'Comment', 'Date', 'Student'])
+        for r in rows:
+            lecture_title = r.lecture.topic.topic if r.lecture and r.lecture.topic else 'General Lecture'
+            student_name = 'Anonymous' if r.is_anonymous else (r.student.name if r.student else 'Unknown')
+            output.append([lecture_title, r.rating, r.comment, _fmt_date_indian(r.created_at.date()), student_name])
+
+        csv_lines = []
+        for row in output:
+            escaped = ['"' + str(col).replace('"', '""') + '"' for col in row]
+            csv_lines.append(','.join(escaped))
+        csv_content = '\n'.join(csv_lines)
+        return Response({'success': True, 'filename': 'feedback_export.csv', 'csv': csv_content})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+def _get_or_create_teacher_profile(teacher):
+    user = User.objects.filter(email=teacher.email).first()
+    if not user:
+        username = teacher.email.split('@')[0]
+        user = User.objects.create_user(username=username, email=teacher.email, password='demo123')
+    profile, _ = TeacherProfile.objects.get_or_create(
+        teacher=teacher,
+        defaults={
+            'user': user,
+            'department': 'Computer Science',
+            'employee_id': f"EMP-{teacher.id:04d}",
+            'phone': '',
+            'subjects': [teacher.subject] if teacher.subject else [],
+        }
+    )
+    if profile.user_id != user.id:
+        profile.user = user
+        profile.save(update_fields=['user'])
+    return profile
+
+
+@api_view(['GET', 'PUT'])
+@authentication_classes([])
+@permission_classes([])
+def api_teacher_profile(request):
+    try:
+        teacher = _get_request_teacher(request)
+        profile = _get_or_create_teacher_profile(teacher)
+        if request.method == 'PUT':
+            teacher.name = str(request.data.get('name') or teacher.name)
+            teacher.subject = str(request.data.get('subject') or teacher.subject)
+            teacher.save(update_fields=['name', 'subject'])
+            for field in ['department', 'employee_id', 'phone']:
+                if field in request.data:
+                    setattr(profile, field, str(request.data.get(field) or '').strip())
+            if 'subjects' in request.data and isinstance(request.data.get('subjects'), list):
+                profile.subjects = request.data.get('subjects')
+            profile.save()
+
+        return Response({'success': True, 'profile': {
+            'name': teacher.name,
+            'email': teacher.email,
+            'department': profile.department,
+            'employee_id': profile.employee_id,
+            'phone': profile.phone,
+            'subjects': profile.subjects or [],
+            'profile_photo': profile.profile_photo.url if profile.profile_photo else None,
+        }})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_teacher_profile_photo(request):
+    try:
+        teacher = _get_request_teacher(request)
+        profile = _get_or_create_teacher_profile(teacher)
+        photo = request.FILES.get('profile_photo')
+        if not photo:
+            return Response({'success': False, 'error': 'profile_photo file is required'}, status=400)
+        profile.profile_photo = photo
+        profile.save(update_fields=['profile_photo'])
+        return Response({'success': True, 'profile_photo': profile.profile_photo.url})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_teacher_activity_log(request):
+    try:
+        teacher = _get_request_teacher(request)
+        rows = ActivityLog.objects.filter(teacher=teacher).order_by('-created_at')[:20]
+        return Response({'success': True, 'items': [{'action_text': r.action_text, 'created_at': r.created_at.isoformat()} for r in rows]})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([])
+def api_teacher_stats(request):
+    try:
+        teacher = _get_request_teacher(request)
+        students_count = Attendance.objects.filter(session__teacher=teacher).values('student_id').distinct().count()
+        avg_eng = EngagementRecord.objects.filter(session__teacher=teacher).aggregate(v=Avg('engagement_score')).get('v') or 0.0
+        lectures_count = LecturePlan.objects.filter(teacher=teacher).count()
+        total_topics = Syllabus.objects.filter(teacher=teacher).count()
+        completed_topics = Syllabus.objects.filter(teacher=teacher, status='completed').count()
+        syllabus_rate = (completed_topics / total_topics * 100.0) if total_topics else 0.0
+        return Response({'success': True, 'stats': {
+            'total_students_taught': students_count,
+            'average_class_engagement': round(float(avg_eng), 1),
+            'total_lectures_conducted': lectures_count,
+            'syllabus_completion_rate': round(float(syllabus_rate), 1),
+        }})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([])
+@permission_classes([])
+def api_timetable(request):
+    try:
+        teacher = _get_request_teacher(request)
+        if request.method == 'POST':
+            slot = Timetable.objects.create(
+                teacher=teacher,
+                subject=str(request.data.get('subject') or '').strip(),
+                day_of_week=int(request.data.get('day_of_week') or 0),
+                start_time=datetime.strptime(request.data.get('start_time'), '%H:%M').time(),
+                end_time=datetime.strptime(request.data.get('end_time'), '%H:%M').time(),
+                room_number=str(request.data.get('room_number') or '').strip(),
+                is_active=bool(request.data.get('is_active', True)),
+            )
+            return Response({'success': True, 'slot': {
+                'id': slot.id,
+                'subject': slot.subject,
+                'day_of_week': slot.day_of_week,
+                'start_time': slot.start_time.strftime('%H:%M'),
+                'end_time': slot.end_time.strftime('%H:%M'),
+                'room_number': slot.room_number,
+                'is_active': slot.is_active,
+            }})
+
+        rows = Timetable.objects.filter(teacher=teacher).order_by('day_of_week', 'start_time')
+        return Response({'success': True, 'slots': [
+            {
+                'id': r.id,
+                'subject': r.subject,
+                'day_of_week': r.day_of_week,
+                'day_label': r.get_day_of_week_display(),
+                'start_time': r.start_time.strftime('%H:%M'),
+                'end_time': r.end_time.strftime('%H:%M'),
+                'room_number': r.room_number,
+                'is_active': r.is_active,
+            }
+            for r in rows
+        ]})
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['PUT', 'DELETE'])
+@authentication_classes([])
+@permission_classes([])
+def api_timetable_detail(request, slot_id):
+    try:
+        teacher = _get_request_teacher(request)
+        slot = Timetable.objects.get(id=slot_id, teacher=teacher)
+        if request.method == 'DELETE':
+            slot.delete()
+            return Response({'success': True, 'message': 'Timetable slot removed'})
+        for field in ['subject', 'room_number']:
+            if field in request.data:
+                setattr(slot, field, str(request.data.get(field) or '').strip())
+        if 'day_of_week' in request.data:
+            slot.day_of_week = int(request.data.get('day_of_week'))
+        if 'start_time' in request.data and request.data.get('start_time'):
+            slot.start_time = datetime.strptime(request.data.get('start_time'), '%H:%M').time()
+        if 'end_time' in request.data and request.data.get('end_time'):
+            slot.end_time = datetime.strptime(request.data.get('end_time'), '%H:%M').time()
+        if 'is_active' in request.data:
+            slot.is_active = bool(request.data.get('is_active'))
+        slot.save()
+        return Response({'success': True})
+    except Timetable.DoesNotExist:
+        return Response({'success': False, 'error': 'Timetable slot not found'}, status=404)
+    except Exception as e:
         return Response({'success': False, 'error': str(e)}, status=500)

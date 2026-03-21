@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Timetable - SmartClass Monitor</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <style>
+    .mainx { margin-left: 280px; padding: 1.5rem; background:#f4f6fb; min-height:100vh; }
+    .cardx { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,0.08); padding:1.5rem; }
+    .rowx { display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:0.6rem; margin-bottom:0.8rem; }
+    input, select { width:100%; border:1px solid #dbe1ee; border-radius:10px; padding:0.58rem 0.68rem; }
+    .btnx { border:none; border-radius:10px; padding:0.56rem 0.82rem; cursor:pointer; font-weight:600; }
+    .btn-primary { background:#4f8ef7; color:#fff; }
+    .grid { overflow-x:auto; }
+    table { width:100%; min-width:900px; border-collapse: collapse; }
+    th, td { border:1px solid #e5e7eb; padding:0.55rem; text-align:center; font-size:0.84rem; }
+    th { background:#f8fafc; }
+    .today-col { background:#ecfeff; }
+    @media (max-width: 1024px) { .mainx { margin-left:0; } .rowx { grid-template-columns:1fr 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header"><div class="logo">SC</div><div><h3 style="font-size:1rem;margin:0;">SmartClass</h3><p style="font-size:0.75rem;opacity:0.8;margin:0;">Monitor</p></div></div>
+      <nav class="sidebar-nav">
+        <a href="teacher.html" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-clipboard-list"></i></span>Teacher Dashboard</a>
+        <a href="teacher_profile.html" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-user"></i></span>My Profile</a>
+        <a href="timetable.html" class="nav-item active"><span class="nav-icon"><i class="fa-solid fa-calendar-week"></i></span>Timetable</a>
+      </nav>
+    </aside>
+
+    <main class="mainx">
+      <section class="cardx">
+        <h2 style="margin-top:0;">Class Schedule / Timetable</h2>
+        <div class="rowx">
+          <input id="subject" placeholder="Subject" />
+          <select id="day"><option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option><option value="3">Thursday</option><option value="4">Friday</option><option value="5">Saturday</option></select>
+          <input id="start" type="time" />
+          <input id="end" type="time" />
+          <input id="room" placeholder="Room Number" />
+          <button class="btnx btn-primary" onclick="addSlot()">Add Slot</button>
+        </div>
+
+        <div class="grid">
+          <table id="timeGrid">
+            <thead>
+              <tr><th>Time</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr>
+            </thead>
+            <tbody id="gridBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const API_BASE = `${window.location.origin}/api`;
+    let slots = [];
+    async function api(path, method='GET', body=null) {
+      const opts = { method, credentials:'include', headers:{ Accept:'application/json' } };
+      if (body) { opts.headers['Content-Type']='application/json'; opts.body = JSON.stringify(body); }
+      const res = await fetch(`${API_BASE}${path}`, opts);
+      return await res.json();
+    }
+
+    function dayIdxToday() {
+      const js = new Date().getDay();
+      return js === 0 ? 6 : js - 1;
+    }
+
+    function formatTime12h(value) {
+      if (!value) return '';
+      const s = String(value).trim();
+      const m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if (!m) return s;
+      let h = Number(m[1]);
+      const min = m[2];
+      const suffix = h >= 12 ? 'PM' : 'AM';
+      h = h % 12;
+      if (h === 0) h = 12;
+      return `${h}:${min} ${suffix}`;
+    }
+
+    function renderGrid() {
+      const body = document.getElementById('gridBody');
+      const todayCol = dayIdxToday() + 1;
+      const byTime = {};
+      slots.forEach(s => {
+        const key = `${s.start_time}-${s.end_time}`;
+        if (!byTime[key]) byTime[key] = {};
+        byTime[key][s.day_of_week] = s;
+      });
+      body.innerHTML = '';
+      Object.keys(byTime).sort().forEach(t => {
+        const parts = String(t).split('-');
+        const start12 = formatTime12h(parts[0] || '');
+        const end12 = formatTime12h(parts[1] || '');
+        const label = start12 && end12 ? `${start12} - ${end12}` : t;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${label}</td>`;
+        for (let d = 0; d <= 5; d++) {
+          const slot = byTime[t][d];
+          const cls = (d + 1) === todayCol ? 'today-col' : '';
+          if (slot) {
+            tr.innerHTML += `<td class="${cls}" style="background:${['#dbeafe','#dcfce7','#fee2e2','#fef3c7','#ede9fe','#cffafe'][d]}"><strong>${slot.subject}</strong><div>${slot.room_number}</div><button class='btnx' style='margin-top:0.25rem;background:#e5e7eb;' onclick='removeSlot(${slot.id})'>Remove</button></td>`;
+          } else {
+            tr.innerHTML += `<td class="${cls}">-</td>`;
+          }
+        }
+        body.appendChild(tr);
+      });
+    }
+
+    async function loadSlots() {
+      const data = await api('/timetable/');
+      slots = data.slots || [];
+      renderGrid();
+    }
+
+    async function addSlot() {
+      await api('/timetable/', 'POST', {
+        subject: document.getElementById('subject').value,
+        day_of_week: Number(document.getElementById('day').value),
+        start_time: document.getElementById('start').value,
+        end_time: document.getElementById('end').value,
+        room_number: document.getElementById('room').value,
+      });
+      await loadSlots();
+    }
+
+    async function removeSlot(id) {
+      await api(`/timetable/${id}/`, 'DELETE');
+      await loadSlots();
+    }
+
+    loadSlots();
+  </script>
+</body>
+</html>

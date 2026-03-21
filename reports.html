@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -24,39 +24,55 @@
             
             <nav class="sidebar-nav">
                 <a href="dashboard.html" class="nav-item">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon">&#128202;</span>
                     Dashboard
                 </a>
                 <a href="live_class.html" class="nav-item">
-                    <span class="nav-icon">📹</span>
+                    <span class="nav-icon">&#128249;</span>
                     Live Classroom
                 </a>
                 <a href="attendance.html" class="nav-item">
-                    <span class="nav-icon">✓</span>
+                    <span class="nav-icon">&#10003;</span>
                     Attendance
                 </a>
                 <a href="student.html" class="nav-item">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">&#128101;</span>
                     Students
                 </a>
                 <a href="teacher.html" class="nav-item">
-                    <span class="nav-icon">🧑‍🏫</span>
+                    <span class="nav-icon">&#128105;&#8205;&#127979;</span>
                     Teacher
                 </a>
                 <a href="reports.html" class="nav-item active">
-                    <span class="nav-icon">📄</span>
+                    <span class="nav-icon">&#128196;</span>
                     Reports
                 </a>
                 <a href="analytics.html" class="nav-item">
-                    <span class="nav-icon">📈</span>
+                    <span class="nav-icon">&#128200;</span>
                     Analytics
                 </a>
                 <a href="settings.html" class="nav-item">
-                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-icon">&#9881;&#65039;</span>
                     Settings
                 </a>
-                <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
-                    <span class="nav-icon">🚪</span>
+                    <a href="notification_center.html" class="nav-item">
+                        <span class="nav-icon">&#128276;</span>
+                        Notifications
+                    </a>
+                    <a href="ai_insights.html" class="nav-item">
+                        <span class="nav-icon">&#129504;</span>
+                        AI Insights
+                    </a>
+                                <a href="teacher_profile.html" class="nav-item">
+                    <span class="nav-icon">&#128100;</span>
+                    My Profile
+                </a>
+                <a href="timetable.html" class="nav-item">
+                    <span class="nav-icon">&#128197;</span>
+                    Timetable
+                </a>
+<a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <span class="nav-icon">&#128682;</span>
                     Logout
                 </a>
             </nav>
@@ -67,18 +83,18 @@
             <!-- Top Navbar -->
             <header class="top-navbar">
                 <div class="navbar-left">
-                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">☰</button>
+                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">&#9776;</button>
                     <h1 style="font-size: 1.5rem; font-weight: 600;">Class Reports</h1>
                 </div>
                 
                 <div class="navbar-right">
                     <div class="search-bar">
-                        <span class="search-icon">🔍</span>
+                        <span class="search-icon">&#128269;</span>
                         <input type="text" placeholder="Search reports...">
                     </div>
                     
                     <div class="notification-bell">
-                        <span style="font-size: 1.25rem;">🔔</span>
+                        <span style="font-size: 1.25rem;">&#128276;</span>
                         <span class="notification-badge">0</span>
                     </div>
                     
@@ -146,14 +162,12 @@
                     </div>
                     
                     <div style="display: flex; gap: 1rem;">
-                        <button class="btn btn-primary btn-lg" onclick="generateReport()">
-                            <span>📊</span> Generate Report
+                        <button class="btn btn-primary btn-lg" onclick="generateReport()">Generate Report
                         </button>
-                        <button class="btn btn-secondary" onclick="scheduleReport()">
-                            <span>📅</span> Schedule Report
+                        <button class="btn btn-secondary" onclick="scheduleReport()">Schedule Report
                         </button>
                         <button class="btn btn-secondary" onclick="loadTemplates()">
-                            <span>📋</span> Load Template
+                            <span>Y"<</span> Load Template
                         </button>
                     </div>
                 </div>
@@ -241,8 +255,7 @@
                             <h2 class="card-title">Performance Metrics</h2>
                             <p class="card-subtitle">Detailed classroom performance data</p>
                         </div>
-                        <button class="btn btn-primary btn-sm" onclick="downloadPDF()">
-                            <span>📥</span> Download PDF
+                        <button class="btn btn-primary btn-sm" onclick="downloadPDF()">Download PDF
                         </button>
                     </div>
                     
@@ -488,7 +501,7 @@
             const trend = Number(data.engagement_trend || 0);
 
             setMetricCard('reportAvgAttendance', `${Number(data.attendance_rate || 0).toFixed(1)}%`, 'reportAvgAttendanceChange', `Period average`);
-            setMetricCard('reportAvgEngagement', `${Number(data.overall_avg_engagement || 0).toFixed(1)}%`, 'reportAvgEngagementChange', `${trend >= 0 ? '↑' : '↓'} ${Math.abs(trend).toFixed(1)} pts`);
+            setMetricCard('reportAvgEngagement', `${Number(data.overall_avg_engagement || 0).toFixed(1)}%`, 'reportAvgEngagementChange', `${trend >= 0 ? 'UP' : 'DOWN'} ${Math.abs(trend).toFixed(1)} pts`);
             setMetricCard('reportFocusScore', `${focusAvg.toFixed(1)}%`, 'reportFocusScoreChange', rankings.length ? 'From ranked students' : 'Awaiting data');
             setMetricCard('reportParticipation', `${participationAvg.toFixed(1)}%`, 'reportParticipationChange', rankings.length ? 'From ranked students' : 'Awaiting data');
         }
@@ -555,21 +568,21 @@
         function getRankingStyleByIndex(index) {
             if (index === 0) {
                 return {
-                    medal: '🥇',
+                    medal: 'Y?',
                     background: 'linear-gradient(135deg, rgba(255,215,0,0.1), rgba(255,193,7,0.1))',
                     border: '1px solid rgba(255,193,7,0.2)',
                 };
             }
             if (index === 1) {
                 return {
-                    medal: '🥈',
+                    medal: 'Y^',
                     background: 'linear-gradient(135deg, rgba(192,192,192,0.1), rgba(169,169,169,0.1))',
                     border: '1px solid rgba(169,169,169,0.2)',
                 };
             }
             if (index === 2) {
                 return {
-                    medal: '🥉',
+                    medal: 'Y?',
                     background: 'linear-gradient(135deg, rgba(205,127,50,0.1), rgba(184,134,11,0.1))',
                     border: '1px solid rgba(184,134,11,0.2)',
                 };
@@ -670,7 +683,7 @@
             metrics.forEach(metric => {
                 const row = document.createElement('tr');
                 const statusColor = metric.status === 'excellent' ? 'success' : metric.status === 'good' ? 'info' : metric.status === 'warning' ? 'danger' : 'warning';
-                const trendIcon = metric.trend === 'up' ? '↗️' : metric.trend === 'down' ? '↘️' : '➡️';
+                const trendIcon = metric.trend === 'up' ? '?-' : metric.trend === 'down' ? '?~' : 'z';
                 
                 row.innerHTML = `
                     <td><strong>${metric.metric}</strong></td>
@@ -906,7 +919,7 @@
                             <div style="background: white; padding: 2rem; border-radius: 8px; max-width: 600px; max-height: 80vh; overflow-y: auto;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                                     <h2>Report Templates</h2>
-                                    <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">×</button>
+                                    <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">-</button>
                                 </div>
                                 ${templateHTML}
                             </div>
@@ -1027,3 +1040,7 @@
     </script>
 </body>
 </html>
+
+
+
+

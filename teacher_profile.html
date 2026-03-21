@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Profile - SmartClass Monitor</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <style>
+    .mainx { margin-left: 280px; padding: 1.5rem; background:#f4f6fb; min-height: 100vh; }
+    .cardx { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,0.08); padding:1.5rem; }
+    .gridx { display:grid; grid-template-columns: 2fr 1fr; gap:1rem; }
+    .avatar { width:90px; height:90px; border-radius:50%; background:#4f8ef7; color:#fff; display:flex; align-items:center; justify-content:center; font-size:2rem; font-weight:700; }
+    .stat-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:0.7rem; }
+    .chip { display:inline-block; padding:0.25rem 0.6rem; border-radius:999px; background:#e8efff; color:#1e3a8a; margin:0.1rem; }
+    .act { border:1px solid #e5e7eb; border-radius:10px; padding:0.6rem; margin-bottom:0.45rem; }
+    input { width:100%; border:1px solid #dbe1ee; border-radius:10px; padding:0.6rem; margin-bottom:0.5rem; }
+    .btnx { border:none; border-radius:10px; padding:0.55rem 0.85rem; cursor:pointer; font-weight:600; }
+    .btn-primary { background:#4f8ef7; color:#fff; }
+    .btn-soft { background:#e5e7eb; color:#1f2937; }
+    @media (max-width: 1024px) { .mainx { margin-left: 0; } .gridx { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header"><div class="logo">SC</div><div><h3 style="font-size:1rem;margin:0;">SmartClass</h3><p style="font-size:0.75rem;opacity:0.8;margin:0;">Monitor</p></div></div>
+      <nav class="sidebar-nav">
+        <a href="teacher.html" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-clipboard-list"></i></span>Teacher Dashboard</a>
+        <a href="teacher_profile.html" class="nav-item active"><span class="nav-icon"><i class="fa-solid fa-user"></i></span>My Profile</a>
+        <a href="timetable.html" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-calendar-week"></i></span>Timetable</a>
+      </nav>
+    </aside>
+
+    <main class="mainx">
+      <div class="gridx">
+        <section class="cardx">
+          <h2 style="margin-top:0;">Teacher Profile</h2>
+          <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;">
+            <img id="photo" class="avatar" alt="Profile" style="object-fit:cover;" />
+            <div>
+              <div><strong id="nameText">Teacher</strong></div>
+              <div id="emailText" style="color:#64748b;">-</div>
+              <input type="file" id="photoInput" accept="image/*" />
+              <button class="btnx btn-soft" onclick="uploadPhoto()">Upload Photo</button>
+            </div>
+          </div>
+
+          <input id="nameInput" placeholder="Name" />
+          <input id="departmentInput" placeholder="Department" />
+          <input id="employeeInput" placeholder="Employee ID" />
+          <input id="phoneInput" placeholder="Phone" />
+          <input id="subjectsInput" placeholder="Subjects (comma separated)" />
+          <button class="btnx btn-primary" onclick="saveProfile()">Edit Profile</button>
+
+          <h3>Subjects Taught</h3>
+          <div id="subjectChips"></div>
+        </section>
+
+        <section>
+          <div class="cardx" style="margin-bottom:1rem;">
+            <h3 style="margin-top:0;">Stats</h3>
+            <div class="stat-grid" id="statsGrid"></div>
+          </div>
+          <div class="cardx">
+            <h3 style="margin-top:0;">Activity Log</h3>
+            <div id="activityLog"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const API_BASE = `${window.location.origin}/api`;
+    async function api(path, method='GET', body=null, isForm=false) {
+      const opts = { method, credentials:'include', headers: { Accept:'application/json' } };
+      if (body && !isForm) { opts.headers['Content-Type']='application/json'; opts.body = JSON.stringify(body); }
+      if (body && isForm) opts.body = body;
+      const res = await fetch(`${API_BASE}${path}`, opts);
+      return await res.json();
+    }
+
+    async function loadProfile() {
+      const data = await api('/teacher/profile/');
+      const p = data.profile || {};
+      document.getElementById('nameText').textContent = p.name || 'Teacher';
+      document.getElementById('emailText').textContent = p.email || '-';
+      document.getElementById('nameInput').value = p.name || '';
+      document.getElementById('departmentInput').value = p.department || '';
+      document.getElementById('employeeInput').value = p.employee_id || '';
+      document.getElementById('phoneInput').value = p.phone || '';
+      document.getElementById('subjectsInput').value = (p.subjects || []).join(', ');
+      const photo = document.getElementById('photo');
+      if (p.profile_photo) { photo.src = p.profile_photo; } else { photo.style.display='flex'; photo.removeAttribute('src'); photo.textContent = (p.name || 'T').charAt(0); }
+      const chips = document.getElementById('subjectChips');
+      chips.innerHTML = (p.subjects || []).map(s => `<span class="chip">${s}</span>`).join('');
+    }
+
+    async function saveProfile() {
+      await api('/teacher/profile/', 'PUT', {
+        name: document.getElementById('nameInput').value,
+        department: document.getElementById('departmentInput').value,
+        employee_id: document.getElementById('employeeInput').value,
+        phone: document.getElementById('phoneInput').value,
+        subjects: document.getElementById('subjectsInput').value.split(',').map(x => x.trim()).filter(Boolean),
+      });
+      await loadProfile();
+    }
+
+    async function uploadPhoto() {
+      const file = document.getElementById('photoInput').files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('profile_photo', file);
+      await api('/teacher/profile/photo/', 'POST', fd, true);
+      await loadProfile();
+    }
+
+    async function loadStats() {
+      const data = await api('/teacher/stats/');
+      const s = data.stats || {};
+      document.getElementById('statsGrid').innerHTML = `
+        <div class="act"><div>Total Students Taught</div><strong>${s.total_students_taught || 0}</strong></div>
+        <div class="act"><div>Average Engagement</div><strong>${s.average_class_engagement || 0}%</strong></div>
+        <div class="act"><div>Total Lectures</div><strong>${s.total_lectures_conducted || 0}</strong></div>
+        <div class="act"><div>Syllabus Completion</div><strong>${s.syllabus_completion_rate || 0}%</strong></div>
+      `;
+    }
+
+    async function loadActivity() {
+      const data = await api('/teacher/activity-log/');
+      document.getElementById('activityLog').innerHTML = (data.items || []).slice(0, 10).map(x => `<div class="act">${x.action_text}<div style="font-size:0.8rem;color:#64748b;">${new Date(x.created_at).toLocaleString('en-IN')}</div></div>`).join('') || '<div class="act">No recent activity.</div>';
+    }
+
+    async function loadAll() {
+      await loadProfile();
+      await loadStats();
+      await loadActivity();
+    }
+
+    loadAll();
+  </script>
+</body>
+</html>

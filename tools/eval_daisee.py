@@ -29,6 +29,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--val-split", type=float, default=0.15)
     p.add_argument("--split", choices=["val", "all"], default="val")
     p.add_argument("--max-samples", type=int, default=0, help="Optional cap for quick checks")
+    p.add_argument("--num-classes", type=int, default=4, help="Number of engagement classes")
+    p.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto", help="Torch device")
     return p
 
 
@@ -45,6 +47,35 @@ def load_image_tensor(image_path: Path, input_size: int) -> np.ndarray | None:
 
 def safe_div(a: float, b: float) -> float:
     return (a / b) if b else 0.0
+
+
+def resolve_frame_path(raw_path: object, image_root: Path) -> Path | None:
+    """Resolve frame path from CSV cell safely for absolute and relative forms."""
+    if raw_path is None:
+        return None
+
+    path_text = str(raw_path).strip()
+    if not path_text or path_text.lower() == "nan":
+        return None
+
+    # Normalize separators to support mixed Windows/POSIX CSV exports.
+    path_text = path_text.replace("\\", "/")
+    path_obj = Path(path_text)
+    if path_obj.is_absolute():
+        return path_obj
+    return image_root / path_obj
+
+
+def choose_device(device_arg: str):
+    import torch
+
+    if device_arg == "cpu":
+        return torch.device("cpu")
+    if device_arg == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError("--device cuda requested but CUDA is not available")
+        return torch.device("cuda")
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def compute_scores(y_true: np.ndarray, y_pred: np.ndarray, num_classes: int = 4):
@@ -106,6 +137,10 @@ def main() -> None:
         raise FileNotFoundError(f"CSV not found: {csv_path}")
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+    if not (0.0 < float(args.val_split) < 1.0):
+        raise ValueError("--val-split must be between 0 and 1")
+    if int(args.num_classes) < 2:
+        raise ValueError("--num-classes must be >= 2")
 
     df = pd.read_csv(csv_path)
     if "frame_path" not in df.columns or "engagement" not in df.columns:
@@ -126,7 +161,7 @@ def main() -> None:
     val_count = max(1, int(len(df) * args.val_split))
     eval_df = df.iloc[:val_count].copy() if args.split == "val" else df.copy()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = choose_device(args.device)
     net = DAiSEENet().to(device)
     net.eval()
 
@@ -141,12 +176,14 @@ def main() -> None:
     y_true = []
     y_pred = []
     missing = 0
+    invalid_paths = 0
 
     with torch.no_grad():
         for _, row in eval_df.iterrows():
-            image_path = Path(row["frame_path"])
-            if not image_path.is_absolute():
-                image_path = image_root / image_path
+            image_path = resolve_frame_path(row["frame_path"], image_root=image_root)
+            if image_path is None:
+                invalid_paths += 1
+                continue
 
             x = load_image_tensor(image_path, input_size=input_size)
             if x is None:
@@ -166,14 +203,17 @@ def main() -> None:
     y_true_np = np.array(y_true, dtype=np.int64)
     y_pred_np = np.array(y_pred, dtype=np.int64)
 
-    metrics = compute_scores(y_true_np, y_pred_np, num_classes=4)
+    metrics = compute_scores(y_true_np, y_pred_np, num_classes=int(args.num_classes))
 
     print(f"Eval split: {args.split}")
-    print(f"Samples used: {metrics['total']} | Missing images: {missing}")
+    print(f"Device: {device}")
+    print(
+        f"Samples used: {metrics['total']} | Missing images: {missing} | Invalid frame_path rows: {invalid_paths}"
+    )
     print(f"Accuracy: {metrics['accuracy']:.4f}")
     print(f"Macro-F1: {metrics['macro_f1']:.4f}")
     print(f"Weighted-F1: {metrics['weighted_f1']:.4f}")
-    print("Per-class metrics (0=very_low,1=low,2=high,3=very_high):")
+    print("Per-class metrics:")
     for row in metrics["per_class"]:
         print(
             f"  class {row['class']}: support={row['support']} "

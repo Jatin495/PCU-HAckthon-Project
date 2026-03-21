@@ -55,6 +55,8 @@ function initializeApp() {
     // Initialize forms
 
     initializeForms();
+    initializeFloatingQuickAction();
+    initializeNotificationBadges();
 
     
 
@@ -69,6 +71,58 @@ function initializeApp() {
         initializeRealTimeUpdates();
     }
 
+}
+
+function initializeNotificationBadges() {
+    const badges = document.querySelectorAll('.notification-badge');
+    if (!badges || !badges.length) {
+        return;
+    }
+
+    const refreshUnread = async () => {
+        try {
+            const response = await fetch('/api/notifications/');
+            const data = await response.json();
+            const unread = Number(data.unread || 0);
+            badges.forEach((badge) => {
+                badge.textContent = String(unread);
+                badge.style.display = unread > 0 ? 'inline-flex' : 'none';
+            });
+        } catch (e) {
+            // Keep existing badge values if API is temporarily unavailable.
+        }
+    };
+
+    refreshUnread();
+    setInterval(refreshUnread, 30000);
+}
+
+function initializeFloatingQuickAction() {
+    const page = (window.location.pathname || '').toLowerCase();
+    if (page.includes('login.html') || page.endsWith('/')) {
+        return;
+    }
+
+    if (document.querySelector('.floating-quick-action')) {
+        return;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'floating-quick-action';
+    wrapper.innerHTML = `
+        <div class="quick-action-menu">
+            <a class="quick-action-item" href="live_class.html">Start Live Session</a>
+            <a class="quick-action-item" href="attendance.html">Mark Attendance</a>
+            <a class="quick-action-item" href="student.html">Add Student</a>
+            <a class="quick-action-item" href="reports.html">Generate Report</a>
+        </div>
+        <button class="quick-action-main" aria-label="Quick Actions">+</button>
+    `;
+
+    const btn = wrapper.querySelector('.quick-action-main');
+    btn.addEventListener('click', () => wrapper.classList.toggle('open'));
+
+    document.body.appendChild(wrapper);
 }
 
 
@@ -657,7 +711,7 @@ function createAlertElement(alert) {
 
     const icon = alert.severity === 'high' ? '⚠️' : '⚡';
 
-    const time = new Date(alert.timestamp).toLocaleTimeString();
+    const time = new Date(alert.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 
     
 
@@ -1149,7 +1203,9 @@ function formatTime(date) {
 
         hour: '2-digit',
 
-        minute: '2-digit'
+        minute: '2-digit',
+
+        hour12: true
 
     });
 

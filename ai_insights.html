@@ -1,0 +1,480 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Insights - SmartClass Monitor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">SC</div>
+                <div>
+                    <h3 style="font-size: 1rem; margin: 0;">SmartClass</h3>
+                    <p style="font-size: 0.75rem; opacity: 0.8; margin: 0;">Monitor</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item">
+                    <span class="nav-icon">&#128202;</span>
+                    Dashboard
+                </a>
+                <a href="live_class.html" class="nav-item">
+                    <span class="nav-icon">&#128249;</span>
+                    Live Classroom
+                </a>
+                <a href="attendance.html" class="nav-item">
+                    <span class="nav-icon">&#10003;</span>
+                    Attendance
+                </a>
+                <a href="student.html" class="nav-item">
+                    <span class="nav-icon">&#128101;</span>
+                    Students
+                </a>
+                <a href="teacher.html" class="nav-item">
+                    <span class="nav-icon">&#128105;&#8205;&#127979;</span>
+                    Teacher
+                </a>
+                <a href="reports.html" class="nav-item">
+                    <span class="nav-icon">&#128196;</span>
+                    Reports
+                </a>
+                <a href="analytics.html" class="nav-item">
+                    <span class="nav-icon">&#128200;</span>
+                    Analytics
+                </a>
+                <a href="settings.html" class="nav-item">
+                    <span class="nav-icon">&#9881;&#65039;</span>
+                    Settings
+                </a>
+                <a href="notification_center.html" class="nav-item">
+                    <span class="nav-icon">&#128276;</span>
+                    Notifications
+                </a>
+                <a href="ai_insights.html" class="nav-item active">
+                    <span class="nav-icon">&#129504;</span>
+                    AI Insights
+                </a>
+                                <a href="teacher_profile.html" class="nav-item">
+                    <span class="nav-icon">&#128100;</span>
+                    My Profile
+                </a>
+                <a href="timetable.html" class="nav-item">
+                    <span class="nav-icon">&#128197;</span>
+                    Timetable
+                </a>
+<a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <span class="nav-icon">&#128682;</span>
+                    Logout
+                </a>
+            </nav>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navbar -->
+            <header class="top-navbar">
+                <div class="navbar-left">
+                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">&#9776;</button>
+                    <h1 style="font-size: 1.5rem; font-weight: 600;">AI Insights</h1>
+                </div>
+                
+                <div class="navbar-right">
+                    <div class="notification-bell" title="Unread Notifications">
+                        <span style="font-size: 1.25rem;">Y""</span>
+                        <span class="notification-badge">0</span>
+                    </div>
+                    <div class="user-menu">
+                        <div class="user-avatar" id="userAvatar">T</div>
+                        <div>
+                            <div id="userName" style="font-size: 0.875rem; font-weight: 500;">Teacher</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Online</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- At Risk Students Summary -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #fef3c7 0%, #ffe4a6 100%); border-color: #fcd34d;">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title" style="color: #92400e; margin: 0;">s At-Risk Students</h2>
+                            <p class="card-subtitle" style="color: #b45309;">Students with <50% engagement for 3+ consecutive days</p>
+                        </div>
+                    </div>
+                    <div id="atRiskContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding: 1rem;">
+                        <div style="text-align: center; color: #92400e; padding: 1rem;">Loading...</div>
+                    </div>
+                </div>
+
+                <!-- AI Insights Grid -->
+                <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;" id="insightsContainer">
+                    <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                        <p>Loading AI insights...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <style>
+        .insight-card {
+            background: white;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .insight-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .student-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .student-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--primary-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        .student-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .student-id {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .risk-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .risk-low {
+            background: #ecfdf5;
+            color: #059669;
+        }
+
+        .risk-medium {
+            background: #fffbeb;
+            color: #d97706;
+        }
+
+        .risk-high {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        .insight-body {
+            margin-bottom: 1rem;
+        }
+
+        .chart-container-insight {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            margin-bottom: 1.5rem;
+        }
+
+        .recommendation-box {
+            background: var(--primary-50);
+            border-left: 4px solid var(--primary-color);
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+
+        .recommendation-label {
+            font-weight: 600;
+            color: var(--primary-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .recommendation-text {
+            color: var(--primary-dark);
+            line-height: 1.5;
+            font-size: 0.875rem;
+        }
+
+        .at-risk-item {
+            background: white;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .at-risk-item-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .at-risk-item-id {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .at-risk-item-engagement {
+            font-size: 0.875rem;
+            color: #dc2626;
+            font-weight: 600;
+        }
+
+        .engagement-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .stat-mini {
+            background: var(--gray-50);
+            padding: 0.75rem;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .stat-mini-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .stat-mini-label {
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-top: 0.25rem;
+        }
+    </style>
+
+    <script src="api.js"></script>
+    <script src="main.js"></script>
+    <script>
+        let insightsData = [];
+        let atRiskData = [];
+
+        async function loadInsights() {
+            try {
+                const response = await fetch('/api/ai-insights/');
+                const data = await response.json();
+                
+                if (data.success) {
+                    insightsData = data.insights || [];
+                    renderInsights();
+                }
+            } catch (error) {
+                console.error('Error loading insights:', error);
+            }
+        }
+
+        async function loadAtRiskStudents() {
+            try {
+                const response = await fetch('/api/students/at-risk/');
+                const data = await response.json();
+                
+                if (data.success) {
+                    atRiskData = data.students || [];
+                    renderAtRiskStudents();
+                }
+            } catch (error) {
+                console.error('Error loading at-risk students:', error);
+            }
+        }
+
+        function renderAtRiskStudents() {
+            const container = document.getElementById('atRiskContainer');
+            
+            if (atRiskData.length === 0) {
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 1rem; color: #92400e;">o" No students at risk</div>';
+                return;
+            }
+            
+            container.innerHTML = atRiskData.map(student => `
+                <div class="at-risk-item">
+                    <div class="at-risk-item-name">${student.name}</div>
+                    <div class="at-risk-item-id">${student.student_id}</div>
+                    <div class="at-risk-item-engagement">Avg Engagement: ${student.avg_engagement}%</div>
+                    <a href="#" onclick="scrollToStudent('${student.student_id}')" style="font-size: 0.75rem; color: #d97706; text-decoration: none; margin-top: 0.5rem; display: inline-block;">View Details ?'</a>
+                </div>
+            `).join('');
+        }
+
+        function renderInsights() {
+            const container = document.getElementById('insightsContainer');
+            
+            if (insightsData.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No AI insights available yet</div>';
+                return;
+            }
+            
+            container.innerHTML = insightsData.map((insight, index) => {
+                const trend = insight.engagement_trend || {};
+                const chartId = `chart-${index}`;
+                
+                return `
+                    <div class="insight-card" id="insight-${insight.student_id}">
+                        <div class="insight-header">
+                            <div class="student-info">
+                                <div class="student-avatar">${insight.student_name.charAt(0).toUpperCase()}</div>
+                                <div>
+                                    <div class="student-name">${insight.student_name}</div>
+                                    <div class="student-id">${insight.student_id}</div>
+                                </div>
+                            </div>
+                            <div class="risk-badge risk-${insight.risk_level}">${insight.risk_level.toUpperCase()}</div>
+                        </div>
+                        
+                        <div class="insight-body">
+                            <div class="chart-container-insight">
+                                <canvas id="${chartId}"></canvas>
+                            </div>
+                            
+                            ${insight.recommendation_text ? `
+                                <div class="recommendation-box">
+                                    <div class="recommendation-label">Y"< Recommended Action</div>
+                                    <div class="recommendation-text">${insight.recommendation_text}</div>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="engagement-stats">
+                                <div class="stat-mini">
+                                    <div class="stat-mini-value">${Math.round(insight.risk_level === 'high' ? 35 : insight.risk_level === 'medium' ? 60 : 85)}</div>
+                                    <div class="stat-mini-label">Avg Engagement</div>
+                                </div>
+                                <div class="stat-mini">
+                                    <div class="stat-mini-value">${Object.keys(trend).length}d</div>
+                                    <div class="stat-mini-label">Week Days</div>
+                                </div>
+                                <div class="stat-mini">
+                                    <div class="stat-mini-value">${insight.week_start_date}</div>
+                                    <div class="stat-mini-label">Week Start</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Create engagement trend charts
+            insightsData.forEach((insight, index) => {
+                const chartId = `chart-${index}`;
+                const trend = insight.engagement_trend || {};
+                const days = Object.keys(trend).sort();
+                const values = days.map(day => trend[day] || 0);
+                
+                setTimeout(() => {
+                    const chartElement = document.getElementById(chartId);
+                    if (chartElement) {
+                        new Chart(chartElement, {
+                            type: 'line',
+                            data: {
+                                labels: days.map(d => new Date(d).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})),
+                                datasets: [{
+                                    label: 'Engagement Score',
+                                    data: values,
+                                    borderColor: '#3b82f6',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    borderWidth: 2,
+                                    fill: true,
+                                    tension: 0.4,
+                                    pointBackgroundColor: '#3b82f6',
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6,
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        display: false
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        min: 0,
+                                        max: 100,
+                                        ticks: {
+                                            callback: function(value) {
+                                                return value + '%';
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }, 100);
+            });
+        }
+
+        function scrollToStudent(studentId) {
+            const element = document.getElementById(`insight-${studentId}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                element.style.backgroundColor = '#fef3c7';
+                setTimeout(() => {
+                    element.style.backgroundColor = 'white';
+                }, 2000);
+            }
+        }
+
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                window.location.href = 'login.html';
+            }
+        }
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAtRiskStudents();
+            loadInsights();
+            
+            // Refresh every 60 seconds
+            setInterval(() => {
+                loadAtRiskStudents();
+                loadInsights();
+            }, 60000);
+        });
+    </script>
+</body>
+</html>
+
+
+
+

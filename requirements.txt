@@ -9,3 +9,8 @@ fer
 numpy
 pandas
 openpyxl
+deepface
+tf-keras
+scikit-learn
+Pillow
+reportlab

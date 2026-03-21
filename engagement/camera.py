@@ -11,6 +11,11 @@ import logging
 import os
 from datetime import datetime
 from collections import deque
+from collections import Counter
+
+from django.utils import timezone
+
+from .models import Notification
 
 from django.views.decorators.csrf import csrf_exempt
 
@@ -25,11 +30,11 @@ class CameraProcessor:
         self.camera = None
         self.is_running = False
         self.thread = None
+        self._state_lock = threading.Lock()
         self.frame_lock = threading.Lock()
         self.current_frame = None
         self._fer_detector = None
         self._mp_face_detection = None
-        self._haar_face_cascade = None
         self._fer_init_attempted = False
         self._fer2013_init_attempted = False
         self._mp_init_attempted = False
@@ -52,6 +57,10 @@ class CameraProcessor:
         self.current_emotions = {}
         self.faces_detected = 0
         self.avg_engagement = 0
+        self.emotion_history = deque(maxlen=10)
+        self._last_confusion_notification_at = None
+        # Track unknown detections across frames to suppress short-lived false positives.
+        self._unknown_tracks = []
 
         # FER + DAiSEE-inspired fusion controls.
         # NOTE: daisee component here is a proxy scorer unless you plug in a trained DAiSEE model.
@@ -71,6 +80,11 @@ class CameraProcessor:
         
     def start(self, source=0):
         """Start camera processing"""
+        with self._state_lock:
+            if self.is_running:
+                logger.info("Camera start ignored: already running")
+                return True
+
         try:
             # Refresh known student encodings at stream start.
             try:
@@ -82,6 +96,15 @@ class CameraProcessor:
 
             # Try to initialize camera
             self.camera = cv2.VideoCapture(source)
+
+            # Request better capture defaults where supported.
+            try:
+                self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, float(os.getenv('CAMERA_WIDTH', '1280')))
+                self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, float(os.getenv('CAMERA_HEIGHT', '720')))
+                self.camera.set(cv2.CAP_PROP_FPS, float(os.getenv('CAMERA_FPS', '30')))
+                self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            except Exception:
+                pass
             
             # Check if camera opened successfully
             if not self.camera.isOpened():
@@ -109,22 +132,28 @@ class CameraProcessor:
     
     def stop(self):
         """Stop camera processing - BUGFIX-2: properly terminate all threads"""
-        logger.info("Stopping video stream...")
-        self.is_running = False
+        with self._state_lock:
+            if not self.is_running:
+                logger.info("Camera stop ignored: already stopped")
+                return
+            logger.info("Stopping video stream...")
+            self.is_running = False
+            local_thread = self.thread
+            local_camera = self.camera
+            self.thread = None
+            self.camera = None
         
         # Wait for capture thread to finish its current iteration
-        if self.thread and self.thread.is_alive():
-            self.thread.join(timeout=2.0)
+        if local_thread and local_thread.is_alive():
+            local_thread.join(timeout=2.0)
         
         # Now safely release camera
-        if self.camera:
+        if local_camera:
             try:
-                self.camera.release()
+                local_camera.release()
                 logger.info("✅ cv2.VideoCapture released")
             except Exception as e:
                 logger.error(f"cap.release() error: {e}")
-            finally:
-                self.camera = None
         
         # Reset detectors so they can reinitialize cleanly on next start.
         self._fer_detector = None
@@ -134,7 +163,6 @@ class CameraProcessor:
             except Exception:
                 pass
         self._mp_face_detection = None
-        self._haar_face_cascade = None
         self._fer_init_attempted = False
         self._fer2013_init_attempted = False
         self._mp_init_attempted = False
@@ -147,8 +175,12 @@ class CameraProcessor:
         self.annotated_frame = None
         self.last_analysis_result = None
         
-        # Force OpenCV to release all camera handles
-        cv2.destroyAllWindows()
+        # Avoid destroyAllWindows in server mode; on some builds it can crash when no GUI backend exists.
+        if str(os.getenv('ENABLE_CV2_DESTROY_WINDOWS', '0')).strip().lower() in {'1', 'true', 'yes', 'on'}:
+            try:
+                cv2.destroyAllWindows()
+            except Exception:
+                pass
         
         import gc
         gc.collect()
@@ -261,8 +293,8 @@ class CameraProcessor:
     def _analyze_frame(self, frame):
         """BUGFIX-1: Analyze frame for faces and emotions using FER with fallback"""
         try:
-            # Make a copy for processing
-            analysis_frame = frame.copy()
+            # Make a copy for processing and improve low-light quality with CLAHE.
+            analysis_frame = self._apply_clahe_preprocessing(frame.copy())
 
             # Initialize face recognition system lazily.
             if self.face_recognition_system is None:
@@ -306,8 +338,7 @@ class CameraProcessor:
                     )
                 except Exception as e:
                     logger.warning(
-                        f"MediaPipe face detector disabled: {e}. "
-                        "Using OpenCV Haar fallback instead."
+                        f"MediaPipe face detector disabled: {e}."
                     )
                     self._mp_face_detection = None
 
@@ -329,12 +360,33 @@ class CameraProcessor:
                 
                 if results.detections:
                     h, w, _ = analysis_frame.shape
+                    min_mp_conf = float(os.getenv('MEDIAPIPE_MIN_CONFIDENCE', '0.65'))
+                    min_face_px = int(float(os.getenv('MIN_FACE_SIZE_PX', '52')))
+                    min_face_ratio = float(os.getenv('MIN_FACE_AREA_RATIO', '0.008'))
                     import random
                     for detection in results.detections:
+                        det_score = 0.0
+                        try:
+                            det_score = float((detection.score or [0.0])[0])
+                        except Exception:
+                            det_score = 0.0
+                        if det_score < min_mp_conf:
+                            continue
+
                         bboxC = detection.location_data.relative_bounding_box
                         x, y, bw, bh = int(bboxC.xmin * w), int(bboxC.ymin * h), int(bboxC.width * w), int(bboxC.height * h)
                         if x < 0: x = 0
                         if y < 0: y = 0
+
+                        # Reject obvious background artifacts (window tiles, posters, etc.).
+                        if bw < min_face_px or bh < min_face_px:
+                            continue
+                        area_ratio = float(bw * bh) / float(max(1, h * w))
+                        if area_ratio < min_face_ratio:
+                            continue
+                        face_ratio = float(bw) / float(max(1, bh))
+                        if face_ratio < 0.5 or face_ratio > 1.9:
+                            continue
 
                         face_roi = analysis_frame[max(0, y):max(0, y) + max(0, bh), max(0, x):max(0, x) + max(0, bw)] if bw > 0 and bh > 0 else None
                         dom_emotion, conf = self._predict_emotion_from_face(face_roi)
@@ -351,47 +403,7 @@ class CameraProcessor:
                             'emotions': {dom_emotion: conf}
                         })
 
-            # 3. Final fallback: OpenCV Haar face detector + neutral/focused emotions.
-            # This keeps engagement/emotion widgets populated even if FER/MediaPipe are unavailable.
-            if not fer_results:
-                try:
-                    if self._haar_face_cascade is None:
-                        self._haar_face_cascade = cv2.CascadeClassifier(
-                            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-                        )
-
-                    gray = cv2.cvtColor(analysis_frame, cv2.COLOR_BGR2GRAY)
-                    haar_faces = self._haar_face_cascade.detectMultiScale(
-                        gray,
-                        scaleFactor=1.1,
-                        minNeighbors=5,
-                        minSize=(40, 40)
-                    )
-
-                    for (x, y, bw, bh) in haar_faces:
-                        face_roi = analysis_frame[max(0, y):max(0, y) + max(0, bh), max(0, x):max(0, x) + max(0, bw)] if bw > 0 and bh > 0 else None
-                        dom_emotion, conf = self._predict_emotion_from_face(face_roi)
-
-                        if dom_emotion is None:
-                            # Slightly prefer neutral/focused for conservative fallback.
-                            face_area = bw * bh
-                            frame_area = analysis_frame.shape[0] * analysis_frame.shape[1]
-                            relative_size = face_area / frame_area if frame_area > 0 else 0
-                            if relative_size > 0.03:
-                                dom_emotion = 'focused'
-                                conf = 0.62
-                            else:
-                                dom_emotion = 'neutral'
-                                conf = 0.58
-
-                        fer_results.append({
-                            'box': [int(x), int(y), int(bw), int(bh)],
-                            'emotions': {dom_emotion: conf}
-                        })
-                except Exception as e:
-                    logger.warning(f"OpenCV Haar fallback failed: {e}")
-
-            # Check if neither succeeded
+            # Check if neither FER nor MediaPipe produced faces.
             if not fer_results:
                 self.students_data = []
                 self.recognized_students = []
@@ -407,6 +419,7 @@ class CameraProcessor:
             recognized_students = []
             emotion_distribution = {}
             total_engagement = 0
+            now_ts = time.time()
             
             # Process each detected face
             for face_index, face_data in enumerate(fer_results, start=1):
@@ -418,6 +431,13 @@ class CameraProcessor:
                 box = [int(float(v)) for v in raw_box[:4]]  # [x, y, w, h]
                 emotions = face_data['emotions']  # dict of emotion: score
                 x, y, bw, bh = box
+
+                # Generic size/shape gate for both FER and fallback detections.
+                if bw < int(float(os.getenv('MIN_FACE_SIZE_PX', '52'))) or bh < int(float(os.getenv('MIN_FACE_SIZE_PX', '52'))):
+                    continue
+                face_ratio = float(bw) / float(max(1, bh))
+                if face_ratio < 0.5 or face_ratio > 1.95:
+                    continue
                 
                 # Get dominant emotion
                 dominant_emotion = max(emotions, key=emotions.get)
@@ -437,14 +457,16 @@ class CameraProcessor:
                     'confused': 'confused'
                 }
                 mapped_emotion = emotion_map.get(dominant_emotion, 'neutral')
+                mapped_emotion = self._get_temporally_smoothed_emotion(mapped_emotion)
                 
                 # FER base engagement score from emotion/confidence.
+                # Keep neutral conservative so "not engaged" does not get inflated scores.
                 engagement_weights = {
-                    'happy': 85, 'focused': 90, 'neutral': 65,
-                    'confused': 40, 'bored': 25
+                    'happy': 80, 'focused': 88, 'neutral': 50,
+                    'confused': 32, 'bored': 20
                 }
                 fer_engagement = engagement_weights.get(mapped_emotion, 60)
-                fer_engagement = min(100, fer_engagement + (confidence * 15))
+                fer_engagement = min(100, fer_engagement + (confidence * 10))
 
                 face_roi = analysis_frame[max(0, y):max(0, y) + max(0, bh), max(0, x):max(0, x) + max(0, bw)] if bw > 0 and bh > 0 else None
 
@@ -455,24 +477,54 @@ class CameraProcessor:
                     face_roi=face_roi,
                 )
 
-                # Final fused engagement.
-                dynamic_fer_weight = self.fer_weight
-                dynamic_daisee_weight = self.daisee_weight
-                if mapped_emotion in ['bored', 'confused']:
-                    dynamic_fer_weight = min(0.65, self.fer_weight + 0.25)
-                    dynamic_daisee_weight = 1.0 - dynamic_fer_weight
+                # Multi-factor engagement score:
+                # emotion 40%, eye_contact 30%, posture 20%, head_direction 10%.
+                frame_h, frame_w = analysis_frame.shape[:2]
+                face_center_x = x + (bw / 2)
+                face_center_y = y + (bh / 2)
+                center_offset = abs(face_center_x - (frame_w / 2)) / max(1, (frame_w / 2))
+                horizontal_offset = (face_center_x - (frame_w / 2)) / max(1, (frame_w / 2))
+                vertical_offset = ((frame_h / 2) - face_center_y) / max(1, (frame_h / 2))
 
-                engagement_score = self._fuse_engagement_scores(
-                    fer_engagement,
-                    daisee_engagement,
-                    fer_weight=dynamic_fer_weight,
-                    daisee_weight=dynamic_daisee_weight,
+                # Head-direction proxy from face geometry + left-right luminance balance.
+                face_ratio = float(bw) / float(max(1, bh))
+                ratio_score = max(0.0, 1.0 - min(abs(face_ratio - 0.78) / 0.38, 1.0))
+                balance_score = 0.5
+                if face_roi is not None and face_roi.size > 0:
+                    try:
+                        roi_gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+                        mid = max(1, roi_gray.shape[1] // 2)
+                        left_mean = float(np.mean(roi_gray[:, :mid]))
+                        right_mean = float(np.mean(roi_gray[:, mid:]))
+                        balance_score = max(0.0, 1.0 - min(abs(left_mean - right_mean) / 110.0, 1.0))
+                    except Exception:
+                        balance_score = 0.5
+
+                head_direction_score = float(np.clip(
+                    ((ratio_score * 0.55) + (balance_score * 0.45)) * 100.0 - (center_offset * 20.0),
+                    10,
+                    100,
+                ))
+
+                base_eye_contact = {
+                    'focused': 85,
+                    'happy': 74,
+                    'neutral': 48,
+                    'confused': 34,
+                    'bored': 18,
+                }.get(mapped_emotion, 45)
+                eye_contact_score = float(np.clip(base_eye_contact + ((head_direction_score - 50.0) * 0.35), 10, 95))
+
+                # Posture is a weak proxy from face size in frame; keep moderate weight contribution.
+                posture_score = float(np.clip(35 + (bh / max(1, frame_h)) * 55, 10, 90))
+
+                engagement_score = (
+                    (fer_engagement * 0.40)
+                    + (eye_contact_score * 0.30)
+                    + (posture_score * 0.20)
+                    + (head_direction_score * 0.10)
                 )
                 
-                # Draw bounding box and label on frame
-                color = (0, 255, 0) if engagement_score > 60 else (0, 0, 255)
-                cv2.rectangle(analysis_frame, (x, y), (x+bw, y+bh), color, 2)
-
                 # Try to identify registered student by face.
                 detected_student_id = None
                 detected_student_name = None
@@ -494,15 +546,36 @@ class CameraProcessor:
                     except Exception as e:
                         logger.debug(f"Face identify failed for one face: {e}")
 
+                # Suppress short-lived unknown detections (common on windows/posters).
+                # Registered students remain visible immediately.
+                if not detected_student_id:
+                    stable_frames_required = int(float(os.getenv('UNKNOWN_MIN_STABLE_FRAMES', '5')))
+                    streak = self._update_unknown_streak(box, now_ts)
+                    if streak < stable_frames_required:
+                        continue
+
                 # Two-line label: emotion + explicit engagement percentage.
                 emotion_label = f"Emotion: {mapped_emotion}"
                 engagement_label = f"Engagement: {engagement_score:.0f}%"
+                if engagement_score < 45:
+                    engagement_status_label = "Status: LOW ENGAGEMENT"
+                elif engagement_score < 65:
+                    engagement_status_label = "Status: MODERATE"
+                else:
+                    engagement_status_label = "Status: HIGH"
                 if detected_student_id:
                     student_label = f"Student: {detected_student_id}"
                     if detected_student_name:
                         student_label = f"{student_label} ({detected_student_name})"
+                    # Registered students are green.
+                    color = (0, 255, 0)
                 else:
                     student_label = "Student: Unregistered"
+                    # Unregistered but valid faces are orange.
+                    color = (0, 165, 255)
+
+                # Draw bounding box and label on frame
+                cv2.rectangle(analysis_frame, (x, y), (x+bw, y+bh), color, 2)
 
                 # Keep text inside frame bounds when face is near the top edge.
                 label_y = y - 28 if y > 35 else y + bh + 18
@@ -533,6 +606,15 @@ class CameraProcessor:
                     color,
                     2,
                 )
+                cv2.putText(
+                    analysis_frame,
+                    engagement_status_label,
+                    (x, label_y + 54),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    color,
+                    2,
+                )
                 
                 # Count emotions
                 emotion_distribution[mapped_emotion] = emotion_distribution.get(mapped_emotion, 0) + 1
@@ -552,8 +634,12 @@ class CameraProcessor:
                     'daisee_engagement_score': round(daisee_engagement, 1),
                     'engagement_source': 'fer+daisee-fusion',
                     'attention_score': round(engagement_score * 0.9, 1),
-                    'posture_score': 70.0,
-                    'is_looking_forward': mapped_emotion in ['focused', 'happy', 'neutral'],
+                    'posture_score': round(posture_score, 1),
+                    'head_direction_score': round(head_direction_score, 1),
+                    'eye_contact_score': round(eye_contact_score, 1),
+                    'vertical_offset': round(float(vertical_offset), 3),
+                    'horizontal_offset': round(float(horizontal_offset), 3),
+                    'is_looking_forward': head_direction_score >= 60 and mapped_emotion not in ['bored', 'confused'],
                     'face_bbox': box,
                 })
 
@@ -569,8 +655,12 @@ class CameraProcessor:
                         'daisee_engagement': round(daisee_engagement, 1),
                         'emotion_confidence': round(confidence, 2),
                         'confidence': round(float(match_confidence or confidence or 0.0), 3),
-                        'is_looking_forward': mapped_emotion in ['focused', 'happy', 'neutral'],
-                        'posture_score': 70.0,
+                        'head_direction_score': round(head_direction_score, 1),
+                        'eye_contact_score': round(eye_contact_score, 1),
+                        'vertical_offset': round(float(vertical_offset), 3),
+                        'horizontal_offset': round(float(horizontal_offset), 3),
+                        'is_looking_forward': head_direction_score >= 60 and mapped_emotion not in ['bored', 'confused'],
+                        'posture_score': round(posture_score, 1),
                         'face_registered': True,
                     })
             
@@ -583,6 +673,7 @@ class CameraProcessor:
             self.avg_engagement = avg_engagement
             self.students_data = students_data
             self.recognized_students = recognized_students
+            self._maybe_create_confusion_notification(emotion_distribution, face_count)
             
             # Add info overlay
             registered_count = len(recognized_students)
@@ -605,6 +696,101 @@ class CameraProcessor:
         except Exception as e:
             logger.error(f"Analysis error: {e}")
             return frame
+
+    def _compute_iou(self, a, b):
+        """Compute IoU between two [x, y, w, h] boxes."""
+        ax1, ay1, aw, ah = a
+        bx1, by1, bw, bh = b
+        ax2, ay2 = ax1 + aw, ay1 + ah
+        bx2, by2 = bx1 + bw, by1 + bh
+
+        ix1 = max(ax1, bx1)
+        iy1 = max(ay1, by1)
+        ix2 = min(ax2, bx2)
+        iy2 = min(ay2, by2)
+        iw = max(0, ix2 - ix1)
+        ih = max(0, iy2 - iy1)
+        inter = iw * ih
+        if inter <= 0:
+            return 0.0
+
+        area_a = max(1, aw * ah)
+        area_b = max(1, bw * bh)
+        union = max(1, area_a + area_b - inter)
+        return float(inter) / float(union)
+
+    def _update_unknown_streak(self, box, now_ts):
+        """Update and return stability streak for unknown face candidates."""
+        max_age_sec = float(os.getenv('UNKNOWN_TRACK_MAX_AGE_SEC', '1.2'))
+        iou_threshold = float(os.getenv('UNKNOWN_TRACK_IOU', '0.35'))
+
+        # Drop stale tracks.
+        self._unknown_tracks = [t for t in self._unknown_tracks if (now_ts - t.get('last_seen', 0)) <= max_age_sec]
+
+        best_idx = -1
+        best_iou = 0.0
+        for idx, track in enumerate(self._unknown_tracks):
+            iou = self._compute_iou(box, track.get('box', [0, 0, 0, 0]))
+            if iou > best_iou:
+                best_iou = iou
+                best_idx = idx
+
+        if best_idx >= 0 and best_iou >= iou_threshold:
+            self._unknown_tracks[best_idx]['box'] = box
+            self._unknown_tracks[best_idx]['last_seen'] = now_ts
+            self._unknown_tracks[best_idx]['streak'] = int(self._unknown_tracks[best_idx].get('streak', 0)) + 1
+            return self._unknown_tracks[best_idx]['streak']
+
+        self._unknown_tracks.append({
+            'box': box,
+            'streak': 1,
+            'last_seen': now_ts,
+        })
+        return 1
+
+    def _apply_clahe_preprocessing(self, frame):
+        """Improve low-light frames using CLAHE on LAB L-channel."""
+        try:
+            # Only run CLAHE in genuinely low-light scenes to avoid adding noise/artifacts.
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            if float(np.mean(gray)) > float(os.getenv('CLAHE_BRIGHTNESS_THRESHOLD', '92')):
+                return frame
+
+            lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=float(os.getenv('CLAHE_CLIP_LIMIT', '1.8')), tileGridSize=(8, 8))
+            l_enhanced = clahe.apply(l)
+            merged = cv2.merge((l_enhanced, a, b))
+            return cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
+        except Exception:
+            return frame
+
+    def _get_temporally_smoothed_emotion(self, emotion_label):
+        """Majority vote over the last 10 frames for stable emotion labels."""
+        self.emotion_history.append(emotion_label)
+        if not self.emotion_history:
+            return emotion_label
+        return Counter(self.emotion_history).most_common(1)[0][0]
+
+    def _maybe_create_confusion_notification(self, emotion_distribution, face_count):
+        """Create notification when confusion exceeds 30%."""
+        if not emotion_distribution or face_count <= 0:
+            return
+        confused = float(emotion_distribution.get('confused', 0) or 0)
+        ratio = confused / float(face_count)
+        if ratio <= 0.30:
+            return
+
+        now = timezone.now()
+        if self._last_confusion_notification_at and (now - self._last_confusion_notification_at).total_seconds() < 120:
+            return
+
+        self._last_confusion_notification_at = now
+        Notification.objects.create(
+            type='alert',
+            message=f'Live confusion alert: {ratio * 100:.1f}% students are confused.',
+            related_student=None,
+        )
     
     def _generate_demo_frame(self):
         """Generate a demo frame with fake data and emotions"""

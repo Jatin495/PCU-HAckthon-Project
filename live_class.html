@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -24,39 +24,55 @@
             
             <nav class="sidebar-nav">
                 <a href="dashboard.html" class="nav-item">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon">&#128202;</span>
                     Dashboard
                 </a>
                 <a href="live_class.html" class="nav-item active">
-                    <span class="nav-icon">📹</span>
+                    <span class="nav-icon">&#128249;</span>
                     Live Classroom
                 </a>
                 <a href="attendance.html" class="nav-item">
-                    <span class="nav-icon">✓</span>
+                    <span class="nav-icon">&#10003;</span>
                     Attendance
                 </a>
                 <a href="student.html" class="nav-item">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">&#128101;</span>
                     Students
                 </a>
                 <a href="teacher.html" class="nav-item">
-                    <span class="nav-icon">🧑‍🏫</span>
+                    <span class="nav-icon">&#128105;&#8205;&#127979;</span>
                     Teacher
                 </a>
                 <a href="reports.html" class="nav-item">
-                    <span class="nav-icon">📄</span>
+                    <span class="nav-icon">&#128196;</span>
                     Reports
                 </a>
                 <a href="analytics.html" class="nav-item">
-                    <span class="nav-icon">📈</span>
+                    <span class="nav-icon">&#128200;</span>
                     Analytics
                 </a>
                 <a href="settings.html" class="nav-item">
-                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-icon">&#9881;&#65039;</span>
                     Settings
                 </a>
-                <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
-                    <span class="nav-icon">🚪</span>
+                    <a href="notification_center.html" class="nav-item">
+                        <span class="nav-icon">&#128276;</span>
+                        Notifications
+                    </a>
+                    <a href="ai_insights.html" class="nav-item">
+                        <span class="nav-icon">&#129504;</span>
+                        AI Insights
+                    </a>
+                                <a href="teacher_profile.html" class="nav-item">
+                    <span class="nav-icon">&#128100;</span>
+                    My Profile
+                </a>
+                <a href="timetable.html" class="nav-item">
+                    <span class="nav-icon">&#128197;</span>
+                    Timetable
+                </a>
+<a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <span class="nav-icon">&#128682;</span>
                     Logout
                 </a>
             </nav>
@@ -67,7 +83,7 @@
             <!-- Top Navbar -->
             <header class="top-navbar">
                 <div class="navbar-left">
-                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">☰</button>
+                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">&#9776;</button>
                     <h1 style="font-size: 1.5rem; font-weight: 600;">Live Classroom</h1>
                     <span class="badge badge-success" style="margin-left: 1rem;">
                         <span style="display: inline-block; width: 8px; height: 8px; background: currentColor; border-radius: 50%; margin-right: 0.5rem; animation: pulse 2s infinite;"></span>
@@ -77,12 +93,12 @@
                 
                 <div class="navbar-right">
                     <div class="search-bar">
-                        <span class="search-icon">🔍</span>
+                        <span class="search-icon">&#128269;</span>
                         <input type="text" placeholder="Search students...">
                     </div>
                     
                     <div class="notification-bell">
-                        <span style="font-size: 1.25rem;">🔔</span>
+                        <span style="font-size: 1.25rem;">&#128276;</span>
                         <span class="notification-badge">2</span>
                     </div>
                     
@@ -116,16 +132,14 @@
                 <!-- Controls Bar -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                     <div style="display: flex; gap: 1rem; align-items: center;">
-                        <button id="monitoringBtn" class="btn btn-success" onclick="toggleMonitoring()">
-                            <span>▶️</span> Start Monitoring
+                        <button id="monitoringBtn" class="btn btn-success" onclick="toggleMonitoring()">Start Monitoring
                         </button>
                         <select id="cameraSource" class="form-select" style="width: 200px;">
                             <option value="0">Camera 1 - Main Room</option>
                             <option value="1">Camera 2 - Side View</option>
                             <option value="2">Camera 3 - Wide Angle</option>
                         </select>
-                        <button class="btn btn-secondary" onclick="takeScreenshot()" style="background: #6c757d; border: none; padding: 8px 16px; cursor: pointer;">
-                            <span>📷</span> Screenshot
+                        <button class="btn btn-secondary" onclick="takeScreenshot()" style="background: #6c757d; border: none; padding: 8px 16px; cursor: pointer;">Screenshot
                         </button>
                     </div>
                     
@@ -149,8 +163,7 @@
                                 <p class="card-subtitle">AI-powered face detection and emotion analysis</p>
                             </div>
                             <div style="display: flex; gap: 0.5rem;">
-                                <button class="btn btn-sm btn-secondary" onclick="toggleZoom()">
-                                    <span>�</span> Zoom
+                                <button class="btn btn-sm btn-secondary" onclick="toggleZoom()">Zoom
                                 </button>
                             </div>
                         </div>
@@ -165,10 +178,10 @@
                             
                             <div id="videoPlaceholder" class="video-placeholder">
                                 <div style="text-align: center;">
-                                    <div style="font-size: 3rem; margin-bottom: 1rem;">📹</div>
+                                    <div style="font-size: 3rem; margin-bottom: 1rem;">[CAM]</div>
                                     <p>Camera Feed - CS101 Classroom</p>
                                     <p style="font-size: 0.875rem; opacity: 0.8; margin-top: 0.5rem;">Click "Start Monitoring" to begin live analysis</p>
-                                    <p id="backendStatus" style="font-size: 0.75rem; margin-top: 0.5rem; color: var(--text-secondary);">⏳ Connecting to backend...</p>
+                                    <p id="backendStatus" style="font-size: 0.75rem; margin-top: 0.5rem; color: var(--text-secondary);"> Connecting to backend...</p>
                                 </div>
                             </div>
                             
@@ -276,6 +289,52 @@
         let activeSessionId = null;
         let lastLiveData = null;
         let monitoringBusy = false;
+        let persistedLiveAlerts = [];
+        let hiddenFaceAlertState = {};
+        let lookingAwayAlertState = {};
+
+        function _alertTimestampValue(alert) {
+            const ts = alert && alert.timestamp ? new Date(alert.timestamp).getTime() : NaN;
+            if (!Number.isNaN(ts)) return ts;
+            return Date.now();
+        }
+
+        function _alertKey(alert) {
+            if (alert && alert.id) return String(alert.id);
+            const actor = String((alert && (alert.student_name || alert.student_id)) || 'classroom');
+            const msg = String((alert && alert.message) || '').trim();
+            const t = String((alert && (alert.timestamp || alert.time)) || '').trim();
+            const type = String((alert && alert.type) || 'alert');
+            return `${type}|${actor}|${msg}|${t}`;
+        }
+
+        function mergePersistedAlerts(incomingAlerts) {
+            const next = Array.isArray(incomingAlerts) ? incomingAlerts : [];
+            const seen = new Set(persistedLiveAlerts.map(_alertKey));
+            let added = 0;
+
+            next.forEach((a) => {
+                const key = _alertKey(a);
+                if (!seen.has(key)) {
+                    persistedLiveAlerts.unshift(a);
+                    seen.add(key);
+                    added += 1;
+                }
+            });
+
+            persistedLiveAlerts.sort((a, b) => _alertTimestampValue(b) - _alertTimestampValue(a));
+            persistedLiveAlerts = persistedLiveAlerts.slice(0, 30);
+            return added;
+        }
+
+        function blinkAlertBadgeOnce() {
+            const badge = document.getElementById('alertCount');
+            if (!badge) return;
+            badge.classList.remove('alert-badge-blink-once');
+            // Force reflow so repeated additions can retrigger the single animation.
+            void badge.offsetWidth;
+            badge.classList.add('alert-badge-blink-once');
+        }
 
         function sleep(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
@@ -307,11 +366,11 @@
             if (videoPlaceholder) {
                 videoPlaceholder.style.display = 'none';
             }
-            console.log('✅ Video feed loaded successfully');
+            console.log('o. Video feed loaded successfully');
         }
         
         function handleVideoError() {
-            console.warn('⚠️ Video feed error, retrying...');
+            console.warn('s Video feed error, retrying...');
             const videoImg = document.getElementById('liveCameraFeed');
             const videoPlaceholder = document.getElementById('videoPlaceholder');
             const backendStatus = document.getElementById('backendStatus');
@@ -324,7 +383,7 @@
             }
             
             if (videoPlaceholder && backendStatus) {
-                backendStatus.textContent = '⚠️ Camera connection failed, retrying...';
+                backendStatus.textContent = 's Camera connection failed, retrying...';
                 backendStatus.style.color = '#f59e0b';
             }
         }
@@ -362,6 +421,7 @@
             const unit = sessionData.unit || '';
             const topicName = sessionData.topic_name || '';
             const dailyPlanId = sessionData.daily_plan_id || null;
+            const lecturePlanId = sessionData.lecture_plan_id || null;
             
             if (window.SmartClassAPI) {
                 try {
@@ -385,6 +445,7 @@
                             unit: unit,
                             topic_name: topicName,
                             daily_plan_id: dailyPlanId,
+                            lecture_plan_id: lecturePlanId,
                         });
                         if (!backendSessionData || !backendSessionData.id) {
                             await sleep(300);
@@ -400,6 +461,7 @@
                             unit: unit,
                             topic_name: topicName,
                             daily_plan_id: dailyPlanId,
+                            lecture_plan_id: lecturePlanId,
                             camera_source: selectedCamera,
                             teacher_id: teacherData.id || 1,
                         });
@@ -436,7 +498,7 @@
 
                         startLiveAlertSystem();
                         startLiveUpdates();
-                        console.log('✅ Live monitoring started successfully with backend session', backendSessionData.id);
+                        console.log('o. Live monitoring started successfully with backend session', backendSessionData.id);
                     }
                 } catch (e) {
                     console.error('Live monitoring start failed:', e);
@@ -511,7 +573,7 @@
                 
                 // Update status to show camera is working
                 if (backendStatus) {
-                    backendStatus.textContent = streamStarted ? '🟢 Backend Online' : '🟡 Backend Online (Camera Demo Mode)';
+                    backendStatus.textContent = streamStarted ? 'YY Backend Online' : 'YY Backend Online (Camera Demo Mode)';
                     backendStatus.style.color = '#22c55e';
                 }
             } else {
@@ -523,13 +585,13 @@
                 if (videoPlaceholder && backendStatus) {
                     videoPlaceholder.innerHTML = `
                         <div style="text-align: center;">
-                            <div style="font-size: 3rem; margin-bottom: 1rem;">📹</div>
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">[CAM]</div>
                             <p>Camera Feed - CS101 Classroom</p>
                             <p style="font-size: 0.875rem; opacity: 0.8; margin-top: 0.5rem;">Unable to start live monitoring session.</p>
                             <p style="font-size: 0.75rem; opacity: 0.75; margin-top: 0.5rem;">Try another camera source and click Start Monitoring again.</p>
                         </div>
                     `;
-                    backendStatus.textContent = '❌ Camera start failed';
+                    backendStatus.textContent = 'O Camera start failed';
                     backendStatus.style.color = '#ef4444';
                 }
             }
@@ -612,7 +674,7 @@
             }
 
             activeSessionId = null;
-            console.log('✅ Stop request completed');
+            console.log('o. Stop request completed');
 
             // Stop MJPEG feed
             const videoImg = document.getElementById('liveCameraFeed');
@@ -641,7 +703,7 @@
                 videoPlaceholder.style.display = 'flex';
                 videoPlaceholder.innerHTML = `
                     <div style="text-align: center;">
-                        <div style="font-size: 3rem; margin-bottom: 1rem;">📹</div>
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">[CAM]</div>
                         <p>Camera Feed - CS101 Classroom</p>
                         <p style="font-size: 0.875rem; opacity: 0.8; margin-top: 0.5rem;">Click "Start Monitoring" to begin live analysis</p>
                     </div>
@@ -782,14 +844,13 @@
         }
         
         function updateLiveAlerts() {
-            if (!lastLiveData) {
-                return;
+            const alerts = (lastLiveData && Array.isArray(lastLiveData.alerts)) ? lastLiveData.alerts : [];
+            const added = mergePersistedAlerts(alerts);
+            if (added > 0) {
+                blinkAlertBadgeOnce();
             }
-
-            const alerts = Array.isArray(lastLiveData.alerts) ? lastLiveData.alerts : [];
-
-            // Render locally so live_class controls timezone/ordering consistently.
-            renderLiveAlertsLocal(alerts);
+            // Render with newest first, old alerts below.
+            renderLiveAlertsLocal(persistedLiveAlerts);
         }
 
         function renderLiveAlertsLocal(alerts) {
@@ -842,15 +903,16 @@
             }
 
             container.innerHTML = '';
-            alerts.slice(0, 8).forEach((alert) => {
+            alerts.slice(0, 12).forEach((alert) => {
                 const severity = alert.severity || 'medium';
                 const actor = alert.student_name || 'Classroom';
                 const timeText = formatAlertTime12h(alert);
                 const toneClass = severity === 'high' ? 'danger' : severity === 'low' ? 'info' : 'warning';
-                const icon = severity === 'high' ? '⚠️' : '⚡';
+                const icon = severity === 'high' ? 's' : 's';
+                const key = _alertKey(alert);
 
                 const item = document.createElement('div');
-                item.className = `alert alert-${toneClass} fade-in`;
+                item.className = `alert alert-${toneClass}`;
                 item.style.marginBottom = '0.75rem';
                 item.innerHTML = `
                     <span>${icon}</span>
@@ -859,7 +921,17 @@
                         <p>${alert.message || 'Alert raised'}</p>
                         <small>${timeText}</small>
                     </div>
+                    <button data-alert-key="${key}" style="margin-left:auto;background:none;border:none;color:#6b7280;cursor:pointer;font-size:1rem;">-</button>
                 `;
+
+                const closeBtn = item.querySelector('button[data-alert-key]');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function() {
+                        const removeKey = this.getAttribute('data-alert-key');
+                        persistedLiveAlerts = persistedLiveAlerts.filter(a => _alertKey(a) !== removeKey);
+                        renderLiveAlertsLocal(persistedLiveAlerts);
+                    });
+                }
                 container.appendChild(item);
             });
 
@@ -902,6 +974,9 @@
                 if (behavior.likely_note_taking) {
                     behaviorLabel = 'Likely Note-taking';
                     behaviorBadge = 'success';
+                } else if (behavior.likely_looking_away) {
+                    behaviorLabel = 'Looking Up/Right';
+                    behaviorBadge = 'warning';
                 } else if (behavior.likely_occluded) {
                     behaviorLabel = 'Face Possibly Occluded';
                     behaviorBadge = 'danger';
@@ -910,7 +985,7 @@
                     behaviorBadge = 'warning';
                 }
 
-                const behaviorDetail = `Down: ${Number(behavior.down_streak || 0)} | Hidden: ${Number(behavior.hidden_streak || 0)} | Notes: ${Number(behavior.notes_streak || 0)}`;
+                const behaviorDetail = `Down: ${Number(behavior.down_streak || 0)} | Hidden: ${Number(behavior.hidden_streak || 0)} | Notes: ${Number(behavior.notes_streak || 0)} | Away: ${Number(behavior.away_streak || 0)}`;
 
                 const card = document.createElement('div');
                 card.className = 'student-card fade-in';
@@ -958,7 +1033,7 @@
                 videoFeed.style.transform = `scale(${zoomLevel})`;
                 videoFeed.style.transformOrigin = 'center center';
                 videoContainer.style.overflow = 'hidden';
-                zoomBtn.innerHTML = '<span>🔍</span> Unzoom';
+                zoomBtn.innerHTML = '<span>Y"</span> Unzoom';
                 zoomBtn.classList.remove('btn-secondary');
                 zoomBtn.classList.add('btn-primary');
                 isZoomed = true;
@@ -967,7 +1042,7 @@
                 zoomLevel = 1;
                 videoFeed.style.transform = 'scale(1)';
                 videoContainer.style.overflow = 'visible';
-                zoomBtn.innerHTML = '<span>🔍</span> Zoom';
+                zoomBtn.innerHTML = '<span>Y"</span> Zoom';
                 zoomBtn.classList.remove('btn-primary');
                 zoomBtn.classList.add('btn-secondary');
                 isZoomed = false;
@@ -1080,7 +1155,7 @@
             
             // Check alerts every 5 seconds only when camera is running
             liveAlertInterval = setInterval(checkLiveEngagementAlert, 5000);
-            console.log('🚨 Live alert system started - checking every 5 seconds');
+            console.log('Ys Live alert system started - checking every 5 seconds');
             
             // Check immediately
             setTimeout(checkLiveEngagementAlert, 2000);
@@ -1091,7 +1166,7 @@
                 clearInterval(liveAlertInterval);
                 liveAlertInterval = null;
             }
-            console.log('⏹️ Live alert system stopped');
+            console.log(' Live alert system stopped');
         }
         
         async function checkLiveEngagementAlert() {
@@ -1101,46 +1176,115 @@
             }
             
             try {
-                console.log('🔍 Checking live engagement alert...');
+                console.log('Y" Checking live engagement alert...');
                 
                 // Use live_data so alerting matches the same backend stream used for persistence.
                 const response = await window.SmartClassAPI.API.get('/live/data/');
-                console.log('📊 Live emotion stats:', response);
+                console.log('Y"S Live emotion stats:', response);
                 
                 if (response && !response.error) {
-                    const totalFaces = Number(response.present_count || 0);
                     const emotions = response.emotion_distribution || {};
+                    const emotionTotal = Object.values(emotions).reduce((acc, v) => acc + Number(v || 0), 0);
+                    const totalFaces = Number(
+                        response.total_faces ||
+                        response.faces_detected ||
+                        response.students_in_camera ||
+                        emotionTotal ||
+                        response.present_count ||
+                        0
+                    );
+                    const students = Array.isArray(response.students) ? response.students : [];
                     
-                    // Calculate confusion percentage from real camera data
-                    const confusedCount = (emotions.confused || 0) + (emotions.bored || 0);
-                    const confusedPercentage = totalFaces > 0 ? (confusedCount / totalFaces) * 100 : 0;
+                    // Calculate confusion percentage from real camera data (confused only).
+                    const confusedCount = Number(emotions.confused || 0);
+                    const confusedPercentageRaw = totalFaces > 0 ? (confusedCount / totalFaces) * 100 : 0;
+                    const confusedPercentage = Math.min(100, Math.max(0, confusedPercentageRaw));
                     
-                    console.log(`📊 Live stats: ${totalFaces} faces, ${confusedCount} confused/bored, ${confusedPercentage.toFixed(1)}%`);
+                    console.log(`Y"S Live stats: ${totalFaces} faces, ${confusedCount} confused/bored, ${confusedPercentage.toFixed(1)}%`);
                     
-                    // Trigger alert if >30% confused/bored AND we have faces detected
-                    if (totalFaces > 0 && confusedPercentage > 30) {
+                    // Trigger alert if >=30% confused AND we have faces detected
+                    if (totalFaces > 0 && confusedPercentage >= 30) {
                         const alertData = {
                             alert: true,
                             percentage: confusedPercentage,
-                            message: `⚠ ALERT: ${confusedPercentage.toFixed(1)}% students appear confused or not engaged.`,
+                            message: `s ALERT: ${confusedPercentage.toFixed(1)}% students appear confused.`,
                             total_students: totalFaces,
                             confused_students: confusedCount,
                             timestamp: Date.now()
                         };
                         
-                        console.log('🚨 LIVE ALERT TRIGGERED:', alertData);
+                        console.log('Ys LIVE ALERT TRIGGERED:', alertData);
                         showLiveAlert(alertData);
                         
                         // Play sound alert
                         playLiveAlertSound();
                     } else {
-                        console.log(`✅ Live engagement normal (${totalFaces} faces detected, ${confusedPercentage.toFixed(1)}% confused/bored)`);
+                        console.log(`o. Live engagement normal (${totalFaces} faces detected, ${confusedPercentage.toFixed(1)}% confused)`);
                     }
+
+                    // Hidden-face notifications per student: notify once per state/cooldown.
+                    const nowMs = Date.now();
+                    const cooldownMs = 30000;
+                    students.forEach((student, idx) => {
+                        const behavior = student.behavior_state || {};
+                        const hiddenStreak = Number(behavior.hidden_streak || 0);
+                        const likelyOccluded = Boolean(behavior.likely_occluded);
+                        if (!(likelyOccluded || hiddenStreak >= 2)) {
+                            return;
+                        }
+
+                        const sid = String(student.student_id || student.name || `face_${idx + 1}`);
+                        const lastAt = Number(hiddenFaceAlertState[sid] || 0);
+                        if (nowMs - lastAt < cooldownMs) {
+                            return;
+                        }
+
+                        hiddenFaceAlertState[sid] = nowMs;
+                        showLiveAlert({
+                            alert: true,
+                            severity: 'high',
+                            message: `${student.name || sid} is hiding the face.`,
+                            total_students: totalFaces,
+                            confused_students: 0,
+                            percentage: 0,
+                            type: 'hidden_face',
+                            timestamp: nowMs,
+                        });
+                    });
+
+                    // Looking up/right (away from class focus) notifications with cooldown.
+                    students.forEach((student, idx) => {
+                        const behavior = student.behavior_state || {};
+                        const awayStreak = Number(behavior.away_streak || 0);
+                        const likelyAway = Boolean(behavior.likely_looking_away);
+                        if (!(likelyAway || awayStreak >= 2)) {
+                            return;
+                        }
+
+                        const sid = String(student.student_id || student.name || `face_${idx + 1}`);
+                        const key = `away:${sid}`;
+                        const lastAt = Number(lookingAwayAlertState[key] || 0);
+                        if (nowMs - lastAt < cooldownMs) {
+                            return;
+                        }
+
+                        lookingAwayAlertState[key] = nowMs;
+                        showLiveAlert({
+                            alert: true,
+                            severity: 'medium',
+                            message: `${student.name || sid} appears to be looking up/up-right and away from class focus.`,
+                            total_students: totalFaces,
+                            confused_students: 0,
+                            percentage: 0,
+                            type: 'looking_away',
+                            timestamp: nowMs,
+                        });
+                    });
                 } else {
-                    console.log('⚠️ No live emotion data available - camera may not be detecting faces');
+                    console.log('s No live emotion data available - camera may not be detecting faces');
                 }
             } catch (error) {
-                console.error('❌ Error checking live engagement alert:', error);
+                console.error('O Error checking live engagement alert:', error);
             }
         }
         
@@ -1148,109 +1292,28 @@
             // Prevent alert spam (show max once per 5 seconds per unique source)
             const now = Date.now();
             if (now - lastLiveAlertTime < 5000) {
-                console.log('⏰ Live alert suppressed (too recent)');
+                console.log(' Live alert suppressed (too recent)');
                 return;
             }
             lastLiveAlertTime = now;
-            
-            console.log('📱 Adding live alert to card...');
-            
-            // Add alert to the Live Alerts card
-            const liveAlertsContainer = document.getElementById('liveAlerts');
-            if (!liveAlertsContainer) {
-                console.error('❌ Live alerts container not found');
-                return;
+
+            const persistentAlert = {
+                id: `live_${now}`,
+                type: alertData.type || 'live_confusion',
+                severity: alertData.severity || 'high',
+                message: alertData.message || 'Live alert triggered',
+                student_name: 'Classroom',
+                student_id: null,
+                timestamp: new Date(alertData.timestamp || now).toISOString(),
+                time: new Date(alertData.timestamp || now).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
+            };
+
+            const added = mergePersistedAlerts([persistentAlert]);
+            if (added > 0) {
+                blinkAlertBadgeOnce();
             }
-            
-            // Create alert item
-            const alertItem = document.createElement('div');
-            alertItem.className = 'alert-item';
-            alertItem.style.cssText = `
-                background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.1));
-                border: 1px solid rgba(239, 68, 68, 0.2);
-                border-radius: 8px;
-                padding: 1rem;
-                margin-bottom: 0.75rem;
-                border-left: 4px solid #ef4444;
-                animation: slideIn 0.3s ease-out;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            `;
-            
-            alertItem.innerHTML = `
-                <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
-                    <div style="font-size: 1.5rem; flex-shrink: 0;">🔴</div>
-                    <div style="flex: 1;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <h4 style="margin: 0; color: #ef4444; font-size: 0.875rem; font-weight: 600;">LIVE ALERT</h4>
-                                <span style="background: #ef4444; color: white; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 3px;">NEW</span>
-                            </div>
-                            <button onclick="this.parentElement.parentElement.parentElement.parentElement.remove()" style="background: none; border: none; color: #6b7280; cursor: pointer; font-size: 1rem; padding: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;">×</button>
-                        </div>
-                        <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem; color: #374151; line-height: 1.4;">${alertData.message}</p>
-                        <div style="display: flex; gap: 1rem; font-size: 0.75rem; color: #6b7280;">
-                            <span>👥 ${alertData.total_students} detected</span>
-                            <span>😕 ${alertData.confused_students} confused</span>
-                            <span>📊 ${alertData.percentage.toFixed(1)}% not engaged</span>
-                        </div>
-                        <div style="font-size: 0.75rem; color: #9ca3af; margin-top: 0.5rem;">
-                            ⏰ ${new Date(alertData.timestamp).toLocaleString('en-IN', { 
-                                year: 'numeric',
-                                month: '2-digit', 
-                                day: '2-digit',
-                                hour: '2-digit', 
-                                minute: '2-digit', 
-                                second: '2-digit',
-                                hour12: true,
-                                timeZone: 'Asia/Kolkata',
-                            })}
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Add to top of alerts container
-            liveAlertsContainer.insertBefore(alertItem, liveAlertsContainer.firstChild);
-            
-            // Update alert count
-            const alertCount = document.getElementById('alertCount');
-            if (alertCount) {
-                const currentCount = parseInt(alertCount.textContent) || 0;
-                alertCount.textContent = currentCount + 1;
-                alertCount.className = 'badge badge-danger';
-            }
-            
-            // Remove old alerts if too many (keep only 10 most recent)
-            const allAlerts = liveAlertsContainer.querySelectorAll('.alert-item');
-            if (allAlerts.length > 10) {
-                for (let i = 10; i < allAlerts.length; i++) {
-                    allAlerts[i].remove();
-                }
-            }
-            
-            // Auto-remove after 2 minutes (120 seconds) so alerts stay visible longer
-            setTimeout(() => {
-                if (alertItem.parentElement) {
-                    alertItem.style.animation = 'slideOutLeft 0.3s ease-out';
-                    setTimeout(() => {
-                        if (alertItem.parentElement) {
-                            alertItem.remove();
-                            // Update count
-                            const alertCount = document.getElementById('alertCount');
-                            if (alertCount) {
-                                const currentCount = parseInt(alertCount.textContent) || 0;
-                                alertCount.textContent = Math.max(0, currentCount - 1);
-                                if (alertCount.textContent === '0') {
-                                    alertCount.className = 'badge badge-warning';
-                                }
-                            }
-                        }
-                    }, 300);
-                }
-            }, 120000);
-            
+            renderLiveAlertsLocal(persistedLiveAlerts);
+
             // Play sound alert
             playLiveAlertSound();
         }
@@ -1276,6 +1339,11 @@
         
         // Add CSS animations for live alerts
         const liveAlertStyles = `
+            @keyframes badgeBlinkOnce {
+                0% { transform: scale(1); box-shadow: 0 0 0 rgba(239, 68, 68, 0.0); }
+                35% { transform: scale(1.18); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0.25); }
+                100% { transform: scale(1); box-shadow: 0 0 0 rgba(239, 68, 68, 0.0); }
+            }
             @keyframes slideInLeft {
                 from { transform: translateX(-100%); opacity: 0; }
                 to { transform: translateX(0); opacity: 1; }
@@ -1297,6 +1365,10 @@
             .badge-danger {
                 background: #ef4444 !important;
                 color: white !important;
+            }
+
+            .alert-badge-blink-once {
+                animation: badgeBlinkOnce 0.55s ease-out 1;
             }
         `;
         
@@ -1332,3 +1404,7 @@
     </script>
 </body>
 </html>
+
+
+
+

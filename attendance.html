@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -26,40 +26,56 @@
 
             <nav class="sidebar-nav">
                 <a href="dashboard.html" class="nav-item">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon">&#128202;</span>
                     Dashboard
                 </a>
                 <a href="live_class.html" class="nav-item">
-                    <span class="nav-icon">📹</span>
+                    <span class="nav-icon">&#128249;</span>
                     Live Classroom
                 </a>
                 <a href="attendance.html" class="nav-item active">
-                    <span class="nav-icon">✓</span>
+                    <span class="nav-icon">&#10003;</span>
                     Attendance
                 </a>
                 <a href="student.html" class="nav-item">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">&#128101;</span>
                     Students
                 </a>
                 <a href="teacher.html" class="nav-item">
-                    <span class="nav-icon">🧑‍🏫</span>
+                    <span class="nav-icon">&#128105;&#8205;&#127979;</span>
                     Teacher
                 </a>
                 <a href="reports.html" class="nav-item">
-                    <span class="nav-icon">📄</span>
+                    <span class="nav-icon">&#128196;</span>
                     Reports
                 </a>
                 <a href="analytics.html" class="nav-item">
-                    <span class="nav-icon">📈</span>
+                    <span class="nav-icon">&#128200;</span>
                     Analytics
                 </a>
                 <a href="settings.html" class="nav-item">
-                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-icon">&#9881;&#65039;</span>
                     Settings
                 </a>
-                <a href="#" onclick="logout()" class="nav-item"
+                    <a href="notification_center.html" class="nav-item">
+                        <span class="nav-icon">&#128276;</span>
+                        Notifications
+                    </a>
+                    <a href="ai_insights.html" class="nav-item">
+                        <span class="nav-icon">&#129504;</span>
+                        AI Insights
+                    </a>
+                                <a href="teacher_profile.html" class="nav-item">
+                    <span class="nav-icon">&#128100;</span>
+                    My Profile
+                </a>
+                <a href="timetable.html" class="nav-item">
+                    <span class="nav-icon">&#128197;</span>
+                    Timetable
+                </a>
+<a href="#" onclick="logout()" class="nav-item"
                     style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
-                    <span class="nav-icon">🚪</span>
+                    <span class="nav-icon">&#128682;</span>
                     Logout
                 </a>
             </nav>
@@ -71,18 +87,18 @@
             <header class="top-navbar">
                 <div class="navbar-left">
                     <button id="menuToggle"
-                        style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">☰</button>
+                        style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">&#9776;</button>
                     <h1 style="font-size: 1.5rem; font-weight: 600;">Attendance Management</h1>
                 </div>
 
                 <div class="navbar-right">
                     <div class="search-bar">
-                        <span class="search-icon">🔍</span>
+                        <span class="search-icon">&#128269;</span>
                         <input type="text" placeholder="Search students..." id="attendanceSearch">
                     </div>
 
                     <div class="notification-bell">
-                        <span style="font-size: 1.25rem;">🔔</span>
+                        <span style="font-size: 1.25rem;">&#128276;</span>
                         <span class="notification-badge">1</span>
                     </div>
 
@@ -115,7 +131,7 @@
                     <div class="stat-card info">
                         <div class="stat-label">Weekly Average</div>
                         <div class="stat-value">89.3%</div>
-                        <div class="stat-change positive">↑ 2.1% from last week</div>
+                        <div class="stat-change positive">?' 2.1% from last week</div>
                     </div>
 
                     <div class="stat-card warning">
@@ -138,11 +154,15 @@
                     </div>
 
                     <div style="display: flex; gap: 1rem;">
-                        <button class="btn btn-primary" onclick="exportAttendance()">
-                            <span>📥</span> Export CSV
+                        <button class="btn btn-success" onclick="bulkMarkAttendance()">Bulk Mark Attendance
                         </button>
-                        <button class="btn btn-secondary" onclick="refreshAttendance()">
-                            <span>🔄</span> Refresh
+                        <button class="btn btn-primary" onclick="exportAttendance()">Export CSV
+                        </button>
+                        <button class="btn btn-secondary" onclick="exportAttendanceExcel()">Export Excel
+                        </button>
+                        <button class="btn btn-secondary" onclick="exportAttendancePDF()">Export PDF
+                        </button>
+                        <button class="btn btn-secondary" onclick="refreshAttendance()">Refresh
                         </button>
                     </div>
                 </div>
@@ -203,14 +223,11 @@
                             <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem;">Quick Actions
                             </h3>
                             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                <button class="btn btn-sm btn-secondary" style="justify-content: flex-start;">
-                                    <span>📧</span> Send Absence Notices
+                                <button class="btn btn-sm btn-secondary" style="justify-content: flex-start;">Send Absence Notices
                                 </button>
-                                <button class="btn btn-sm btn-secondary" style="justify-content: flex-start;">
-                                    <span>📞</span> Contact Parents
+                                <button class="btn btn-sm btn-secondary" style="justify-content: flex-start;">Contact Parents
                                 </button>
-                                <button class="btn btn-sm btn-secondary" style="justify-content: flex-start;">
-                                    <span>📝</span> Add Excuse Note
+                                <button class="btn btn-sm btn-secondary" style="justify-content: flex-start;">Add Excuse Note
                                 </button>
                             </div>
                         </div>
@@ -235,6 +252,17 @@
                     <div class="chart-container chart-large">
                         <canvas id="attendanceChart"></canvas>
                     </div>
+                </div>
+
+                <!-- Monthly Calendar View -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Monthly Attendance Calendar</h2>
+                            <p class="card-subtitle">Green >80%, Yellow 50-80%, Red <50%</p>
+                        </div>
+                    </div>
+                    <div id="attendanceCalendarHeatmap" style="display:grid;grid-template-columns:repeat(7,minmax(40px,1fr));gap:0.5rem;padding:1rem;"></div>
                 </div>
 
                 <!-- Attendance History -->
@@ -287,6 +315,7 @@
             // Load attendance data
             loadAttendanceData();
             loadAttendanceHistory();
+            renderAttendanceCalendarHeatmap();
 
             // Initialize chart
             setTimeout(() => {
@@ -343,7 +372,7 @@
                         <td><strong>${student.student_id}</strong></td>
                         <td>${student.name}</td>
                         <td><span class="badge badge-success">Present</span></td>
-                        <td>${student.last_updated ? new Date(student.last_updated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '--'}</td>
+                        <td>${student.last_updated ? new Date(student.last_updated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '--'}</td>
                         <td>
                             <div style="display:flex;align-items:center;gap:0.5rem;">
                                 <div class="progress-bar" style="flex:1;height:6px;">
@@ -464,11 +493,114 @@
             showAlert('All students marked as present', 'success');
         }
 
+        async function bulkMarkAttendance() {
+            try {
+                const activeSessionRes = await fetch('/api/sessions/');
+                const activeSessionData = await activeSessionRes.json();
+                const activeSession = (activeSessionData.sessions || []).find(s => s.status === 'active');
+
+                if (!activeSession) {
+                    showAlert('No active session found for bulk mark', 'warning');
+                    return;
+                }
+
+                const attendance_data = attendanceStudents.map(s => ({
+                    student_id: s.student_id,
+                    is_present: !!s.present_today,
+                }));
+
+                const response = await fetch('/api/attendance/bulk-mark/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: activeSession.id, attendance_data }),
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showAlert(result.message || 'Bulk attendance updated', 'success');
+                    loadAttendanceData();
+                } else {
+                    showAlert(result.error || 'Bulk attendance failed', 'error');
+                }
+            } catch (e) {
+                showAlert('Bulk mark failed: ' + e.message, 'error');
+            }
+        }
+
+        async function generateAndDownloadAttendanceReport(formatType) {
+            try {
+                showAlert(`Preparing ${formatType.toUpperCase()} export...`, 'info');
+                const response = await fetch('/api/reports/generate/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'attendance',
+                        format: formatType,
+                        date_range: '30',
+                        class: 'All Classes'
+                    })
+                });
+
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Report generation failed');
+                }
+
+                const reportId = result.report && result.report.id;
+                if (!reportId) {
+                    throw new Error('Report ID missing in response');
+                }
+
+                window.location.href = `/api/reports/download/${reportId}/`;
+                showAlert(`${formatType.toUpperCase()} report generated. Download started.`, 'success');
+            } catch (error) {
+                showAlert(`Export failed: ${error.message}`, 'error');
+            }
+        }
+
         function exportAttendance() {
-            showAlert('Exporting attendance data to CSV...', 'info');
-            setTimeout(() => {
-                showAlert('Attendance data exported successfully!', 'success');
-            }, 1500);
+            generateAndDownloadAttendanceReport('csv');
+        }
+
+        function exportAttendanceExcel() {
+            generateAndDownloadAttendanceReport('xlsx');
+        }
+
+        function exportAttendancePDF() {
+            generateAndDownloadAttendanceReport('pdf');
+        }
+
+        function renderAttendanceCalendarHeatmap() {
+            const container = document.getElementById('attendanceCalendarHeatmap');
+            if (!container) return;
+
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            container.innerHTML = labels.map(d => `<div style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-align:center;">${d}</div>`).join('');
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const attendancePct = Math.round(35 + Math.random() * 60);
+                let bg = '#fecaca';
+                if (attendancePct > 80) bg = '#86efac';
+                else if (attendancePct >= 50) bg = '#fde68a';
+
+                container.innerHTML += `
+                    <div title="Day ${day}: ${attendancePct}%" style="
+                        height:42px;
+                        border-radius:8px;
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        font-size:0.75rem;
+                        font-weight:700;
+                        background:${bg};
+                        color:#111827;
+                    ">${day}</div>
+                `;
+            }
         }
 
         function refreshAttendance() {
@@ -489,3 +621,6 @@
 </body>
 
 </html>
+
+
+

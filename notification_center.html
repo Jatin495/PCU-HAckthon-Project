@@ -1,0 +1,445 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications - SmartClass Monitor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">SC</div>
+                <div>
+                    <h3 style="font-size: 1rem; margin: 0;">SmartClass</h3>
+                    <p style="font-size: 0.75rem; opacity: 0.8; margin: 0;">Monitor</p>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item">
+                    <span class="nav-icon">&#128202;</span>
+                    Dashboard
+                </a>
+                <a href="live_class.html" class="nav-item">
+                    <span class="nav-icon">&#128249;</span>
+                    Live Classroom
+                </a>
+                <a href="attendance.html" class="nav-item">
+                    <span class="nav-icon">&#10003;</span>
+                    Attendance
+                </a>
+                <a href="student.html" class="nav-item">
+                    <span class="nav-icon">&#128101;</span>
+                    Students
+                </a>
+                <a href="teacher.html" class="nav-item">
+                    <span class="nav-icon">&#128105;&#8205;&#127979;</span>
+                    Teacher
+                </a>
+                <a href="reports.html" class="nav-item">
+                    <span class="nav-icon">&#128196;</span>
+                    Reports
+                </a>
+                <a href="analytics.html" class="nav-item">
+                    <span class="nav-icon">&#128200;</span>
+                    Analytics
+                </a>
+                <a href="settings.html" class="nav-item">
+                    <span class="nav-icon">&#9881;&#65039;</span>
+                    Settings
+                </a>
+                <a href="notification_center.html" class="nav-item active">
+                    <span class="nav-icon">&#128276;</span>
+                    Notifications
+                </a>
+                <a href="ai_insights.html" class="nav-item">
+                    <span class="nav-icon">&#129504;</span>
+                    AI Insights
+                </a>
+                                <a href="teacher_profile.html" class="nav-item">
+                    <span class="nav-icon">&#128100;</span>
+                    My Profile
+                </a>
+                <a href="timetable.html" class="nav-item">
+                    <span class="nav-icon">&#128197;</span>
+                    Timetable
+                </a>
+<a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <span class="nav-icon">&#128682;</span>
+                    Logout
+                </a>
+            </nav>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navbar -->
+            <header class="top-navbar">
+                <div class="navbar-left">
+                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">&#9776;</button>
+                    <h1 style="font-size: 1.5rem; font-weight: 600;">Notifications</h1>
+                </div>
+                
+                <div class="navbar-right">
+                    <div class="notification-bell" title="Unread Notifications">
+                        <span style="font-size: 1.25rem;">Y""</span>
+                        <span class="notification-badge" id="navUnreadBadge">0</span>
+                    </div>
+                    <div class="user-menu">
+                        <div class="user-avatar" id="userAvatar">T</div>
+                        <div>
+                            <div id="userName" style="font-size: 0.875rem; font-weight: 500;">Teacher</div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Online</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Filter Bar -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="font-weight: 600;">Filter by:</div>
+                        <button class="btn btn-filter active" onclick="filterNotifications('all', this)">All (<span id="countAll">0</span>)</button>
+                        <button class="btn btn-filter" onclick="filterNotifications('unread', this)">Unread (<span id="countUnread">0</span>)</button>
+                        <button class="btn btn-filter" onclick="filterNotifications('alerts', this)">Alerts</button>
+                        <button class="btn btn-filter" onclick="filterNotifications('system', this)">System</button>
+                        <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+                            <button class="btn btn-primary btn-sm" onclick="markAllAsRead()" style="cursor: pointer;">o" Mark All as Read</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Notifications List -->
+                <div id="notificationsContainer">
+                    <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                        <p style="font-size: 0.875rem;">Loading notifications...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <style>
+        .btn-filter {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-light);
+            background: white;
+            color: var(--text-primary);
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .btn-filter:hover {
+            background: var(--gray-50);
+        }
+
+        .btn-filter.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .notification-item {
+            background: white;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            transition: all 0.2s;
+        }
+
+        .notification-item:hover {
+            background: var(--gray-50);
+            border-color: var(--border-medium);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .notification-item.unread {
+            background: var(--primary-50);
+            border-color: var(--primary-light);
+            font-weight: 500;
+        }
+
+        .notification-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .notification-icon.alert {
+            background: var(--error-bg);
+        }
+
+        .notification-icon.system {
+            background: #e0e7ff;
+        }
+
+        .notification-icon.info {
+            background: var(--primary-50);
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-message {
+            margin: 0.25rem 0;
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .notification-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .notification-student-ref {
+            display: inline-block;
+            background: var(--primary-color);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .notification-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .notification-unread-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            margin-right: 0.5rem;
+        }
+
+        .btn-notification-action {
+            padding: 0.4rem 0.8rem;
+            border: 1px solid var(--border-light);
+            background: white;
+            color: var(--text-primary);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-notification-action:hover {
+            background: var(--gray-50);
+            border-color: var(--border-medium);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state-text {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+    </style>
+
+    <script src="api.js"></script>
+    <script src="main.js"></script>
+    <script>
+        let allNotifications = [];
+        let currentFilter = 'all';
+
+        async function loadNotifications() {
+            try {
+                const response = await fetch('/api/notifications/');
+                const data = await response.json();
+                
+                if (data.success) {
+                    allNotifications = data.notifications || [];
+                    updateCounts();
+                    renderNotifications();
+                }
+            } catch (error) {
+                console.error('Error loading notifications:', error);
+            }
+        }
+
+        function updateCounts() {
+            const unreadCount = allNotifications.filter(n => !n.is_read).length;
+            document.getElementById('countAll').textContent = allNotifications.length;
+            document.getElementById('countUnread').textContent = unreadCount;
+            const navBadge = document.getElementById('navUnreadBadge');
+            if (navBadge) navBadge.textContent = unreadCount;
+        }
+
+        function filterNotifications(filter, buttonEl) {
+            currentFilter = filter;
+            
+            // Update filter buttons
+            document.querySelectorAll('.btn-filter').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (buttonEl) buttonEl.classList.add('active');
+            
+            renderNotifications();
+        }
+
+        function getFilteredNotifications() {
+            if (currentFilter === 'all') {
+                return allNotifications;
+            } else if (currentFilter === 'unread') {
+                return allNotifications.filter(n => !n.is_read);
+            } else if (currentFilter === 'alerts') {
+                return allNotifications.filter(n => n.type === 'alert');
+            } else if (currentFilter === 'system') {
+                return allNotifications.filter(n => n.type === 'system');
+            }
+            return allNotifications;
+        }
+
+        function renderNotifications() {
+            const filtered = getFilteredNotifications();
+            const container = document.getElementById('notificationsContainer');
+            
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">Y"</div>
+                        <div class="empty-state-text">
+                            ${currentFilter === 'all' ? 'No notifications yet' : 'No ' + currentFilter + ' notifications'}
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = filtered.map(notif => {
+                const iconMap = {
+                    'alert': 's',
+                    'system': 'sT',
+                    'info': '"'
+                };
+                
+                const icon = iconMap[notif.type] || '"';
+                const timestamp = new Date(notif.created_at).toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                });
+                const studentRef = notif.student_name ? 
+                    `<span class="notification-student-ref">${notif.student_id}</span>` : '';
+                
+                return `
+                    <div class="notification-item ${!notif.is_read ? 'unread' : ''}">
+                        ${!notif.is_read ? '<div class="notification-unread-dot"></div>' : '<div style="width: 10px;"></div>'}
+                        <div class="notification-icon ${notif.type}">
+                            ${icon}
+                        </div>
+                        <div class="notification-content">
+                            <div class="notification-message">
+                                ${notif.message}
+                                ${studentRef}
+                            </div>
+                            <div class="notification-meta">
+                                ${timestamp}
+                            </div>
+                        </div>
+                        <div class="notification-actions">
+                            ${!notif.is_read ? `
+                                <button class="btn-notification-action" onclick="markAsRead(${notif.id})">
+                                    Mark as read
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function markAsRead(notificationId) {
+            try {
+                const response = await fetch('/api/notifications/mark-read/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ notification_id: notificationId })
+                });
+                
+                if (response.ok) {
+                    loadNotifications();
+                }
+            } catch (error) {
+                console.error('Error marking notification as read:', error);
+            }
+        }
+
+        async function markAllAsRead() {
+            try {
+                const response = await fetch('/api/notifications/mark-read/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ mark_all: true })
+                });
+                
+                if (response.ok) {
+                    loadNotifications();
+                }
+            } catch (error) {
+                console.error('Error marking all as read:', error);
+            }
+        }
+
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                window.location.href = 'login.html';
+            }
+        }
+
+        // Load notifications on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadNotifications();
+            
+            // Refresh every 30 seconds
+            setInterval(loadNotifications, 30000);
+        });
+    </script>
+</body>
+</html>
+
+
+
+

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -24,39 +24,55 @@
             
             <nav class="sidebar-nav">
                 <a href="dashboard.html" class="nav-item">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon">&#128202;</span>
                     Dashboard
                 </a>
                 <a href="live_class.html" class="nav-item">
-                    <span class="nav-icon">📹</span>
+                    <span class="nav-icon">&#128249;</span>
                     Live Classroom
                 </a>
                 <a href="attendance.html" class="nav-item">
-                    <span class="nav-icon">✓</span>
+                    <span class="nav-icon">&#10003;</span>
                     Attendance
                 </a>
                 <a href="student.html" class="nav-item">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon">&#128101;</span>
                     Students
                 </a>
                                 <a href="teacher.html" class="nav-item">
-                    <span class="nav-icon">🧑‍🏫</span>
+                    <span class="nav-icon">&#128105;&#8205;&#127979;</span>
                     Teacher
                 </a>
                 <a href="reports.html" class="nav-item">
-                    <span class="nav-icon">📄</span>
+                    <span class="nav-icon">&#128196;</span>
                     Reports
                 </a>
                 <a href="analytics.html" class="nav-item active">
-                    <span class="nav-icon">📈</span>
+                    <span class="nav-icon">&#128200;</span>
                     Analytics
                 </a>
                 <a href="settings.html" class="nav-item">
-                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-icon">&#9881;&#65039;</span>
                     Settings
                 </a>
-                <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
-                    <span class="nav-icon">🚪</span>
+                    <a href="notification_center.html" class="nav-item">
+                        <span class="nav-icon">&#128276;</span>
+                        Notifications
+                    </a>
+                    <a href="ai_insights.html" class="nav-item">
+                        <span class="nav-icon">&#129504;</span>
+                        AI Insights
+                    </a>
+                                <a href="teacher_profile.html" class="nav-item">
+                    <span class="nav-icon">&#128100;</span>
+                    My Profile
+                </a>
+                <a href="timetable.html" class="nav-item">
+                    <span class="nav-icon">&#128197;</span>
+                    Timetable
+                </a>
+<a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                    <span class="nav-icon">&#128682;</span>
                     Logout
                 </a>
             </nav>
@@ -67,18 +83,18 @@
             <!-- Top Navbar -->
             <header class="top-navbar">
                 <div class="navbar-left">
-                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">☰</button>
+                    <button id="menuToggle" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; display: none;">&#9776;</button>
                     <h1 style="font-size: 1.5rem; font-weight: 600;">Analytics Dashboard</h1>
                 </div>
                 
                 <div class="navbar-right">
                     <div class="search-bar">
-                        <span class="search-icon">🔍</span>
+                        <span class="search-icon">&#128269;</span>
                         <input type="text" placeholder="Search analytics...">
                     </div>
                     
                     <div class="notification-bell">
-                        <span style="font-size: 1.25rem;">🔔</span>
+                        <span style="font-size: 1.25rem;">&#128276;</span>
                         <span class="notification-badge">0</span>
                     </div>
                     
@@ -122,11 +138,9 @@
                     </div>
                     
                     <div style="display: flex; gap: 1rem;">
-                        <button class="btn btn-primary" onclick="exportAnalytics()">
-                            <span>📥</span> Export
+                        <button class="btn btn-primary" onclick="exportAnalytics()">Export
                         </button>
-                        <button class="btn btn-secondary" onclick="refreshAnalytics()">
-                            <span>🔄</span> Refresh
+                        <button class="btn btn-secondary" onclick="refreshAnalytics()">Refresh
                         </button>
                     </div>
                 </div>
@@ -402,7 +416,7 @@
                 return;
             }
             
-            console.log('📊 Analytics page loaded, waiting for data...');
+            console.log('Y"S Analytics page loaded, waiting for data...');
             
             // Always trigger a direct refresh so page gets DB data even if analyticsLoaded doesn't fire.
             refreshAnalytics();
@@ -505,7 +519,7 @@
             const atRisk = Number(data.at_risk_count || 0);
 
             updateElementContent('overallPerformanceValue', overall.toFixed(1));
-            updateElementContent('overallPerformanceChange', `${trend >= 0 ? '↑' : '↓'} ${Math.abs(trend).toFixed(1)} points`);
+            updateElementContent('overallPerformanceChange', `${trend >= 0 ? 'UP' : 'DOWN'} ${Math.abs(trend).toFixed(1)} points`);
             updateElementContent('engagementTrendValue', `${trend >= 0 ? '+' : ''}${trend.toFixed(1)}%`);
             updateElementContent('engagementTrendChange', hasTrendData ? 'From selected period' : 'Insufficient trend data');
             updateElementContent('atRiskStudentsValue', String(atRisk));
@@ -945,3 +959,7 @@
     </script>
 </body>
 </html>
+
+
+
+

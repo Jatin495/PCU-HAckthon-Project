@@ -3,1117 +3,916 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Teacher Dashboard</title>
-  <link rel="stylesheet" href="styles.css">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <title>Teacher Dashboard - SmartClass Monitor</title>
+  <link rel="stylesheet" href="styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    :root {
-      --sidebar-bg: #1e1e2e;
-      --sidebar-hover: #2b2b40;
-      --main-bg: #f4f6fb;
-      --card-bg: #ffffff;
-      --accent: #4f8ef7;
-      --accent-dark: #3a74d7;
-      --text-main: #25273a;
-      --text-muted: #747b96;
-      --success: #16a34a;
-      --warning: #f59e0b;
-      --danger: #dc2626;
-      --border: #e5e7eb;
-      --shadow: 0 12px 24px rgba(30, 30, 46, 0.08);
-      --radius: 14px;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      font-family: Poppins, sans-serif;
-      background: var(--main-bg);
-      color: var(--text-main);
-      min-height: 100vh;
-    }
-
-    .layout {
-      display: flex;
-      min-height: 100vh;
-    }
-
-    .main {
-      flex: 1;
+    .teacher-main {
       margin-left: 280px;
-      padding: 24px;
-      overflow-x: hidden;
+      padding: 1.5rem;
+      background: #f4f6fb;
+      min-height: 100vh;
     }
-
-    .topbar {
+    .teacher-topbar {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 22px;
+      align-items: center;
+      gap: 0.75rem;
     }
-
-    .topbar h1 {
-      font-size: 1.45rem;
-      font-weight: 700;
-    }
-
-    .topbar p {
-      color: var(--text-muted);
-      font-size: 0.92rem;
-      margin-top: 3px;
-    }
-
-    .menu-btn {
-      display: none;
-      border: none;
-      background: var(--accent);
-      color: #fff;
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      cursor: pointer;
-    }
-
-    .grid {
+    .teacher-grid {
       display: grid;
-      grid-template-columns: repeat(12, 1fr);
-      gap: 18px;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 1rem;
     }
-
-    .card {
+    .cardx {
       background: var(--card-bg);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      border: 1px solid #eff1f6;
-      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 1.5rem;
     }
-
-    .card h2 {
-      font-size: 1rem;
-      margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .card p.small {
-      color: var(--text-muted);
-      font-size: 0.86rem;
-      margin-bottom: 12px;
-    }
-
-    .span-4 { grid-column: span 4; }
-    .span-5 { grid-column: span 5; }
-    .span-6 { grid-column: span 6; }
-    .span-7 { grid-column: span 7; }
-    .span-8 { grid-column: span 8; }
     .span-12 { grid-column: span 12; }
-
-    .field-group {
+    .span-8 { grid-column: span 8; }
+    .span-6 { grid-column: span 6; }
+    .span-4 { grid-column: span 4; }
+    .span-3 { grid-column: span 3; }
+    .row {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr auto;
-      gap: 8px;
-      margin-bottom: 12px;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 0.7rem;
+      margin-bottom: 0.7rem;
     }
-
-    input,
-    select,
-    textarea,
-    button {
-      font-family: inherit;
-      font-size: 0.9rem;
-    }
-
-    input,
-    select,
-    textarea {
-      border: 1px solid var(--border);
+    .row input, .row select, .row textarea, .toolbar input, .toolbar select {
+      width: 100%;
+      border: 1px solid #dbe1ee;
       border-radius: 10px;
-      padding: 10px 11px;
-      outline: none;
-      background: #fff;
+      padding: 0.62rem 0.72rem;
+      font-family: inherit;
     }
-
-    input:focus,
-    select:focus,
-    textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(79, 142, 247, 0.15);
-    }
-
-    button {
+    .row textarea { min-height: 78px; resize: vertical; }
+    .btnx {
       border: none;
       border-radius: 10px;
-      padding: 10px 12px;
+      padding: 0.6rem 0.85rem;
       cursor: pointer;
-      transition: 0.2s ease;
       font-weight: 600;
+      font-family: inherit;
     }
-
-    .btn-primary {
-      background: var(--accent);
-      color: #fff;
-    }
-
-    .btn-primary:hover {
-      background: var(--accent-dark);
-    }
-
-    .btn-soft {
-      background: #e8eefc;
-      color: #234f9c;
-    }
-
-    .btn-soft:hover {
-      background: #d9e5ff;
-    }
-
-    .topic-list,
-    .planner-list,
-    .feedback-list,
-    .warning-list {
-      list-style: none;
+    .btn-primary { background: var(--primary-color); color: #fff; }
+    .btn-soft { background: #e8efff; color: #244782; }
+    .btn-warning { background: #f59e0b; color: #fff; }
+    .btn-success { background: #22c55e; color: #fff; }
+    .btn-muted { background: #e5e7eb; color: #1f2937; }
+    .toolbar {
       display: grid;
-      gap: 10px;
-      margin-top: 12px;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.6rem;
+      margin-bottom: 0.8rem;
     }
-
-    .item-row {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
-      background: #fafbff;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .item-main {
-      min-width: 180px;
-      flex: 1;
-    }
-
-    .item-title {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: #1f2c44;
-    }
-
-    .item-sub {
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      margin-top: 2px;
-    }
-
-    .status {
-      font-size: 0.74rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-      padding: 5px 8px;
-      border-radius: 999px;
-    }
-
-    .status.pending { background: #fff7ed; color: #c2410c; }
-    .status.in-progress { background: #eff6ff; color: #1d4ed8; }
-    .status.completed { background: #ecfdf3; color: #166534; }
-
-    .badge-delay {
-      background: #fee2e2;
-      color: #b91c1c;
-      border: 1px solid #fecaca;
-      padding: 4px 7px;
-      border-radius: 999px;
-      font-size: 0.72rem;
-      font-weight: 700;
-    }
-
-    .progress-wrap {
-      width: 100%;
-      margin-top: 10px;
-    }
-
-    .progress-bar {
-      width: 100%;
-      height: 10px;
-      background: #e8ebf2;
-      border-radius: 99px;
-      overflow: hidden;
-    }
-
-    .progress-fill {
-      height: 100%;
-      width: 0;
-      background: linear-gradient(90deg, var(--accent), #7db0ff);
-      transition: width 0.3s ease;
-    }
-
-    .progress-meta {
-      margin-top: 7px;
-      display: flex;
-      justify-content: space-between;
-      color: var(--text-muted);
-      font-size: 0.82rem;
-    }
-
-    .table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-    }
-
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 680px;
+      min-width: 760px;
       background: #fff;
     }
-
-    th,
-    td {
-      padding: 10px;
-      border-bottom: 1px solid #edf0f5;
+    th, td {
+      font-size: 0.87rem;
+      border-bottom: 1px solid #edf1f8;
+      padding: 0.62rem;
       text-align: left;
-      font-size: 0.86rem;
     }
-
-    th {
-      background: #f9faff;
-      color: #45506e;
-      font-weight: 600;
+    th { color: #334155; background: #f8fafc; }
+    .table-wrap { overflow-x: auto; border: 1px solid #edf1f8; border-radius: 12px; }
+    .syllabus-wrap { overflow-x: visible; }
+    .syllabus-table {
+      min-width: 0;
+      table-layout: fixed;
     }
-
-    .report-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-      gap: 10px;
+    .syllabus-table th,
+    .syllabus-table td {
+      font-size: 0.82rem;
+      vertical-align: top;
+      word-break: break-word;
     }
-
-    .student-kpi {
-      border: 1px solid var(--border);
-      border-radius: 11px;
-      padding: 10px;
-      background: #fafbff;
-    }
-
-    .student-kpi h4 {
-      font-size: 0.88rem;
-      margin-bottom: 8px;
-    }
-
-    .kpi-item {
+    .syllabus-table td input,
+    .syllabus-table td select {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
       font-size: 0.8rem;
-      color: #516084;
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 4px;
+      padding: 0.42rem 0.5rem;
     }
-
-    .feedback-item {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
+    .badge { border-radius: 999px; padding: 0.2rem 0.6rem; font-size: 0.74rem; font-weight: 700; }
+    .bad-red { background: #fee2e2; color: #b91c1c; }
+    .bad-green { background: #dcfce7; color: #166534; }
+    .bad-yellow { background: #fef3c7; color: #92400e; }
+    .progress { height: 10px; border-radius: 999px; background: #e9edf6; overflow: hidden; }
+    .progress > span { display: block; height: 100%; background: var(--primary-color); }
+    .lecture-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 0.75rem;
+      margin-bottom: 0.6rem;
       background: #fff;
     }
-
-    .feedback-head {
+    .timeline {
       display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: 0.84rem;
-      color: #2a3551;
-      margin-bottom: 7px;
-      font-weight: 600;
+      gap: 0.7rem;
+      overflow-x: auto;
+      padding: 0.3rem 0;
     }
-
-    .rating {
-      color: #f59e0b;
-      font-weight: 700;
+    .timeline .node {
+      min-width: 180px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 0.6rem;
+      background: #f9fbff;
     }
-
-    .export-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 12px;
+    .student-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 0.75rem;
+      background: #fff;
     }
-
-    .chart-area {
-      width: 100%;
-      height: 230px;
-      margin-top: 8px;
-    }
-
-    .chip {
+    .profile-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      border-radius: 999px;
-      padding: 5px 8px;
-      font-size: 0.75rem;
-      border: 1px solid #dbe3f3;
-      color: #4568a8;
-      background: #f4f7fe;
-      margin-right: 6px;
-      margin-bottom: 6px;
+      justify-content: center;
+      font-weight: 700;
+      color: #fff;
+      background: var(--primary-color);
+      margin-right: 0.5rem;
     }
-
-    @media (max-width: 1100px) {
-      .span-4,
-      .span-5,
-      .span-6,
-      .span-7,
-      .span-8 {
-        grid-column: span 12;
-      }
-
-      .field-group {
-        grid-template-columns: 1fr 1fr;
-      }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.44);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
     }
-
-    @media (max-width: 820px) {
-      .menu-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .sidebar {
-        position: fixed;
-        transform: translateX(-100%);
-      }
-
-      .sidebar.open {
-        transform: translateX(0);
-      }
-
-      .main {
-        margin-left: 0;
-        padding: 18px;
-      }
-
-      .field-group {
-        grid-template-columns: 1fr;
-      }
+    .modal .box {
+      width: min(560px, 96vw);
+      background: #fff;
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .stars button {
+      border: none;
+      background: transparent;
+      color: #f59e0b;
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+    @media (max-width: 1024px) {
+      .teacher-main { margin-left: 0; }
+      .span-8, .span-6, .span-4, .span-3 { grid-column: span 12; }
+      .row { grid-template-columns: 1fr 1fr; }
+      .toolbar { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <div class="app-container">
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">SC</div>
-      <div>
-        <h3 style="font-size: 1rem; margin: 0;">SmartClass</h3>
-        <p style="font-size: 0.75rem; opacity: 0.8; margin: 0;">Monitor</p>
-      </div>
-    </div>
-
-    <nav class="sidebar-nav">
-      <a href="dashboard.html" class="nav-item">
-        <span class="nav-icon">📊</span>
-        Dashboard
-      </a>
-      <a href="live_class.html" class="nav-item">
-        <span class="nav-icon">📹</span>
-        Live Classroom
-      </a>
-      <a href="attendance.html" class="nav-item">
-        <span class="nav-icon">✓</span>
-        Attendance
-      </a>
-      <a href="student.html" class="nav-item">
-        <span class="nav-icon">👥</span>
-        Students
-      </a>
-      <a href="teacher.html" class="nav-item active">
-        <span class="nav-icon">🧑‍🏫</span>
-        Teacher
-      </a>
-      <a href="reports.html" class="nav-item">
-        <span class="nav-icon">📄</span>
-        Reports
-      </a>
-      <a href="analytics.html" class="nav-item">
-        <span class="nav-icon">📈</span>
-        Analytics
-      </a>
-      <a href="settings.html" class="nav-item">
-        <span class="nav-icon">⚙️</span>
-        Settings
-      </a>
-      <a href="#" onclick="logout()" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
-        <span class="nav-icon">🚪</span>
-        Logout
-      </a>
-    </nav>
-  </aside>
-
-    <main class="main">
-      <div class="topbar">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">SC</div>
         <div>
-          <h1>Teacher Dashboard</h1>
-          <p id="sessionSummary">Plan lectures, track progress, run checkpoints, and support lagging students.</p>
+          <h3 style="font-size:1rem;margin:0;">SmartClass</h3>
+          <p style="font-size:0.75rem;opacity:0.8;margin:0;">Monitor</p>
         </div>
-        <button class="menu-btn" id="menuBtn" aria-label="Toggle Menu">
-          <i class="fa-solid fa-bars"></i>
-        </button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-house"></i></span>Main Menu</a>
+        <a href="teacher.html" class="nav-item active"><span class="nav-icon"><i class="fa-solid fa-clipboard-list"></i></span>Teacher Dashboard</a>
+        <a href="teacher_profile.html" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-user"></i></span>My Profile</a>
+        <a href="timetable.html" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-calendar-week"></i></span>Timetable</a>
+        <a href="#syllabusSection" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-book"></i></span>Syllabus Manager</a>
+        <a href="#checkpointSection" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-check-double"></i></span>Checkpoints</a>
+        <a href="#extraSection" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-graduation-cap"></i></span>Extra Lectures</a>
+        <a href="#performanceSection" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-chart-column"></i></span>Performance Reports</a>
+        <a href="#feedbackSection" class="nav-item"><span class="nav-icon"><i class="fa-solid fa-comment-dots"></i></span>Feedback</a>
+      </nav>
+    </aside>
+
+    <main class="teacher-main">
+      <div class="teacher-topbar">
+        <div>
+          <h2 style="margin:0;color:var(--text-primary);">Teacher Dashboard</h2>
+          <div style="font-size:0.88rem;color:#64748b;">Syllabus, lecture planner, checkpoints, extra support and reports</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <a href="dashboard.html" class="btnx btn-soft" style="text-decoration:none;display:inline-flex;align-items:center;gap:0.35rem;">
+            <i class="fa-solid fa-house"></i> Main Menu
+          </a>
+          <button class="btnx btn-primary" onclick="loadAll()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+        </div>
       </div>
 
-      <section class="grid">
-        <article class="card span-8" id="syllabus">
-          <h2><i class="fa-solid fa-list-check"></i>1. Define Entire Syllabus</h2>
-          <p class="small">Add subjects, units, and topics, then track each topic status.</p>
-          <form id="syllabusForm" class="field-group">
-            <input type="text" id="subjectInput" placeholder="Subject (e.g. Mathematics)" required />
-            <input type="text" id="unitInput" placeholder="Unit (e.g. Algebra)" required />
-            <input type="text" id="topicInput" placeholder="Topic (e.g. Quadratic Equations)" required />
-            <button type="submit" class="btn-primary">Add Topic</button>
-          </form>
-
-          <ul id="topicList" class="topic-list"></ul>
-
-          <div class="progress-wrap">
-            <div class="progress-bar">
-              <div class="progress-fill" id="syllabusProgressFill"></div>
-            </div>
-            <div class="progress-meta">
-              <span>Overall Syllabus Completion</span>
-              <strong id="syllabusProgressText">0%</strong>
+      <section class="teacher-grid">
+        <article class="cardx span-12" id="syllabusSection">
+          <h3 style="margin-bottom:0.8rem;"><i class="fa-solid fa-book"></i> 1. Define Entire Syllabus</h3>
+          <div class="row">
+            <select id="subjectSelect"></select>
+            <select id="unitSelect"></select>
+            <input id="topicInput" placeholder="Topic" />
+            <input id="hoursInput" type="number" step="0.5" min="0" placeholder="Estimated hours" />
+            <input id="targetDateInput" type="date" />
+            <button class="btnx btn-primary" onclick="addSyllabus()">Add Topic</button>
+          </div>
+          <div class="row" style="grid-template-columns: repeat(3,1fr);">
+            <select id="priorityInput"><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select>
+            <select id="statusInput"><option value="pending" selected>Pending</option><option value="in_progress">In Progress</option><option value="completed">Completed</option></select>
+            <div class="toolbar" style="grid-template-columns: 1fr 1fr 1fr; margin:0;">
+              <select id="filterSubject"></select>
+              <select id="filterStatus"><option value="">All Status</option><option value="pending">Pending</option><option value="in_progress">In Progress</option><option value="completed">Completed</option></select>
+              <select id="filterPriority"><option value="">All Priority</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
             </div>
           </div>
-        </article>
-
-        <article class="card span-4">
-          <h2><i class="fa-solid fa-chart-pie"></i>Syllabus Progress Chart</h2>
-          <p class="small">Visual status distribution of all topics.</p>
-          <div class="chart-area">
-            <canvas id="syllabusChart"></canvas>
+          <div class="table-wrap syllabus-wrap">
+            <table class="syllabus-table">
+              <thead>
+                <tr><th>Subject</th><th>Unit</th><th>Topic (click to edit)</th><th>Hours</th><th>Target</th><th>Priority</th><th>Status</th><th>Health</th><th>Action</th></tr>
+              </thead>
+              <tbody id="syllabusBody"></tbody>
+            </table>
+          </div>
+          <div style="margin-top:0.8rem;">
+            <div class="progress"><span id="syllabusProgressFill" style="width:0%"></span></div>
+            <div style="display:flex;justify-content:space-between;font-size:0.84rem;color:#64748b;margin-top:0.4rem;">
+              <span>Syllabus completion</span><strong id="syllabusProgressText">0%</strong>
+            </div>
           </div>
         </article>
 
-        <article class="card span-6">
-          <h2><i class="fa-solid fa-calendar-day"></i>2. Enter Topics for Today</h2>
-          <p class="small">Select planned topics and mark them after lecture completion.</p>
-          <div class="field-group" style="grid-template-columns: 1fr auto;">
-            <select id="dailyTopicSelect"></select>
-            <button id="addTodayTopic" class="btn-soft" type="button">Add to Today's Plan</button>
-          </div>
-          <ul id="plannerList" class="planner-list"></ul>
+        <article class="cardx span-6">
+          <h3><i class="fa-solid fa-chart-pie"></i> Status Distribution</h3>
+          <canvas id="syllabusDonut" height="70"></canvas>
         </article>
 
-        <article class="card span-6">
-          <h2><i class="fa-solid fa-circle-check"></i>3. Topic Checkpoints</h2>
-          <p class="small">Assign mini quizzes after completion and track checkpoint rates.</p>
+        <article class="cardx span-6" id="checkpointSection">
+          <h3><i class="fa-solid fa-circle-check"></i> 3. Checkpoints</h3>
+          <div class="row" style="grid-template-columns:1fr;">
+            <input id="checkpointTitle" placeholder="Checkpoint title" />
+            <select id="checkpointType"><option value="mcq">MCQ</option><option value="truefalse">True-False</option><option value="shortanswer">Short Answer</option></select>
+            <input id="checkpointPassing" type="number" value="60" min="0" max="100" />
+            <input id="checkpointDeadline" type="date" />
+            <button class="btnx btn-primary" onclick="createCheckpoint()">Create Checkpoint</button>
+          </div>
+          <div id="checkpointSummary" style="font-size:0.86rem;color:#64748b;"></div>
+        </article>
+
+        <article class="cardx span-12">
+          <h3><i class="fa-solid fa-calendar-day"></i> 2. Today's Lecture Planner</h3>
+          <div class="row" style="grid-template-columns:2fr 1fr 1fr 1fr auto;">
+            <select id="lectureTopicSelect"></select>
+            <input id="lectureStart" type="time" />
+            <input id="lectureEnd" type="time" />
+            <input id="lectureDate" type="date" />
+            <button class="btnx btn-primary" onclick="addLecturePlan()">Add Plan</button>
+          </div>
+          <div class="row" style="grid-template-columns:1fr;">
+            <textarea id="lectureNotes" placeholder="Lecture Notes"></textarea>
+          </div>
+          <div id="lectureCards"></div>
+          <div style="font-size:0.9rem;font-weight:600;margin-top:0.4rem;">Duration tracker: <span id="durationTracker">Planned: 0hrs | Completed: 0hrs</span></div>
+          <div class="timeline" id="lectureTimeline"></div>
+        </article>
+
+        <article class="cardx span-12">
           <div class="table-wrap">
             <table>
               <thead>
-                <tr>
-                  <th>Topic #</th>
-                  <th>Topic</th>
-                  <th>Checkpoint Assigned</th>
-                  <th>Students Responded</th>
-                  <th>Completion Rate</th>
-                </tr>
+                <tr><th>Topic</th><th>Type</th><th>Assigned</th><th>Avg Score</th><th>Pass Rate</th><th>Status</th><th>Action</th></tr>
               </thead>
-              <tbody id="checkpointTableBody"></tbody>
+              <tbody id="checkpointBody"></tbody>
             </table>
           </div>
         </article>
 
-        <article class="card span-5">
-          <h2><i class="fa-solid fa-rotate"></i>4. Auto-Healing in Syllabus</h2>
-          <p class="small">Delayed topics are flagged and auto-rescheduled.</p>
-          <ul id="warningList" class="warning-list"></ul>
-          <div style="margin-top: 12px;">
-            <strong style="font-size: 0.88rem;">Revised Schedule Suggestions</strong>
-            <div id="suggestionChips" style="margin-top: 8px;"></div>
+        <article class="cardx span-12">
+          <h3><i class="fa-solid fa-rotate"></i> 4. Auto-Healing Syllabus</h3>
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.8rem;">
+            <button class="btnx btn-warning" onclick="calculateAutoHeal()">Calculate Suggestions</button>
+            <button class="btnx btn-success" onclick="acceptAutoHeal()">Accept Suggestions</button>
           </div>
+          <div id="autoHealSummary" style="font-size:0.88rem;color:#64748b;margin-bottom:0.6rem;"></div>
+          <div class="timeline" id="autoHealTimeline"></div>
         </article>
 
-        <article class="card span-7">
-          <h2><i class="fa-solid fa-users-gear"></i>5. Extra Lectures / Topics Per Student</h2>
-          <p class="small">Identify lagging students and schedule targeted support sessions.</p>
+        <article class="cardx span-12" id="extraSection">
+          <h3><i class="fa-solid fa-user-graduate"></i> 5. Extra Lectures Per Student</h3>
+          <div class="toolbar">
+            <select id="laggingFilter"><option value="all">All Students</option><option value="atrisk">Only At-Risk</option></select>
+            <button class="btnx btn-soft" onclick="loadLaggingStudents()">Reload Lagging</button>
+            <button class="btnx btn-soft" onclick="loadExtraLectures()">Reload Extra Lectures</button>
+          </div>
           <div class="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Student</th>
-                  <th>Lagging Topic</th>
-                  <th>Engagement</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="laggingTableBody"></tbody>
+              <thead><tr><th>Student Name</th><th>Roll No</th><th>Lagging Topic</th><th>Engagement %</th><th>Attendance %</th><th>Action</th></tr></thead>
+              <tbody id="laggingBody"></tbody>
             </table>
           </div>
+          <h4 style="margin:0.9rem 0 0.6rem;">Scheduled Extra Lectures</h4>
+          <div id="extraLectureCards"></div>
         </article>
 
-        <article class="card span-12">
-          <h2><i class="fa-solid fa-file-lines"></i>6. Individual Student Performance Reports</h2>
-          <p class="small">Track each student using attendance, engagement, and topic completion metrics.</p>
-          <div id="reportCards" class="report-cards"></div>
-          <div class="export-actions">
-            <button id="exportPdfBtn" class="btn-primary" type="button">
-              <i class="fa-solid fa-file-pdf"></i> Export PDF
-            </button>
-            <button id="exportExcelBtn" class="btn-soft" type="button">
-              <i class="fa-solid fa-file-excel"></i> Export Excel
-            </button>
+        <article class="cardx span-12" id="performanceSection">
+          <h3><i class="fa-solid fa-chart-line"></i> 6. Student Performance Reports</h3>
+          <div class="toolbar">
+            <select id="riskFilter"><option value="all">All Students</option><option value="high">High Risk</option><option value="medium">Medium</option><option value="low">Good</option></select>
+            <input id="studentSearch" placeholder="Search by name or roll number" />
+            <button class="btnx btn-soft" onclick="exportPerformance()">Export All</button>
           </div>
+          <div id="performanceCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.7rem;"></div>
         </article>
 
-        <article class="card span-12" id="feedback">
-          <h2><i class="fa-solid fa-star-half-stroke"></i>7. Collect Student Feedback</h2>
-          <p class="small">Ratings and comments submitted after each lecture.</p>
-          <form id="feedbackForm" class="field-group" style="grid-template-columns: 1.2fr 0.6fr 1.8fr auto;">
-            <input type="text" id="feedbackLectureInput" placeholder="Lecture title" required />
-            <select id="feedbackRatingInput" required>
-              <option value="">Rating</option>
-              <option value="5">5</option>
-              <option value="4.5">4.5</option>
-              <option value="4">4</option>
-              <option value="3.5">3.5</option>
-              <option value="3">3</option>
-              <option value="2.5">2.5</option>
-              <option value="2">2</option>
-              <option value="1">1</option>
-            </select>
-            <input type="text" id="feedbackCommentInput" placeholder="Comment" required />
-            <button type="submit" class="btn-primary">Add Feedback</button>
-          </form>
-          <div style="margin-bottom: 10px;">
-            <strong style="font-size: 0.92rem;">Average Rating: <span id="avgRating" class="rating">0.0</span></strong>
+        <article class="cardx span-12" id="feedbackSection">
+          <h3><i class="fa-solid fa-comment-dots"></i> 7. Collect Student Feedback</h3>
+          <div class="row" style="grid-template-columns:2fr 1fr 1fr auto;">
+            <select id="feedbackLecture"></select>
+            <div class="stars" id="starInput"></div>
+            <label style="display:flex;align-items:center;gap:0.4rem;"><input type="checkbox" id="feedbackAnonymous" /> Anonymous</label>
+            <button class="btnx btn-primary" onclick="submitFeedback()">Submit</button>
           </div>
-          <ul id="feedbackList" class="feedback-list"></ul>
+          <div class="row" style="grid-template-columns:1fr;">
+            <textarea id="feedbackComment" placeholder="Comment"></textarea>
+          </div>
+          <div id="feedbackSummary" style="font-size:0.9rem;font-weight:600;margin-bottom:0.7rem;"></div>
+          <div class="toolbar">
+            <input id="feedbackFrom" type="date" />
+            <input id="feedbackTo" type="date" />
+            <select id="feedbackRatingFilter"><option value="">All Ratings</option><option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option></select>
+          </div>
+          <div id="feedbackList"></div>
+          <div style="margin-top:0.6rem;"><button class="btnx btn-soft" onclick="exportFeedback()">Export Feedback CSV</button></div>
         </article>
       </section>
     </main>
   </div>
 
+  <div class="modal" id="extraLectureModal">
+    <div class="box">
+      <h4>Schedule Extra Lecture</h4>
+      <div class="row" style="grid-template-columns:1fr 1fr;">
+        <input id="modalStudent" disabled />
+        <input id="modalTopic" disabled />
+        <input id="modalDate" type="date" />
+        <input id="modalTime" type="time" />
+      </div>
+      <textarea id="modalNotes" placeholder="Notes" style="width:100%;border:1px solid #dbe1ee;border-radius:10px;padding:0.6rem;"></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:0.7rem;">
+        <button class="btnx btn-muted" onclick="closeModal()">Cancel</button>
+        <button class="btnx btn-primary" onclick="confirmExtraLecture()">Schedule</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
   <script>
-    function resolveOrigin() {
-      if (window.location.protocol === 'file:') {
-        return localStorage.getItem('backendOrigin') || 'http://127.0.0.1:8000';
+    const API_BASE = `${window.location.origin}/api`;
+    let syllabusData = [];
+    let checkpointData = [];
+    let performanceData = [];
+    let selectedRating = 5;
+    let selectedTopicForCheckpoint = null;
+    let selectedLagging = null;
+    let donut;
+
+    async function api(path, method = 'GET', body = null, isForm = false) {
+      const opts = { method, credentials: 'include', headers: { Accept: 'application/json' } };
+      if (body && !isForm) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
       }
-      return window.location.origin;
-    }
-
-    const API_BASE = `${resolveOrigin()}/api`;
-
-    let syllabusTopics = [];
-    let plannerTopics = [];
-    let laggingStudents = [];
-    let studentReports = [];
-    let feedbackData = [];
-    let delayedTopics = [];
-    let averageRating = 0;
-    let syllabusChart;
-    let analyticsStudentMetrics = [];
-    let liveEmotionByStudent = {};
-    let checkpointRows = [];
-
-    const topicList = document.getElementById('topicList');
-    const dailyTopicSelect = document.getElementById('dailyTopicSelect');
-    const plannerList = document.getElementById('plannerList');
-    const checkpointTableBody = document.getElementById('checkpointTableBody');
-    const warningList = document.getElementById('warningList');
-    const suggestionChips = document.getElementById('suggestionChips');
-    const laggingTableBody = document.getElementById('laggingTableBody');
-    const reportCards = document.getElementById('reportCards');
-    const feedbackList = document.getElementById('feedbackList');
-    const avgRating = document.getElementById('avgRating');
-    const sessionSummary = document.getElementById('sessionSummary');
-
-    const syllabusForm = document.getElementById('syllabusForm');
-    const addTodayTopicBtn = document.getElementById('addTodayTopic');
-    const feedbackForm = document.getElementById('feedbackForm');
-
-    async function apiGet(endpoint) {
-      const res = await fetch(`${API_BASE}${endpoint}`, {
-        headers: { 'Accept': 'application/json' },
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (body && isForm) opts.body = body;
+      const res = await fetch(`${API_BASE}${path}`, opts);
       return await res.json();
     }
 
-    async function apiPost(endpoint, payload = {}) {
-      const res = await fetch(`${API_BASE}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
+    function todayISO() { return new Date().toISOString().slice(0, 10); }
+
+    function formatTime12h(value) {
+      if (!value) return '--';
+      const s = String(value).trim();
+      const m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if (!m) return s;
+      let h = Number(m[1]);
+      const min = m[2];
+      const suffix = h >= 12 ? 'PM' : 'AM';
+      h = h % 12;
+      if (h === 0) h = 12;
+      return `${h}:${min} ${suffix}`;
     }
 
-    async function loadTeacherDashboardData() {
-      try {
-        const data = await apiGet('/teacher/dashboard-data/');
-
-        // Optional sources: do not block teacher page if these fail.
-        const [analyticsResult, emotionResult] = await Promise.allSettled([
-          apiGet('/analytics/?days=30'),
-          apiGet('/emotion_stats/'),
-        ]);
-
-        const analyticsData = analyticsResult.status === 'fulfilled' ? analyticsResult.value : {};
-        const emotionData = emotionResult.status === 'fulfilled' ? emotionResult.value : {};
-
-        if (!data || data.success === false) {
-          throw new Error(data?.error || 'Failed to load teacher data');
-        }
-
-        syllabusTopics = data.topics || [];
-        plannerTopics = data.planner || [];
-        laggingStudents = data.lagging || [];
-        studentReports = data.performance || [];
-        feedbackData = data.feedback || [];
-        delayedTopics = data.delayed || [];
-        checkpointRows = data.checkpoints || [];
-        averageRating = Number(data.avgRating || 0);
-
-        const currentSession = data.session || {};
-        const topicNames = Array.isArray(currentSession.topicNames) ? currentSession.topicNames : [];
-        const previewTopics = topicNames.slice(0, 3).join(', ');
-        const extraCount = topicNames.length > 3 ? ` +${topicNames.length - 3} more` : '';
-        if (currentSession.id) {
-          sessionSummary.textContent = `Session: ${currentSession.className || 'Active'} | Subject: ${currentSession.subject || '-'} | Topics: ${currentSession.topicCount || topicNames.length} ${previewTopics ? `(${previewTopics}${extraCount})` : ''}`;
-        } else {
-          sessionSummary.textContent = `No active session. Total syllabus topics: ${currentSession.topicCount || topicNames.length}.`;
-        }
-
-        analyticsStudentMetrics = Array.isArray(analyticsData?.student_metrics)
-          ? analyticsData.student_metrics
-          : [];
-
-        const emotionStudents = Array.isArray(emotionData?.students) ? emotionData.students : [];
-        liveEmotionByStudent = {};
-        emotionStudents.forEach((entry) => {
-          const sid = entry.student_id;
-          if (!sid) return;
-          liveEmotionByStudent[sid] = {
-            engagement: Number(entry.engagement_score || entry.engagement || 0),
-          };
-        });
-
-        // Section 6: Use analytics + emotion_stats to build real student performance data.
-        if (analyticsStudentMetrics.length > 0) {
-          const completionByStudent = {};
-          (data.performance || []).forEach((p) => {
-            completionByStudent[p.studentId] = Number(p.completion || 0);
-          });
-
-          studentReports = analyticsStudentMetrics.map((metric) => {
-            const sid = metric.student_id;
-            const liveEng = liveEmotionByStudent[sid]?.engagement;
-            const engagement = Number.isFinite(liveEng) && liveEng > 0
-              ? liveEng
-              : Number(metric.avg_engagement || 0);
-
-            return {
-              studentId: sid,
-              name: metric.name,
-              engagement: Math.round(engagement * 10) / 10,
-              attendance: Number(metric.attendance_rate || 0),
-              completion: Number(completionByStudent[sid] || 0),
-            };
-          });
-        }
-
-        // Section 5: Students with engagement below 60% from analytics API.
-        const laggingTopicByStudent = {};
-        (data.lagging || []).forEach((entry) => {
-          if (!laggingTopicByStudent[entry.studentId]) {
-            laggingTopicByStudent[entry.studentId] = {
-              topic: entry.topic,
-              topicId: entry.topicId,
-            };
-          }
-        });
-
-        laggingStudents = (analyticsStudentMetrics || [])
-          .filter((metric) => Number(metric.avg_engagement || 0) < 60)
-          .map((metric) => ({
-            studentId: metric.student_id,
-            name: metric.name,
-            topic: laggingTopicByStudent[metric.student_id]?.topic || 'General attention needed',
-            topicId: laggingTopicByStudent[metric.student_id]?.topicId || null,
-            engagement: Number(metric.avg_engagement || 0),
-          }));
-
-        refreshDashboardData();
-      } catch (error) {
-        console.error('Teacher dashboard load error:', error);
-        alert(`Failed to load teacher data: ${error.message || 'Unknown error'}`);
+    function showStars() {
+      const wrap = document.getElementById('starInput');
+      wrap.innerHTML = '';
+      for (let i = 1; i <= 5; i++) {
+        const btn = document.createElement('button');
+        btn.innerHTML = i <= selectedRating ? '★' : '☆';
+        btn.onclick = () => { selectedRating = i; showStars(); };
+        wrap.appendChild(btn);
       }
     }
 
-    document.getElementById('menuBtn').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('open');
-    });
+    async function loadSyllabus() {
+      const q = new URLSearchParams();
+      const fs = document.getElementById('filterSubject').value;
+      const ft = document.getElementById('filterStatus').value;
+      const fp = document.getElementById('filterPriority').value;
+      if (fs) q.append('subject', fs);
+      if (ft) q.append('status', ft);
+      if (fp) q.append('priority', fp);
+      const data = await api(`/syllabus/${q.toString() ? '?' + q.toString() : ''}`);
+      syllabusData = data.items || [];
 
-    syllabusForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const subject = document.getElementById('subjectInput').value.trim();
-      const unit = document.getElementById('unitInput').value.trim();
-      const topic = document.getElementById('topicInput').value.trim();
+      const allData = await api('/syllabus/');
+      const subjects = ['All Subjects', ...(allData.subjects || [])];
+      const units = ['All Units', ...(allData.units || [])];
 
-      if (!subject || !unit || !topic) return;
+      document.getElementById('subjectSelect').innerHTML = (allData.subjects || []).map(s => `<option value="${s}">${s}</option>`).join('') || '<option value="Computer Science">Computer Science</option>';
+      document.getElementById('filterSubject').innerHTML = subjects.map((s, i) => `<option value="${i === 0 ? '' : s}">${s}</option>`).join('');
 
-      try {
-        await apiPost('/teacher/syllabus/topics/add/', { subject, unit, topic });
-        syllabusForm.reset();
-        await loadTeacherDashboardData();
-      } catch (error) {
-        console.error('Add topic error:', error);
-        alert('Could not add topic. Please try again.');
-      }
-    });
+      const selectedSubject = document.getElementById('subjectSelect').value;
+      const unitSet = Array.from(new Set((allData.items || []).filter(x => x.subject === selectedSubject).map(x => x.unit)));
+      document.getElementById('unitSelect').innerHTML = unitSet.map(u => `<option value="${u}">${u}</option>`).join('') || '<option value="Unit 1">Unit 1</option>';
 
-    addTodayTopicBtn.addEventListener('click', async () => {
-      const selectedId = Number(dailyTopicSelect.value);
-      if (!selectedId) return;
-
-      try {
-        await apiPost('/teacher/planner/add/', { topic_id: selectedId });
-        await loadTeacherDashboardData();
-      } catch (error) {
-        console.error('Add daily topic error:', error);
-        alert('Could not add topic to today\'s plan.');
-      }
-    });
-
-    feedbackForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const lecture = document.getElementById('feedbackLectureInput').value.trim();
-      const rating = parseFloat(document.getElementById('feedbackRatingInput').value || '0');
-      const comment = document.getElementById('feedbackCommentInput').value.trim();
-      if (!lecture || !rating || !comment) return;
-
-      try {
-        await apiPost('/teacher/feedback/add/', { lecture, rating, comment });
-        feedbackForm.reset();
-        await loadTeacherDashboardData();
-      } catch (error) {
-        console.error('Add feedback error:', error);
-        alert('Could not save feedback.');
-      }
-    });
-
-    document.getElementById('exportPdfBtn').addEventListener('click', () => {
-      window.print();
-    });
-
-    document.getElementById('exportExcelBtn').addEventListener('click', () => {
-      const headers = ['Student', 'Engagement', 'Attendance', 'Topic Completion'];
-      const rows = studentReports.map((s) => [s.name, `${s.engagement}%`, `${s.attendance}%`, `${s.completion}%`]);
-      const csvContent = [headers, ...rows].map((row) => row.join(',')).join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'teacher_student_performance.csv';
-      link.click();
-    });
-
-    function refreshDashboardData() {
-      renderSyllabus();
-      renderPlannerSelector();
-      renderPlanner();
-      renderCheckpoints();
-      renderAutoHealing();
-      renderLaggingStudents();
-      renderReports();
-      renderFeedback();
-      updateSyllabusProgress();
-      updateSyllabusChart();
+      renderSyllabusTable();
+      renderSyllabusTopicSelect();
+      await loadProgress();
     }
 
-    function renderSyllabus() {
-      topicList.innerHTML = '';
-
-      syllabusTopics.forEach((item) => {
-        const li = document.createElement('li');
-        li.className = 'item-row';
-
-        li.innerHTML = `
-          <div class="item-main">
-            <div class="item-title">${item.topic}</div>
-            <div class="item-sub">${item.subject} | ${item.unit}</div>
-          </div>
-          <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap;">
-            ${item.delayed ? '<span class="badge-delay">Delayed</span>' : ''}
-            <select aria-label="Status select for topic ${item.topic}" data-topic-id="${item.id}" class="topic-status-select">
-              <option value="pending" ${item.status === 'pending' ? 'selected' : ''}>Pending</option>
-              <option value="in-progress" ${item.status === 'in-progress' ? 'selected' : ''}>In Progress</option>
-              <option value="completed" ${item.status === 'completed' ? 'selected' : ''}>Completed</option>
+    function renderSyllabusTable() {
+      const body = document.getElementById('syllabusBody');
+      body.innerHTML = '';
+      syllabusData.forEach(row => {
+        const health = row.is_delayed ? '<span class="badge bad-red">Delayed</span>' : '<span class="badge bad-green">On Track</span>';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.subject}</td>
+          <td>${row.unit}</td>
+          <td><input value="${row.topic}" onchange="inlineUpdate(${row.id}, 'topic', this.value)" /></td>
+          <td><input type="number" step="0.5" min="0" value="${row.estimated_hours}" onchange="inlineUpdate(${row.id}, 'estimated_hours', this.value)" style="width:90px;" /></td>
+          <td><input type="date" value="${toISO(row.target_date)}" onchange="inlineUpdate(${row.id}, 'target_date', this.value)" /></td>
+          <td>
+            <select onchange="inlineUpdate(${row.id}, 'priority', this.value)">
+              <option value="high" ${row.priority === 'high' ? 'selected' : ''}>High</option>
+              <option value="medium" ${row.priority === 'medium' ? 'selected' : ''}>Medium</option>
+              <option value="low" ${row.priority === 'low' ? 'selected' : ''}>Low</option>
             </select>
-            <span class="status ${item.status}">${item.status}</span>
-          </div>
+          </td>
+          <td>
+            <select onchange="inlineUpdate(${row.id}, 'status', this.value)">
+              <option value="pending" ${row.status === 'pending' ? 'selected' : ''}>Pending</option>
+              <option value="in_progress" ${row.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+              <option value="completed" ${row.status === 'completed' ? 'selected' : ''}>Completed</option>
+            </select>
+          </td>
+          <td>${health}</td>
+          <td><button class="btnx btn-muted" onclick="deleteSyllabus(${row.id})">Delete</button></td>
         `;
-
-        topicList.appendChild(li);
-      });
-
-      document.querySelectorAll('.topic-status-select').forEach((select) => {
-        select.addEventListener('change', async (e) => {
-          const topicId = Number(e.target.dataset.topicId);
-          const status = e.target.value;
-          try {
-            await apiPost(`/teacher/syllabus/topics/${topicId}/status/`, { status });
-            await loadTeacherDashboardData();
-          } catch (error) {
-            console.error('Update topic status error:', error);
-            alert('Could not update topic status.');
-          }
-        });
+        body.appendChild(tr);
       });
     }
 
-    function updateSyllabusProgress() {
-      const completed = syllabusTopics.filter((s) => s.status === 'completed').length;
-      const total = syllabusTopics.length || 1;
-      const pct = Math.round((completed / total) * 100);
-
-      document.getElementById('syllabusProgressFill').style.width = pct + '%';
-      document.getElementById('syllabusProgressText').textContent = pct + '%';
+    function toISO(indianDate) {
+      if (!indianDate) return '';
+      const parts = String(indianDate).split('-');
+      if (parts.length !== 3) return '';
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
     }
 
-    function renderPlannerSelector() {
-      dailyTopicSelect.innerHTML = '<option value="">Select topic</option>';
-      syllabusTopics.forEach((topic) => {
-        if (topic.status !== 'completed') {
-          const option = document.createElement('option');
-          option.value = String(topic.id);
-          option.textContent = `${topic.topic} (${topic.unit})`;
-          dailyTopicSelect.appendChild(option);
-        }
-      });
+    async function addSyllabus() {
+      const payload = {
+        subject: document.getElementById('subjectSelect').value,
+        unit: document.getElementById('unitSelect').value,
+        topic: document.getElementById('topicInput').value.trim(),
+        estimated_hours: Number(document.getElementById('hoursInput').value || 1),
+        target_date: document.getElementById('targetDateInput').value || todayISO(),
+        priority: document.getElementById('priorityInput').value,
+        status: document.getElementById('statusInput').value,
+      };
+      if (!payload.topic) return;
+      await api('/syllabus/', 'POST', payload);
+      document.getElementById('topicInput').value = '';
+      await loadSyllabus();
     }
 
-    function renderPlanner() {
-      plannerList.innerHTML = '';
-      if (!plannerTopics.length) {
-        plannerList.innerHTML = '<li class="item-row"><span class="item-sub">No topics planned yet for today.</span></li>';
-        return;
-      }
-
-      plannerTopics.forEach((item) => {
-        const li = document.createElement('li');
-        li.className = 'item-row';
-        li.innerHTML = `
-          <div class="item-main">
-            <div class="item-title">${item.topic}</div>
-            <div class="item-sub">${item.unit}</div>
-          </div>
-          <button class="${item.done ? 'btn-soft' : 'btn-primary'}" data-plan-id="${item.id}">
-            ${item.done ? 'Marked Done' : 'Mark Done'}
-          </button>
-        `;
-        plannerList.appendChild(li);
-      });
-
-      plannerList.querySelectorAll('button').forEach((btn) => {
-        btn.addEventListener('click', async (e) => {
-          const planId = Number(e.target.dataset.planId);
-          try {
-            const result = await apiPost(`/teacher/planner/${planId}/complete/`, {});
-            if (result?.nextTopicLaunched?.topic) {
-              alert(`Checkpoint cleared. Next topic launched: ${result.nextTopicLaunched.topic}`);
-            }
-            await loadTeacherDashboardData();
-          } catch (error) {
-            console.error('Complete plan error:', error);
-            alert('Could not mark topic as done.');
-          }
-        });
-      });
+    async function inlineUpdate(id, field, value) {
+      await api(`/syllabus/${id}/`, 'PUT', { [field]: value });
+      await loadSyllabus();
     }
 
-    function renderCheckpoints() {
-      checkpointTableBody.innerHTML = '';
-      const rows = checkpointRows.length
-        ? checkpointRows
-        : syllabusTopics.map((topic, index) => ({
-          topicNumber: index + 1,
-          topic: topic.topic,
-          checkpointAssigned: topic.checkpointAssigned,
-          checkpointRate: topic.checkpointRate,
-          respondedStudents: 0,
-          totalStudents: 0,
-        }));
-
-      rows.forEach((topic) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${topic.topicNumber || '-'}</td>
-          <td>${topic.topic}</td>
-          <td>${topic.checkpointAssigned ? 'Yes' : 'No'}</td>
-          <td>${Number(topic.respondedStudents || 0)} / ${Number(topic.totalStudents || 0)}</td>
-          <td>${topic.checkpointAssigned ? `${topic.checkpointRate}%` : '-'}</td>
-        `;
-        checkpointTableBody.appendChild(tr);
-      });
+    async function deleteSyllabus(id) {
+      if (!confirm('Delete this topic?')) return;
+      await api(`/syllabus/${id}/`, 'DELETE');
+      await loadSyllabus();
     }
 
-    function renderAutoHealing() {
-      warningList.innerHTML = '';
-      suggestionChips.innerHTML = '';
-
-      delayedTopics.forEach((topic) => {
-        const li = document.createElement('li');
-        li.className = 'item-row';
-        li.innerHTML = `
-          <div class="item-main">
-            <div class="item-title">${topic.topic}</div>
-            <div class="item-sub">Planned: ${topic.plannedDate || '-'} | Revised: ${topic.revisedDate || '-'}</div>
-          </div>
-          <span class="badge-delay"><i class="fa-solid fa-triangle-exclamation"></i> Behind Schedule</span>
-        `;
-        warningList.appendChild(li);
-
-        const chip = document.createElement('span');
-        chip.className = 'chip';
-        chip.innerHTML = `<i class="fa-solid fa-calendar-plus"></i> ${topic.topic} -> ${topic.revisedDate || 'TBD'}`;
-        suggestionChips.appendChild(chip);
-      });
-
-      if (!delayedTopics.length) {
-        warningList.innerHTML = '<li class="item-row"><span class="item-sub">No delayed topics. Schedule is healthy.</span></li>';
-        suggestionChips.innerHTML = '<span class="chip"><i class="fa-solid fa-check"></i> No rescheduling required</span>';
-      }
+    function renderSyllabusTopicSelect() {
+      const select = document.getElementById('lectureTopicSelect');
+      const checkpointSelect = [];
+      const rows = syllabusData.filter(x => ['pending', 'in_progress'].includes(x.status));
+      select.innerHTML = rows.map(r => `<option value="${r.id}">${r.topic} (${r.subject})</option>`).join('') || '<option value="">No topic</option>';
+      rows.forEach(r => checkpointSelect.push(`<option value="${r.id}">${r.topic}</option>`));
+      selectedTopicForCheckpoint = rows[0] ? rows[0].id : null;
+      document.getElementById('lectureDate').value = todayISO();
     }
 
-    function renderLaggingStudents() {
-      laggingTableBody.innerHTML = '';
-      if (!laggingStudents.length) {
-        laggingTableBody.innerHTML = '<tr><td colspan="4">No students currently below 60% engagement.</td></tr>';
-        return;
-      }
-
-      laggingStudents.forEach((student) => {
-        const disabledAttr = student.topicId ? '' : 'disabled';
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${student.name}</td>
-          <td>${student.topic}</td>
-          <td>${Number(student.engagement || 0).toFixed(1)}%</td>
-          <td><button class="btn-primary" ${disabledAttr} data-student-id="${student.studentId}" data-topic-id="${student.topicId || ''}">Schedule Extra Lecture</button></td>
-        `;
-        laggingTableBody.appendChild(tr);
-      });
-
-      laggingTableBody.querySelectorAll('button').forEach((btn) => {
-        btn.addEventListener('click', async (e) => {
-          const studentId = e.target.dataset.studentId;
-          const topicId = Number(e.target.dataset.topicId);
-          if (!topicId) {
-            alert('No lagging topic mapped yet for this student.');
-            return;
-          }
-          try {
-            const result = await apiPost('/teacher/extra-lectures/schedule/', {
-              student_id: studentId,
-              topic_id: topicId,
-            });
-            alert(result?.message || 'Extra lecture scheduled.');
-          } catch (error) {
-            console.error('Schedule extra lecture error:', error);
-            alert('Could not schedule extra lecture.');
-          }
-        });
-      });
+    async function loadProgress() {
+      const data = await api('/syllabus/progress/');
+      const pct = Number(data.completion_percent || 0);
+      document.getElementById('syllabusProgressFill').style.width = `${pct}%`;
+      document.getElementById('syllabusProgressText').textContent = `${pct}%`;
+      const d = data.distribution || { pending: 0, in_progress: 0, completed: 0 };
+      renderDonut([d.pending, d.in_progress, d.completed]);
     }
 
-    function renderReports() {
-      reportCards.innerHTML = '';
-      if (!studentReports.length) {
-        reportCards.innerHTML = '<div class="student-kpi">No analytics data available yet.</div>';
-        return;
-      }
-
-      studentReports.forEach((student) => {
-        const div = document.createElement('div');
-        div.className = 'student-kpi';
-        div.innerHTML = `
-          <h4>${student.name}</h4>
-          <div class="kpi-item"><span>Engagement</span><strong>${Number(student.engagement || 0).toFixed(1)}%</strong></div>
-          <div class="kpi-item"><span>Attendance</span><strong>${Number(student.attendance || 0).toFixed(1)}%</strong></div>
-          <div class="kpi-item"><span>Topic Completion</span><strong>${Number(student.completion || 0).toFixed(1)}%</strong></div>
-          <div class="kpi-item"><span>Extra Lectures</span><strong>${Number(student.extraLectures || 0)}</strong></div>
-        `;
-        reportCards.appendChild(div);
-      });
-    }
-
-    function renderFeedback() {
-      feedbackList.innerHTML = '';
-      avgRating.textContent = `${(Number.isFinite(averageRating) ? averageRating : 0).toFixed(1)} / 5`;
-
-      feedbackData.forEach((entry) => {
-        const li = document.createElement('li');
-        li.className = 'feedback-item';
-        li.innerHTML = `
-          <div class="feedback-head">
-            <span>${entry.lecture}</span>
-            <span class="rating">${entry.rating} <i class="fa-solid fa-star"></i></span>
-          </div>
-          <p style="font-size:0.84rem; color:#5a657f;">${entry.comment}</p>
-        `;
-        feedbackList.appendChild(li);
-      });
-    }
-
-    function updateSyllabusChart() {
-      const pendingCount = syllabusTopics.filter((s) => s.status === 'pending').length;
-      const inProgressCount = syllabusTopics.filter((s) => s.status === 'in-progress').length;
-      const completedCount = syllabusTopics.filter((s) => s.status === 'completed').length;
-      const data = [pendingCount, inProgressCount, completedCount];
-
-      if (!syllabusChart) {
-        const ctx = document.getElementById('syllabusChart');
-        syllabusChart = new Chart(ctx, {
+    function renderDonut(values) {
+      const ctx = document.getElementById('syllabusDonut');
+      if (!donut) {
+        donut = new Chart(ctx, {
           type: 'doughnut',
           data: {
             labels: ['Pending', 'In Progress', 'Completed'],
-            datasets: [{ data, backgroundColor: ['#f59e0b', '#4f8ef7', '#16a34a'], borderWidth: 0 }]
+            datasets: [{ data: values, backgroundColor: ['#f59e0b', '#4f8ef7', '#22c55e'] }]
           },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: 'bottom',
-                labels: { boxWidth: 12, usePointStyle: true }
-              }
-            }
-          }
+          options: { plugins: { legend: { position: 'bottom' } } }
         });
       } else {
-        syllabusChart.data.datasets[0].data = data;
-        syllabusChart.update();
+        donut.data.datasets[0].data = values;
+        donut.update();
       }
     }
 
-    loadTeacherDashboardData();
+    async function loadLecturePlans() {
+      const data = await api('/lecture-plan/');
+      const plans = data.plans || [];
+      const cards = document.getElementById('lectureCards');
+      const timeline = document.getElementById('lectureTimeline');
+      cards.innerHTML = '';
+      timeline.innerHTML = '';
+      plans.forEach(p => {
+        const start12 = formatTime12h(p.start_time);
+        const end12 = formatTime12h(p.end_time);
+        const div = document.createElement('div');
+        div.className = 'lecture-card';
+        div.innerHTML = `
+          <div style="display:flex;justify-content:space-between;gap:0.6rem;flex-wrap:wrap;">
+            <div><strong>${p.topic}</strong> <span style="color:#64748b;">${p.subject}</span><div style="font-size:0.82rem;color:#64748b;">${start12} to ${end12}</div></div>
+            <div style="display:flex;gap:0.4rem;">
+              <button class="btnx btn-success" onclick="updatePlanStatus(${p.id}, 'done')">Mark as Done</button>
+              <button class="btnx btn-muted" onclick="updatePlanStatus(${p.id}, 'skipped')">Mark as Skipped</button>
+              <button class="btnx btn-warning" onclick="updatePlanStatus(${p.id}, 'in_progress')">In Progress</button>
+            </div>
+          </div>
+          <div style="font-size:0.84rem;color:#64748b;margin-top:0.3rem;">${p.notes || ''}</div>
+        `;
+        cards.appendChild(div);
+
+        const node = document.createElement('div');
+        node.className = 'node';
+        node.innerHTML = `<strong>${start12}</strong><div>${p.topic}</div><div style="font-size:0.8rem;color:#64748b;">${p.status}</div>`;
+        timeline.appendChild(node);
+      });
+
+      const tracker = data.duration_tracker || { planned_hours: 0, completed_hours: 0 };
+      document.getElementById('durationTracker').textContent = `Planned: ${tracker.planned_hours}hrs | Completed: ${tracker.completed_hours}hrs`;
+
+      const lectureSelect = document.getElementById('feedbackLecture');
+      lectureSelect.innerHTML = plans.map(p => `<option value="${p.id}">${p.topic} (${p.lecture_date})</option>`).join('') || '<option value="">No lecture</option>';
+    }
+
+    async function addLecturePlan() {
+      const payload = {
+        topic_id: Number(document.getElementById('lectureTopicSelect').value),
+        lecture_date: document.getElementById('lectureDate').value || todayISO(),
+        start_time: document.getElementById('lectureStart').value,
+        end_time: document.getElementById('lectureEnd').value,
+        notes: document.getElementById('lectureNotes').value,
+      };
+      if (!payload.topic_id) return;
+      await api('/lecture-plan/', 'POST', payload);
+      await loadLecturePlans();
+    }
+
+    async function updatePlanStatus(id, status) {
+      const result = await api(`/lecture-plan/${id}/`, 'PUT', { status });
+      if (result.checkpoint_prompt && confirm('Do you want to assign a checkpoint quiz?')) {
+        document.getElementById('checkpointSection').scrollIntoView({ behavior: 'smooth' });
+      }
+      await loadSyllabus();
+      await loadLecturePlans();
+      await loadCheckpoints();
+    }
+
+    async function createCheckpoint() {
+      const topicId = Number(document.getElementById('lectureTopicSelect').value);
+      if (!topicId) return;
+      const payload = {
+        topic_id: topicId,
+        title: document.getElementById('checkpointTitle').value || 'Checkpoint',
+        checkpoint_type: document.getElementById('checkpointType').value,
+        passing_score: Number(document.getElementById('checkpointPassing').value || 60),
+        deadline: document.getElementById('checkpointDeadline').value || todayISO(),
+      };
+      await api('/checkpoints/', 'POST', payload);
+      document.getElementById('checkpointTitle').value = '';
+      await loadCheckpoints();
+    }
+
+    async function loadCheckpoints() {
+      const data = await api('/checkpoints/');
+      checkpointData = data.checkpoints || [];
+      const body = document.getElementById('checkpointBody');
+      body.innerHTML = '';
+      checkpointData.forEach(c => {
+        const passClass = c.pass_rate > 75 ? 'bad-green' : (c.pass_rate >= 50 ? 'bad-yellow' : 'bad-red');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${c.topic}</td>
+          <td>${c.type}</td>
+          <td>${c.assigned_date}</td>
+          <td>${c.avg_score}%</td>
+          <td><span class="badge ${passClass}">${c.pass_rate}%</span></td>
+          <td>${c.status}</td>
+          <td>
+            <button class="btnx btn-soft" onclick="viewCheckpointResults(${c.id})">View Scores</button>
+            <button class="btnx btn-muted" onclick="sendReminder(${c.id})">Send Reminder</button>
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+
+      const summary = await api('/checkpoints/summary/');
+      document.getElementById('checkpointSummary').textContent = `Class Avg: ${summary.class_avg || 0}% | Pass Rate: ${summary.pass_rate || 0}% | Attempts: ${summary.total_attempts || 0}`;
+    }
+
+    async function viewCheckpointResults(id) {
+      const data = await api(`/checkpoints/${id}/results/`);
+      const rows = (data.results || []).map(r => `${r.student_name} (${r.student_id}): ${r.score}%`).join('\n');
+      alert(rows || 'No student scores yet.');
+    }
+
+    async function sendReminder(id) {
+      const data = await api('/checkpoints/send-reminder/', 'POST', { checkpoint_id: id });
+      alert(`Reminder sent to ${data.reminders_sent || 0} students.`);
+    }
+
+    async function calculateAutoHeal() {
+      const delayed = await api('/syllabus/delayed/');
+      const suggestions = await api('/syllabus/auto-heal/');
+      const delayedItems = delayed.items || [];
+      const sItems = suggestions.suggestions || [];
+      const totalBehind = delayedItems.reduce((acc, x) => acc + Number(x.days_delayed || 0), 0);
+      document.getElementById('autoHealSummary').textContent = `${delayedItems.length} topics delayed, ${totalBehind} days total behind schedule`;
+      const timeline = document.getElementById('autoHealTimeline');
+      timeline.innerHTML = '';
+      sItems.forEach(s => {
+        const node = document.createElement('div');
+        node.className = 'node';
+        node.innerHTML = `<strong>${s.topic}</strong><div>${s.old_date} -> ${s.suggested_date}</div><button class="btnx btn-soft" onclick="rescheduleTopic(${s.id})">Set Custom Date</button>`;
+        timeline.appendChild(node);
+      });
+    }
+
+    async function acceptAutoHeal() {
+      await api('/syllabus/auto-heal/accept/', 'POST', {});
+      await loadSyllabus();
+      await calculateAutoHeal();
+    }
+
+    async function rescheduleTopic(id) {
+      const targetDate = prompt('Enter new date (YYYY-MM-DD):', todayISO());
+      if (!targetDate) return;
+      await api(`/syllabus/${id}/reschedule/`, 'POST', { target_date: targetDate });
+      await loadSyllabus();
+      await calculateAutoHeal();
+    }
+
+    async function loadLaggingStudents() {
+      const data = await api('/students/lagging/');
+      const onlyRisk = document.getElementById('laggingFilter').value === 'atrisk';
+      let rows = data.students || [];
+      if (onlyRisk) rows = rows.filter(r => r.risk_level === 'high');
+      const body = document.getElementById('laggingBody');
+      body.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.student_name}</td>
+          <td>${r.roll_no}</td>
+          <td>${r.lagging_topic}</td>
+          <td>${r.engagement_percent}%</td>
+          <td>${r.attendance_percent}%</td>
+          <td>
+            <button class="btnx btn-primary" onclick="openExtraModal('${encodeURIComponent(JSON.stringify(r))}')">Schedule Extra Lecture</button>
+            <button class="btnx btn-muted" onclick="sendNote('${r.student_id}')">Send Note to Student</button>
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+
+    function openExtraModal(raw) {
+      const r = JSON.parse(decodeURIComponent(raw));
+      selectedLagging = r;
+      document.getElementById('modalStudent').value = `${r.student_name} (${r.roll_no})`;
+      document.getElementById('modalTopic').value = r.lagging_topic;
+      document.getElementById('modalDate').value = todayISO();
+      document.getElementById('modalTime').value = '16:00';
+      document.getElementById('extraLectureModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('extraLectureModal').style.display = 'none';
+      selectedLagging = null;
+    }
+
+    async function confirmExtraLecture() {
+      if (!selectedLagging) return;
+      await api('/extra-lectures/', 'POST', {
+        student_id: selectedLagging.student_id,
+        topic_id: selectedLagging.topic_id,
+        scheduled_date: document.getElementById('modalDate').value,
+        scheduled_time: document.getElementById('modalTime').value,
+        notes: document.getElementById('modalNotes').value,
+      });
+      closeModal();
+      await loadExtraLectures();
+    }
+
+    async function loadExtraLectures() {
+      const data = await api('/extra-lectures/');
+      const cards = document.getElementById('extraLectureCards');
+      cards.innerHTML = '';
+      (data.items || []).forEach(item => {
+        const scheduledTime = item.scheduled_time ? formatTime12h(item.scheduled_time) : '';
+        const c = document.createElement('div');
+        c.className = 'lecture-card';
+        c.innerHTML = `
+          <div style="display:flex;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
+            <div><strong>${item.student_name}</strong> - ${item.topic}<div style="font-size:0.84rem;color:#64748b;">${item.scheduled_date} ${scheduledTime}</div></div>
+            <div><span class="badge ${item.status === 'done' ? 'bad-green' : item.status === 'cancelled' ? 'bad-red' : 'bad-yellow'}">${item.status}</span></div>
+          </div>
+          <div style="margin-top:0.4rem;display:flex;gap:0.4rem;">
+            <button class="btnx btn-warning" onclick="updateExtraLecture(${item.id}, 'done')">Done</button>
+            <button class="btnx btn-muted" onclick="updateExtraLecture(${item.id}, 'cancelled')">Cancel</button>
+          </div>
+        `;
+        cards.appendChild(c);
+      });
+    }
+
+    async function updateExtraLecture(id, status) {
+      await api(`/extra-lectures/${id}/`, 'PUT', { status });
+      await loadExtraLectures();
+    }
+
+    async function sendNote(studentId) {
+      await api('/extra-lectures/send-note/', 'POST', { student_id: studentId, note: 'Please attend extra lecture support session.' });
+      alert('Note sent to student.');
+    }
+
+    function pctClass(v) {
+      if (v > 75) return 'bad-green';
+      if (v >= 50) return 'bad-yellow';
+      return 'bad-red';
+    }
+
+    async function loadPerformance() {
+      const data = await api('/students/performance/');
+      performanceData = data.students || [];
+      renderPerformanceCards();
+    }
+
+    function renderPerformanceCards() {
+      const riskFilter = document.getElementById('riskFilter').value;
+      const text = document.getElementById('studentSearch').value.toLowerCase().trim();
+      let rows = [...performanceData];
+      if (riskFilter !== 'all') rows = rows.filter(r => r.risk_level === riskFilter);
+      if (text) rows = rows.filter(r => r.name.toLowerCase().includes(text) || String(r.roll_no).toLowerCase().includes(text));
+
+      const wrap = document.getElementById('performanceCards');
+      wrap.innerHTML = '';
+      rows.forEach(r => {
+        const riskText = r.risk_level === 'high' ? 'High Risk' : r.risk_level === 'medium' ? 'Medium' : 'Good';
+        const riskIcon = r.risk_level === 'high' ? '🔴' : r.risk_level === 'medium' ? '🟡' : '🟢';
+        const card = document.createElement('div');
+        card.className = 'student-card';
+        card.innerHTML = `
+          <div style="display:flex;align-items:center;margin-bottom:0.5rem;"><span class="profile-avatar">${(r.name || 'S').charAt(0)}</span><div><div><strong>${r.name}</strong></div><div style="font-size:0.82rem;color:#64748b;">Roll: ${r.roll_no}</div></div></div>
+          <div style="font-size:0.82rem;">Engagement <span class="badge ${pctClass(r.engagement_percent)}">${r.engagement_percent}%</span></div>
+          <div class="progress" style="margin:0.2rem 0 0.5rem;"><span style="width:${r.engagement_percent}%"></span></div>
+          <div style="font-size:0.82rem;">Attendance <span class="badge ${pctClass(r.attendance_percent)}">${r.attendance_percent}%</span></div>
+          <div class="progress" style="margin:0.2rem 0 0.5rem;"><span style="width:${r.attendance_percent}%;background:#22c55e;"></span></div>
+          <div style="font-size:0.82rem;">Topic Completion <span class="badge ${pctClass(r.topic_completion_percent)}">${r.topic_completion_percent}%</span></div>
+          <div class="progress" style="margin:0.2rem 0 0.5rem;"><span style="width:${r.topic_completion_percent}%;background:#8b5cf6;"></span></div>
+          <div style="font-size:0.86rem;margin-bottom:0.5rem;">${riskIcon} ${riskText}</div>
+          <button class="btnx btn-soft" onclick="viewFullReport('${r.student_id}')">View Full Report</button>
+        `;
+        wrap.appendChild(card);
+      });
+    }
+
+    async function viewFullReport(studentId) {
+      const all = await api('/students/performance/');
+      const target = (all.students || []).find(x => x.student_id === studentId);
+      if (!target) return;
+      const detail = await api(`/students/${target.id || 0}/performance/`);
+      const rec = await api(`/students/${target.id || 0}/ai-recommendation/`);
+      alert(`${target.name}\nAI Recommendation: ${rec.recommendation || 'N/A'}\nRecords: ${(detail.checkpoint_scores || []).length}`);
+    }
+
+    function exportPerformance() {
+      const headers = ['Name', 'Roll No', 'Engagement %', 'Attendance %', 'Topic Completion %', 'Risk'];
+      const lines = [headers.join(',')];
+      performanceData.forEach(r => lines.push([r.name, r.roll_no, r.engagement_percent, r.attendance_percent, r.topic_completion_percent, r.risk_level].join(',')));
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'student_performance.csv';
+      a.click();
+    }
+
+    async function loadFeedback() {
+      const params = new URLSearchParams();
+      const r = document.getElementById('feedbackRatingFilter').value;
+      if (r) params.append('rating', r);
+      const data = await api(`/feedback/${params.toString() ? '?' + params.toString() : ''}`);
+      const summary = await api('/feedback/summary/');
+      document.getElementById('feedbackSummary').textContent = `Average Rating: ${summary.average_rating || 0} | Total: ${summary.total_count || 0} | Common keyword: ${summary.most_common_keyword || '-'}`;
+
+      const list = document.getElementById('feedbackList');
+      list.innerHTML = '';
+      (data.items || []).forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'lecture-card';
+        div.innerHTML = `<div style="display:flex;justify-content:space-between;gap:0.5rem;"><strong>${item.lecture}</strong><span>${'★'.repeat(item.rating)}</span></div><div style="font-size:0.84rem;color:#64748b;">${item.student_name} | ${item.date}</div><p style="margin:0.3rem 0;">${item.comment}</p><input placeholder="Reply" value="${item.teacher_reply || ''}" onchange="replyFeedback(${item.id}, this.value)" style="width:100%;border:1px solid #dbe1ee;border-radius:8px;padding:0.5rem;" />`;
+        list.appendChild(div);
+      });
+    }
+
+    async function submitFeedback() {
+      const lectureId = document.getElementById('feedbackLecture').value;
+      await api('/feedback/', 'POST', {
+        lecture_id: lectureId || null,
+        rating: selectedRating,
+        comment: document.getElementById('feedbackComment').value,
+        is_anonymous: document.getElementById('feedbackAnonymous').checked,
+      });
+      document.getElementById('feedbackComment').value = '';
+      await loadFeedback();
+    }
+
+    async function replyFeedback(id, reply) {
+      await api(`/feedback/${id}/reply/`, 'PUT', { teacher_reply: reply });
+    }
+
+    async function exportFeedback() {
+      const data = await api('/feedback/export/');
+      const blob = new Blob([data.csv || ''], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = data.filename || 'feedback.csv';
+      a.click();
+    }
+
+    async function loadAll() {
+      await loadSyllabus();
+      await loadLecturePlans();
+      await loadCheckpoints();
+      await calculateAutoHeal();
+      await loadLaggingStudents();
+      await loadExtraLectures();
+      await loadPerformance();
+      await loadFeedback();
+    }
+
+    document.getElementById('filterSubject').addEventListener('change', loadSyllabus);
+    document.getElementById('filterStatus').addEventListener('change', loadSyllabus);
+    document.getElementById('filterPriority').addEventListener('change', loadSyllabus);
+    document.getElementById('laggingFilter').addEventListener('change', loadLaggingStudents);
+    document.getElementById('riskFilter').addEventListener('change', renderPerformanceCards);
+    document.getElementById('studentSearch').addEventListener('input', renderPerformanceCards);
+    document.getElementById('feedbackRatingFilter').addEventListener('change', loadFeedback);
+
+    showStars();
+    loadAll();
   </script>
 </body>
 </html>

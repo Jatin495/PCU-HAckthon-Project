@@ -54,6 +54,8 @@ urlpatterns = [
     path('login.html', serve_root_file('login.html'), name='login_html'),
     path('dashboard.html', serve_root_file('dashboard.html'), name='dashboard_html'),
     path('teacher.html', serve_root_file('teacher.html'), name='teacher_html'),
+    path('teacher_profile.html', serve_root_file('teacher_profile.html'), name='teacher_profile_html'),
+    path('timetable.html', serve_root_file('timetable.html'), name='timetable_html'),
     path('teacher_dashboard.html', serve_root_file('teacher.html'), name='teacher_dashboard_html'),
     path('live_class.html', serve_root_file('live_class.html'), name='live_class_html'),
     path('attendance.html', serve_root_file('attendance.html'), name='attendance_html'),
@@ -62,6 +64,8 @@ urlpatterns = [
     path('analytics.html', serve_root_file('analytics.html'), name='analytics_html'),
     path('settings.html', serve_root_file('settings.html'), name='settings_html'),
     path('alert_test.html', serve_root_file('alert_test.html'), name='alert_test_html'),
+    path('notification_center.html', serve_root_file('notification_center.html'), name='notification_center_html'),
+    path('ai_insights.html', serve_root_file('ai_insights.html'), name='ai_insights_html'),
 
     # Face Recognition
     # path('register-face/', views.register_student_face, name='register_student_face'),
