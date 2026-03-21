@@ -1071,7 +1071,7 @@
         let cameraStream = null;
         let guidedCaptureMode = false;
         let guidedStepIndex = 0;
-        const guidedSteps = ['left', 'right', 'straight'];
+        const guidedSteps = ['left', 'straight', 'right'];
         const guidedBlobs = {};
 
         async function attachBackendFrameAsPhoto() {
@@ -1259,8 +1259,8 @@
             label.textContent = `Step ${guidedStepIndex + 1}/${guidedSteps.length}: ${step.toUpperCase()}`;
 
             const baseHint = step === 'straight'
-                ? 'Keep face in center of preview and look straight.'
-                : `Move your face to the ${step.toUpperCase()} side of preview.`;
+                ? 'Look STRAIGHT to camera with full front face.'
+                : `Turn head to ${step.toUpperCase()} side so ${step.toUpperCase()} ear/cheek is visible. Do not just shift face position.`;
 
             if (issues.length) {
                 hint.innerHTML = `${baseHint}<br>⚠️ ${issues.join(' | ')}`;
@@ -1376,7 +1376,8 @@
                             const issues = Array.isArray(check.issues) ? check.issues : ['Capture not accepted'];
                             updateGuidedStepUI(issues);
                             updateGuidedOverlay(expectedPose, String(check.detected_pose || '').toLowerCase() || null);
-                            showAlert(issues[0] || 'Adjust your position and try again.', 'warning');
+                            const detectedPose = String(check.detected_pose || 'unknown').toUpperCase();
+                            showAlert(`${issues[0] || 'Adjust and try again.'} (Detected: ${detectedPose})`, 'warning');
                             return;
                         }
 

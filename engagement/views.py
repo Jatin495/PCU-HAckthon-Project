@@ -771,29 +771,92 @@ def face_capture_check(request):
 
         x, y, w, h = max(faces, key=lambda f: int(f[2]) * int(f[3]))
         h_img, w_img = img.shape[:2]
-        face_center_x = x + (w / 2.0)
-        center_ratio = face_center_x / float(max(1, w_img))
 
-        if center_ratio < 0.4:
-            detected_pose = 'left'
-        elif center_ratio > 0.6:
-            detected_pose = 'right'
-        else:
-            detected_pose = 'straight'
+        # Estimate head yaw using facial landmarks so side-pose checks require
+        # actual head rotation (ear-visible profile), not just horizontal shift.
+        detected_pose = 'straight'
+        yaw_norm = 0.0
+        pose_method = 'bbox_fallback'
+
+        try:
+            import mediapipe as mp
+            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            with mp.solutions.face_mesh.FaceMesh(
+                static_image_mode=True,
+                max_num_faces=1,
+                refine_landmarks=False,
+                min_detection_confidence=0.5,
+            ) as face_mesh:
+                mesh_result = face_mesh.process(rgb)
+
+            if mesh_result and mesh_result.multi_face_landmarks:
+                landmarks = mesh_result.multi_face_landmarks[0].landmark
+
+                # Canonical FaceMesh landmarks: nose tip=1, left cheek=234, right cheek=454
+                nose_x = float(landmarks[1].x)
+                left_x = float(landmarks[234].x)
+                right_x = float(landmarks[454].x)
+                face_width = max(1e-4, right_x - left_x)
+                face_mid_x = (left_x + right_x) / 2.0
+                yaw_norm = (nose_x - face_mid_x) / face_width
+                pose_method = 'face_mesh_yaw'
+
+                # Sign convention (camera view):
+                # yaw_norm > 0  -> student turned to their LEFT
+                # yaw_norm < 0  -> student turned to their RIGHT
+                if yaw_norm >= 0.10:
+                    detected_pose = 'left'
+                elif yaw_norm <= -0.10:
+                    detected_pose = 'right'
+                else:
+                    detected_pose = 'straight'
+            else:
+                # Conservative fallback if landmarks are unavailable.
+                face_center_x = x + (w / 2.0)
+                center_ratio = face_center_x / float(max(1, w_img))
+                if center_ratio < 0.33:
+                    detected_pose = 'left'
+                elif center_ratio > 0.67:
+                    detected_pose = 'right'
+                else:
+                    detected_pose = 'straight'
+        except Exception:
+            # Keep fallback path robust even if MediaPipe fails at runtime.
+            face_center_x = x + (w / 2.0)
+            center_ratio = face_center_x / float(max(1, w_img))
+            if center_ratio < 0.33:
+                detected_pose = 'left'
+            elif center_ratio > 0.67:
+                detected_pose = 'right'
+            else:
+                detected_pose = 'straight'
 
         face_roi = gray[y:y + h, x:x + w]
         blur_score = float(cv2.Laplacian(face_roi, cv2.CV_64F).var()) if face_roi.size else 0.0
         brightness = float(np.mean(face_roi)) if face_roi.size else 0.0
         face_area_ratio = float((w * h) / float(max(1, w_img * h_img)))
 
-        pose_ok = detected_pose == expected_pose
+        if expected_pose == 'straight':
+            pose_ok = abs(yaw_norm) <= 0.07 if pose_method == 'face_mesh_yaw' else (detected_pose == 'straight')
+        elif expected_pose == 'left':
+            pose_ok = yaw_norm >= 0.12 if pose_method == 'face_mesh_yaw' else (detected_pose == 'left')
+        else:  # right
+            pose_ok = yaw_norm <= -0.12 if pose_method == 'face_mesh_yaw' else (detected_pose == 'right')
+
         size_ok = face_area_ratio >= 0.08
         blur_ok = blur_score >= 70.0
         light_ok = 45.0 <= brightness <= 220.0
 
         issues = []
         if not pose_ok:
-            issues.append(f"Position mismatch: expected {expected_pose}, detected {detected_pose}. Move your face to {expected_pose.upper()} side of preview.")
+            if expected_pose == 'straight':
+                issues.append(
+                    f"Pose mismatch: expected STRAIGHT, detected {detected_pose.upper()}. Keep your face centered and look directly at camera."
+                )
+            else:
+                issues.append(
+                    f"Pose mismatch: expected {expected_pose.upper()}, detected {detected_pose.upper()}. Turn your head to show your {expected_pose.upper()} side (ear/cheek visible), not just move position."
+                )
         if not size_ok:
             issues.append('Face is too small. Move closer to camera.')
         if not blur_ok:
@@ -812,6 +875,8 @@ def face_capture_check(request):
                 'blur_score': round(blur_score, 2),
                 'brightness': round(brightness, 2),
                 'face_area_ratio': round(face_area_ratio, 4),
+                'yaw_norm': round(float(yaw_norm), 4),
+                'pose_method': pose_method,
             },
             'issues': issues,
             'message': 'Capture accepted' if passed else 'Please adjust and try again',
