@@ -1069,11 +1069,12 @@ def get_camera_analysis():
 def simple_camera_feed(request):
     """MJPEG streaming endpoint"""
     from django.http import StreamingHttpResponse
-    
-    # FIXED: Ensure camera is running before streaming
+
+    # Do not auto-start camera from feed endpoint.
     if not camera_processor.is_running:
-        camera_processor.start()
-    
+        from django.http import HttpResponse
+        return HttpResponse("Camera stream is not active. Start monitoring first.", status=409)
+
     # Use the improved MJPEG generator
     return StreamingHttpResponse(
         generate_mjpeg_frames(),

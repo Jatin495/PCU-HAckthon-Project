@@ -6,22 +6,18 @@ All endpoints that the frontend HTML/JS communicates with.
 import json
 import logging
 import threading
-import base64
 import time
-import csv
 from collections import Counter
 from datetime import datetime, timedelta
 
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
 from django.utils import timezone
-from django.db.models import Avg, Count, Max, Min, Q
+from django.db.models import Avg, Count, Max, Q
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password, check_password
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
-from rest_framework import status
 import pandas as pd
 
 from .models import (
@@ -45,6 +41,7 @@ _active_session_topic_map = {}
 _student_behavior_state = {}
 _last_behavior_alert_at = {}
 _BEHAVIOR_ALERT_COOLDOWN_SECONDS = 20
+_AUTO_RESTART_SUPPRESS_UNTIL = None
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -428,7 +425,7 @@ def engagement_timeline(request):
             snapshots = snapshots.filter(session_id=session_id)
         snapshots = snapshots.order_by('timestamp')
         data = [{
-            'time': s.timestamp.strftime('%H:%M:%S'),
+            'time': timezone.localtime(s.timestamp).strftime('%H:%M:%S'),
             'engagement': round(s.avg_engagement, 1),
             'attention': round(s.avg_attention, 1),
             'present': s.present_count,
@@ -453,11 +450,10 @@ def list_students(request):
             student=OuterRef('pk')
         ).order_by('-timestamp')
         
-        # Prefetch today's attendance in one query
-        attendance_map = {
-            a.student_id: a 
-            for a in Attendance.objects.filter(date=today)
-        }
+        # A student is considered present today if present in any session today.
+        present_student_ids = set(
+            Attendance.objects.filter(date=today, is_present=True).values_list('student_id', flat=True)
+        )
         
         # Single query with annotations
         students = Student.objects.filter(is_active=True).annotate(
@@ -468,7 +464,6 @@ def list_students(request):
         
         result = []
         for student in students:
-            attendance = attendance_map.get(student.id)
             result.append({
                 'id': student.id,
                 'student_id': student.student_id,
@@ -477,7 +472,7 @@ def list_students(request):
                 'seat_row': student.seat_row,
                 'seat_col': student.seat_col,
                 'face_registered': bool(student.face_encoding),
-                'present_today': attendance.is_present if attendance else False,
+                'present_today': student.id in present_student_ids,
                 'current_emotion': student.latest_emotion or 'unknown',
                 'current_engagement': round(student.latest_engagement_score, 1) if student.latest_engagement_score else 0,
                 'avg_engagement': round(student.latest_engagement_score, 1) if student.latest_engagement_score else 0,
@@ -1159,9 +1154,27 @@ def end_session(request, session_id):
         logger.info(f"🛑 Ending session {session_id}")
         
         session = ClassSession.objects.get(id=session_id)
+
+        # Idempotency: if session was already ended, just return existing auto-report state.
+        if session.status == 'ended' and session.end_time:
+            auto_report = _finalize_session(session)
+            return Response({
+                'success': True,
+                'duration': session.duration_minutes,
+                'stream_stopped': True,
+                'topic_updated': True,
+                'already_ended': True,
+                'auto_report_generated': bool(auto_report and auto_report.status == 'completed'),
+                'auto_report_id': auto_report.id if auto_report else None,
+            })
+
         topic_ctx = _active_session_topic_map.get(session.id, {})
         topic_updated = bool(topic_ctx.get('daily_plan_id') or topic_ctx.get('lecture_plan_id'))
         
+        # Suppress live_data auto-restart briefly while session is being finalized.
+        global _AUTO_RESTART_SUPPRESS_UNTIL
+        _AUTO_RESTART_SUPPRESS_UNTIL = timezone.now() + timedelta(seconds=20)
+
         # Stop the video stream immediately
         from .video_stream import stop_stream
         stream_stopped = stop_stream()
@@ -1201,6 +1214,17 @@ def _generate_session_auto_report(session):
 
         session_end = session.end_time or timezone.now()
         report_name = f"Session Report - {session.class_name} - {session.start_time.strftime('%Y-%m-%d %H-%M')}"
+
+        # Idempotency: if this session auto-report already exists, reuse it.
+        existing = (
+            Report.objects
+            .filter(name=report_name, report_type='summary')
+            .order_by('-created_at')
+            .first()
+        )
+        if existing:
+            return existing
+
         report = Report.objects.create(
             name=report_name,
             report_type='summary',
@@ -1296,6 +1320,9 @@ def _generate_session_auto_report(session):
 
 def _finalize_session(session):
     """Mark session ended, update planned topic state, and auto-generate report."""
+    if session.status == 'ended' and session.end_time:
+        return _generate_session_auto_report(session)
+
     session.status = 'ended'
     session.end_time = timezone.now()
     session.save(update_fields=['status', 'end_time'])
@@ -1466,14 +1493,11 @@ def _cleanup_behavior_state(now, ttl_seconds=90):
 @api_view(['GET'])
 def video_feed(request):
     try:
-        from .video_stream import get_video_stream, generate_mjpeg_frames, start_stream
+        from .video_stream import get_video_stream, generate_mjpeg_frames
         stream = get_video_stream()
-        
-        # If stream isn't running, try to start it (will use demo mode if camera unavailable)
-        if not stream.is_running:
-            logger.info("📹 Stream not running, attempting to start...")
-            start_stream(source=0, session_id=None)
-        
+
+        # Do not auto-start camera from a read endpoint.
+        # Stream must be started explicitly via session/camera start APIs.
         if stream.is_running:
             response = StreamingHttpResponse(
                 generate_mjpeg_frames(),
@@ -1482,8 +1506,7 @@ def video_feed(request):
             response['Cache-Control'] = 'no-cache'
             return response
         else:
-            logger.error("❌ Stream failed to start")
-            return HttpResponse("Failed to start video stream", status=503)
+            return HttpResponse("Video stream is not active. Start monitoring first.", status=409)
     except Exception as e:
         logger.error(f"Stream error: {e}")
         return HttpResponse(f"Stream error: {e}", status=500)
@@ -1494,6 +1517,8 @@ def video_feed(request):
 @permission_classes([])
 def stop_stream_force(request):
     try:
+        global _AUTO_RESTART_SUPPRESS_UNTIL
+        _AUTO_RESTART_SUPPRESS_UNTIL = timezone.now() + timedelta(seconds=20)
         from .video_stream import stop_stream
         stopped = stop_stream()
         return Response({'success': True, 'stream_stopped': stopped})
@@ -1507,8 +1532,9 @@ def live_data(request):
         from .video_stream import get_video_stream
         stream = get_video_stream()
         stream_status = stream.get_status()
-        analysis = stream.get_latest_analysis()
         active_session = ClassSession.objects.filter(status='active').first()
+
+        analysis = stream.get_latest_analysis()
         now = timezone.now()
         _cleanup_behavior_state(now)
 
@@ -1560,7 +1586,7 @@ def live_data(request):
             timestamp__gte=timezone.now() - timedelta(minutes=5)
         ).order_by('-timestamp')[:6]
         timeline = [{
-            'time': s.timestamp.strftime('%H:%M:%S'),
+            'time': timezone.localtime(s.timestamp).strftime('%H:%M:%S'),
             'engagement': round(s.avg_engagement, 1),
             'present': s.present_count,
         } for s in reversed(list(recent_snapshots))]
@@ -1759,7 +1785,7 @@ def live_data(request):
                     'message': db_alert.message,
                     'student_name': db_alert.student.name if db_alert.student else 'Classroom',
                     'student_id': db_alert.student.student_id if db_alert.student else None,
-                    'time': db_alert.timestamp.strftime('%H:%M:%S'),
+                    'time': timezone.localtime(db_alert.timestamp).strftime('%H:%M:%S'),
                     'timestamp': db_alert.timestamp.isoformat(),
                 })
 
@@ -2074,11 +2100,14 @@ def analytics_summary(request):
         df_sorted = df.sort_values('timestamp')
         first_point = float(df_sorted['engagement_score'].iloc[0]) if len(df_sorted) > 0 else 0.0
         latest_point = float(df_sorted['engagement_score'].iloc[-1]) if len(df_sorted) > 0 else 0.0
-        engagement_trend = latest_point - first_point
+        engagement_trend_diff = latest_point - first_point  # Keep for overall trend calculation
 
         daily_avg = df.groupby('date').agg({'engagement_score': 'mean', 'attention_score': 'mean'}).reset_index()
         daily_engagement = [{'date': str(row['date']), 'engagement': round(row['engagement_score'], 1),
                               'attention': round(row['attention_score'], 1)} for _, row in daily_avg.iterrows()]
+
+        # Create proper engagement trend data for charts (date -> engagement percentage mapping)
+        engagement_trend_chart = {str(row['date']): round(row['engagement_score'], 1) for _, row in daily_avg.iterrows()}
 
         hourly_avg = df.groupby('hour')['engagement_score'].mean().reset_index()
         hourly_pattern = [{'hour': f"{int(row['hour']):02d}:00", 'engagement': round(row['engagement_score'], 1)}
@@ -2152,7 +2181,7 @@ def analytics_summary(request):
             'student_rankings': top_students,
             'needs_attention': needs_attention,
             'overall_avg_engagement': round(df['engagement_score'].mean(), 1),
-            'engagement_trend': round(float(engagement_trend), 1),
+            'engagement_trend': round(float(engagement_trend_diff), 1),
             'trend_has_data': bool(len(df_sorted) > 1),
             'total_students': total_students,
             'attendance_rate': round(attendance_rate, 1),
@@ -2180,6 +2209,15 @@ def classroom_heatmap(request):
         active_session = ClassSession.objects.filter(status='active').order_by('-start_time').first()
         aggregation = 'session_avg' if active_session else 'today_avg'
 
+        # Keep presence definition consistent with dashboard/list_students:
+        # present in any attendance row for today.
+        present_student_ids = set(
+            Attendance.objects.filter(
+                date=today,
+                is_present=True,
+            ).values_list('student_id', flat=True)
+        )
+
         live_by_student_id = {}
         try:
             from .video_stream import get_video_stream
@@ -2194,10 +2232,8 @@ def classroom_heatmap(request):
         for student in students:
             if active_session:
                 records_qs = EngagementRecord.objects.filter(student=student, session=active_session)
-                attend = Attendance.objects.filter(student=student, session=active_session, date=today).first()
             else:
                 records_qs = EngagementRecord.objects.filter(student=student, timestamp__date=today)
-                attend = Attendance.objects.filter(student=student, date=today).order_by('-id').first()
 
             metrics = records_qs.aggregate(avg_engagement=Avg('engagement_score'))
             dominant_emotion_row = (
@@ -2210,7 +2246,7 @@ def classroom_heatmap(request):
 
             engagement = metrics.get('avg_engagement')
             emotion = dominant_emotion_row.get('emotion') if dominant_emotion_row else None
-            present = attend.is_present if attend else False
+            present = student.id in present_student_ids
 
             if live_item is not None:
                 if engagement is None:
@@ -2267,7 +2303,7 @@ def session_report(request, session_id):
             df['timestamp'] = pd.to_datetime(df['timestamp'])
             overall_avg = df['engagement_score'].mean()
             emotion_dist = df['emotion'].value_counts().to_dict()
-            timeline = [{'time': s.timestamp.strftime('%H:%M:%S'), 'engagement': round(s.avg_engagement, 1),
+            timeline = [{'time': timezone.localtime(s.timestamp).strftime('%H:%M:%S'), 'engagement': round(s.avg_engagement, 1),
                          'present': s.present_count} for s in snapshots]
         else:
             overall_avg = 0
@@ -2746,10 +2782,10 @@ def generate_report(request):
             filename = f"{base_filename}.pdf"
             file_path = os.path.join(reports_dir, filename)
             try:
-                from reportlab.lib import colors
-                from reportlab.lib.pagesizes import A4, landscape
-                from reportlab.lib.styles import getSampleStyleSheet
-                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+                from reportlab.lib import colors  # type: ignore[import-not-found]
+                from reportlab.lib.pagesizes import A4, landscape  # type: ignore[import-not-found]
+                from reportlab.lib.styles import getSampleStyleSheet  # type: ignore[import-not-found]
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle  # type: ignore[import-not-found]
 
                 doc = SimpleDocTemplate(file_path, pagesize=landscape(A4))
                 styles = getSampleStyleSheet()
@@ -4150,9 +4186,6 @@ def api_checkpoint_summary(request):
         return Response({'success': True, 'class_avg': round(float(avg_score), 1), 'pass_rate': round(float(pass_rate), 1), 'total_attempts': total})
     except Exception as e:
         return Response({'success': False, 'error': str(e)}, status=500)
-
-
-@api_view(['GET'])
 @authentication_classes([])
 @permission_classes([])
 def api_students_lagging(request):
@@ -4165,8 +4198,11 @@ def api_students_lagging(request):
             att_total = Attendance.objects.filter(student=student).count()
             att_present = Attendance.objects.filter(student=student, is_present=True).count()
             attendance_pct = (att_present / att_total * 100.0) if att_total else 0.0
-            if eng < 60 or attendance_pct < 50:
-                lag_topic = Syllabus.objects.filter(teacher=teacher, status__in=['pending', 'in_progress']).order_by('target_date').first()
+            
+            # Check if student is lagging (more reasonable thresholds)
+            if eng < 70 or attendance_pct < 75:
+                # Fix: Use SyllabusTopic instead of Syllabus
+                lag_topic = SyllabusTopic.objects.filter(teacher=teacher, status__in=['pending', 'in_progress']).order_by('planned_date').first()
                 rows.append({
                     'student_id': student.student_id,
                     'student_name': student.name,
@@ -4282,9 +4318,10 @@ def api_students_performance(request):
             att_total = Attendance.objects.filter(student=s).count()
             att_present = Attendance.objects.filter(student=s, is_present=True).count()
             attendance = (att_present / att_total * 100.0) if att_total else 0.0
-            topic_total = Syllabus.objects.filter(teacher=teacher).count()
-            topic_done = LecturePlan.objects.filter(teacher=teacher, status='done').count()
-            completion = (topic_done / topic_total * 100.0) if topic_total else 0.0
+            
+            # Fix: Use StudentTopicProgress for individual student completion
+            student_topics = StudentTopicProgress.objects.filter(student__student_id=s.student_id, topic__teacher=teacher)
+            completion = student_topics.aggregate(avg=Avg('completion_percent')).get('avg') or 0.0
 
             student_results = CheckpointResult.objects.filter(student=s)
             pass_rate = (student_results.filter(passed=True).count() / student_results.count() * 100.0) if student_results.exists() else 100.0
