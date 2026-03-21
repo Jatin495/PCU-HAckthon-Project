@@ -895,6 +895,22 @@
                 const studentId = student.student_id || 'UNREGISTERED';
                 const displayName = student.name || `Face #${index + 1}`;
                 const presentText = student.present_today ? 'Present' : 'Detected';
+                const behavior = student.behavior_state || {};
+
+                let behaviorLabel = 'Monitoring';
+                let behaviorBadge = 'info';
+                if (behavior.likely_note_taking) {
+                    behaviorLabel = 'Likely Note-taking';
+                    behaviorBadge = 'success';
+                } else if (behavior.likely_occluded) {
+                    behaviorLabel = 'Face Possibly Occluded';
+                    behaviorBadge = 'danger';
+                } else if (behavior.looking_down) {
+                    behaviorLabel = 'Looking Down';
+                    behaviorBadge = 'warning';
+                }
+
+                const behaviorDetail = `Down: ${Number(behavior.down_streak || 0)} | Hidden: ${Number(behavior.hidden_streak || 0)} | Notes: ${Number(behavior.notes_streak || 0)}`;
 
                 const card = document.createElement('div');
                 card.className = 'student-card fade-in';
@@ -910,6 +926,8 @@
                     </div>
                     <span class="badge badge-${color}">${emotion}</span>
                     <span class="badge badge-info" style="margin-top:6px;">${presentText}</span>
+                    <span class="badge badge-${behaviorBadge}" style="margin-top:6px;">${behaviorLabel}</span>
+                    <div style="font-size:0.68rem;color:var(--text-secondary);margin-top:4px;">${behaviorDetail}</div>
                 `;
                 container.appendChild(card);
             });
