@@ -338,13 +338,8 @@
                         <div style="position: relative; width: 100%; max-width: 400px;">
                             <video id="cameraVideo" style="width: 100%; border-radius: 8px;" autoplay></video>
                             <div id="guidedOverlay" style="display:none; position:absolute; inset:0; pointer-events:none; border-radius:8px; overflow:hidden;">
-                                <div style="position:absolute; inset:0; display:flex;">
-                                    <div id="zoneLeft" style="flex:1; border:2px dashed rgba(255,255,255,0.65);"></div>
-                                    <div id="zoneStraight" style="flex:1; border-top:2px dashed rgba(255,255,255,0.65); border-bottom:2px dashed rgba(255,255,255,0.65);"></div>
-                                    <div id="zoneRight" style="flex:1; border:2px dashed rgba(255,255,255,0.65);"></div>
-                                </div>
-                                <div id="overlayHint" style="position:absolute; left:10px; right:10px; bottom:10px; background:rgba(0,0,0,0.5); color:#fff; font-size:0.75rem; padding:0.35rem 0.5rem; border-radius:6px; text-align:center;">
-                                    Move face to highlighted zone
+                                <div id="overlayHint" style="position:absolute; left:10px; right:10px; bottom:10px; background:rgba(0,0,0,0.58); color:#fff; font-size:0.82rem; padding:0.45rem 0.6rem; border-radius:6px; text-align:center;">
+                                    Follow pose instruction
                                 </div>
                             </div>
                         </div>
@@ -1273,39 +1268,19 @@
 
         function updateGuidedOverlay(expectedPose, detectedPose = null) {
             const overlay = document.getElementById('guidedOverlay');
-            const left = document.getElementById('zoneLeft');
-            const right = document.getElementById('zoneRight');
-            const straight = document.getElementById('zoneStraight');
             const hint = document.getElementById('overlayHint');
-            if (!overlay || !left || !right || !straight || !hint) return;
+            if (!overlay || !hint) return;
 
             overlay.style.display = guidedCaptureMode ? 'block' : 'none';
 
-            const resetZone = (el) => {
-                el.style.background = 'rgba(255,255,255,0.06)';
-                el.style.borderColor = 'rgba(255,255,255,0.65)';
-            };
-            resetZone(left);
-            resetZone(right);
-            resetZone(straight);
-
-            const zoneMap = { left, right, straight };
-            const expected = zoneMap[expectedPose];
-            if (expected) {
-                expected.style.background = 'rgba(16,185,129,0.25)';
-                expected.style.borderColor = 'rgba(16,185,129,0.95)';
-            }
-
-            const detected = zoneMap[detectedPose];
-            if (detected && detected !== expected) {
-                detected.style.background = 'rgba(239,68,68,0.22)';
-                detected.style.borderColor = 'rgba(239,68,68,0.95)';
-            }
-
             if (detectedPose) {
                 hint.textContent = `Expected: ${String(expectedPose).toUpperCase()} | Detected: ${String(detectedPose).toUpperCase()}`;
+                hint.style.background = String(expectedPose).toLowerCase() === String(detectedPose).toLowerCase()
+                    ? 'rgba(16,185,129,0.72)'
+                    : 'rgba(220,38,38,0.72)';
             } else {
-                hint.textContent = `Expected position: ${String(expectedPose).toUpperCase()}`;
+                hint.textContent = `Show ${String(expectedPose).toUpperCase()} pose and capture`;
+                hint.style.background = 'rgba(0,0,0,0.58)';
             }
         }
 

@@ -836,12 +836,14 @@ def face_capture_check(request):
         brightness = float(np.mean(face_roi)) if face_roi.size else 0.0
         face_area_ratio = float((w * h) / float(max(1, w_img * h_img)))
 
-        if expected_pose == 'straight':
-            pose_ok = abs(yaw_norm) <= 0.07 if pose_method == 'face_mesh_yaw' else (detected_pose == 'straight')
+        if pose_method != 'face_mesh_yaw' and expected_pose in {'left', 'right'}:
+            pose_ok = False
+        elif expected_pose == 'straight':
+            pose_ok = abs(yaw_norm) <= 0.06 if pose_method == 'face_mesh_yaw' else (detected_pose == 'straight')
         elif expected_pose == 'left':
-            pose_ok = yaw_norm >= 0.12 if pose_method == 'face_mesh_yaw' else (detected_pose == 'left')
+            pose_ok = yaw_norm >= 0.18 if pose_method == 'face_mesh_yaw' else (detected_pose == 'left')
         else:  # right
-            pose_ok = yaw_norm <= -0.12 if pose_method == 'face_mesh_yaw' else (detected_pose == 'right')
+            pose_ok = yaw_norm <= -0.18 if pose_method == 'face_mesh_yaw' else (detected_pose == 'right')
 
         size_ok = face_area_ratio >= 0.08
         blur_ok = blur_score >= 70.0
@@ -849,6 +851,8 @@ def face_capture_check(request):
 
         issues = []
         if not pose_ok:
+            if pose_method != 'face_mesh_yaw' and expected_pose in {'left', 'right'}:
+                issues.append('Cannot verify side pose clearly. Keep one face visible and turn head more to side, then recapture.')
             if expected_pose == 'straight':
                 issues.append(
                     f"Pose mismatch: expected STRAIGHT, detected {detected_pose.upper()}. Keep your face centered and look directly at camera."
