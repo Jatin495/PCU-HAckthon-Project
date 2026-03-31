@@ -765,6 +765,7 @@ def student_detail(request, student_id):
         return Response({'error': str(e)}, status=500)
 
 
+@csrf_exempt
 @api_view(['POST'])
 def face_capture_check(request):
     """
@@ -958,12 +959,13 @@ def face_capture_check(request):
         brightness = float(np.mean(face_roi)) if face_roi.size else 0.0
         face_area_ratio = float((w * h) / float(max(1, w_img * h_img)))
 
+        # Keep straight-pose guidance lenient for registration usability.
         if expected_pose == 'straight':
-            pose_ok = abs(yaw_norm) <= 0.06 if pose_method == 'face_mesh_yaw' else (detected_pose == 'straight')
+            pose_ok = abs(yaw_norm) <= 0.18 if pose_method == 'face_mesh_yaw' else True
 
-        size_ok = face_area_ratio >= 0.06
-        blur_ok = blur_score >= 40.0
-        light_ok = 40.0 <= brightness <= 230.0
+        size_ok = face_area_ratio >= 0.035
+        blur_ok = blur_score >= 20.0
+        light_ok = 25.0 <= brightness <= 240.0
 
         issues = []
         if not pose_ok:

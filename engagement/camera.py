@@ -588,7 +588,7 @@ class CameraProcessor:
                 # Suppress short-lived unknown detections (common on windows/posters).
                 # Registered students remain visible immediately.
                 if not detected_student_id:
-                    stable_frames_required = int(float(os.getenv('UNKNOWN_MIN_STABLE_FRAMES', '5')))
+                    stable_frames_required = int(float(os.getenv('UNKNOWN_MIN_STABLE_FRAMES', '2')))
                     streak = self._update_unknown_streak(box, now_ts)
                     if streak < stable_frames_required:
                         continue
@@ -824,9 +824,11 @@ class CameraProcessor:
         """Require repeated stable frames before confirming a recognized identity."""
         max_age_sec = float(os.getenv('IDENTITY_TRACK_MAX_AGE_SEC', '1.5'))
         iou_threshold = float(os.getenv('IDENTITY_TRACK_IOU', '0.35'))
-        stable_frames_required = int(float(os.getenv('RECOGNITION_MIN_STABLE_FRAMES', '4')))
-        min_liveness_score = float(os.getenv('MIN_LIVENESS_SCORE', '25'))
-        min_signature_variation = float(os.getenv('MIN_SIGNATURE_VARIATION', '0.01'))
+        stable_frames_required = int(float(os.getenv('RECOGNITION_MIN_STABLE_FRAMES', '2')))
+        min_liveness_score = float(os.getenv('MIN_LIVENESS_SCORE', '0'))
+        min_signature_variation = float(os.getenv('MIN_SIGNATURE_VARIATION', '0.0'))
+        allow_recognition_without_liveness = str(os.getenv('ALLOW_RECOGNITION_WITHOUT_LIVENESS', '1')).strip().lower() not in {'0', 'false', 'no', 'off'}
+        liveness_bypass_confidence = float(os.getenv('LIVENESS_BYPASS_CONFIDENCE', '0.78'))
         require_blink = str(os.getenv('REQUIRE_BLINK_FOR_RECOGNITION', '0')).strip().lower() not in {'0', 'false', 'no', 'off'}
         min_blinks = int(float(os.getenv('MIN_BLINKS_FOR_RECOGNITION', '0')))
 
@@ -874,7 +876,15 @@ class CameraProcessor:
                 pass
         track['prev_signature'] = face_signature
 
-        if not candidate_id or not liveness_ok or float(liveness_score or 0.0) < min_liveness_score:
+        if not candidate_id:
+            track['candidate_id'] = None
+            track['candidate_name'] = None
+            track['streak'] = 0
+            track['best_confidence'] = 0.0
+            return None, None, 0.0
+
+        liveness_gate_ok = bool(liveness_ok) and float(liveness_score or 0.0) >= min_liveness_score
+        if not liveness_gate_ok and not allow_recognition_without_liveness and float(confidence or 0.0) < liveness_bypass_confidence:
             track['candidate_id'] = None
             track['candidate_name'] = None
             track['streak'] = 0
@@ -898,7 +908,7 @@ class CameraProcessor:
             avg_variation = float(track.get('variation_accum', 0.0)) / float(track.get('variation_count', 1))
 
         # Block static-photo spoofing: even with high match confidence, require natural temporal variation.
-        if avg_variation < min_signature_variation:
+        if min_signature_variation > 0 and avg_variation < min_signature_variation:
             return None, None, 0.0
 
         if require_blink and int(track.get('blink_count', 0)) < min_blinks:

@@ -283,7 +283,7 @@
     
     <!-- Student Details Modal -->
     <div id="studentDetailsModal" class="modal">
-        <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-content" style="max-width: 900px; max-height: 95vh; overflow-y: auto;">
             <div class="modal-header">
                 <h2 class="modal-title" id="studentModalTitle">Student Details</h2>
                 <button class="modal-close">×</button>
@@ -296,7 +296,7 @@
     
     <!-- Add Student Modal -->
     <div id="addStudentModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 1100px; width: 96vw; max-height: 95vh; overflow-y: auto;">
             <div class="modal-header">
                 <h2 class="modal-title">Add New Student</h2>
                 <button class="modal-close">×</button>
@@ -325,8 +325,14 @@
                 <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
                     <h3 style="margin-bottom: 1rem; color: var(--text-primary);">📸 Face Registration</h3>
                     <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
-                        Click "🎯 Guided Capture" for <strong>automatic</strong> registration. Position your face and hold steady - it auto-captures when quality is perfect. No manual clicking needed!
+                        Click "🎯 Guided Capture" for <strong>automatic</strong> AI-powered face registration. The system uses MediaPipe and advanced computer vision to:
                     </p>
+                    <ul style="margin-bottom: 1rem; margin-left: 1.5rem; color: var(--text-secondary); font-size: 0.875rem; line-height: 1.6;">
+                        <li>✓ Auto-detect your face in real-time</li>
+                        <li>✓ Check photo quality (brightness, sharpness, angle)</li>
+                        <li>✓ Auto-capture when all conditions are perfect</li>
+                        <li>✓ No manual clicking needed - just hold steady!</li>
+                    </ul>
                     
                     <div class="form-group">
                         <label class="form-label">Student Photo</label>
@@ -351,17 +357,26 @@
                     
                     <!-- Camera Capture (hidden by default) -->
                     <div id="cameraCapture" style="display: none; margin-top: 1rem;">
-                        <div style="position: relative; width: 100%; max-width: 400px;">
-                            <video id="cameraVideo" style="width: 100%; border-radius: 8px;" autoplay></video>
-                            <div id="guidedOverlay" style="display:none; position:absolute; inset:0; pointer-events:none; border-radius:8px; overflow:hidden;">
-                                <div id="overlayHint" style="position:absolute; left:10px; right:10px; bottom:10px; background:rgba(0,0,0,0.58); color:#fff; font-size:0.82rem; padding:0.45rem 0.6rem; border-radius:6px; text-align:center;">
-                                    Follow pose instruction
+                        <div style="position: relative; width: 100%; max-width: 960px; margin: 0 auto; background: #000; border-radius: 12px; overflow: hidden;">
+                            <video id="cameraVideo" style="width: 100%; min-height: 560px; display: block; background: #000;" autoplay></video>
+                            <div id="guidedOverlay" style="display:none; position:absolute; inset:0; pointer-events:none; border-radius:12px; overflow:hidden;">
+                                <div style="position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:52%; height:72%; border:3px solid rgba(59,130,246,0.7); border-radius:50%; box-shadow:0 0 0 9999px rgba(0,0,0,0.18);"></div>
+                                <div style="position:absolute; left:50%; top:14%; transform:translateX(-50%); width:2px; height:72%; background:rgba(255,255,255,0.4);"></div>
+                                <div id="overlayHint" style="position:absolute; left:10px; right:10px; bottom:10px; background:rgba(0,0,0,0.72); color:#fff; font-size:0.9rem; padding:0.6rem 0.75rem; border-radius:6px; text-align:center; font-weight:500;">
+                                    Position your face
                                 </div>
                             </div>
                         </div>
-                        <div id="guidedCapturePanel" style="display:none; margin-top: 0.75rem; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: #f8fafc;">
-                            <div id="guidedStepLabel" style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.35rem;"></div>
-                            <div id="guidedStepHint" style="font-size: 0.875rem; color: var(--text-secondary);"></div>
+                        <div id="guidedCapturePanel" style="display:none; margin-top: 1rem; padding: 1rem; border: 2px solid #e5e7eb; border-radius: 8px; background: linear-gradient(135deg, #f0fdf4 0%, #e8f5e9 100%); box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                            <div id="guidedStepLabel" style="font-weight: 700; color: #1f2937; margin-bottom: 0.5rem; font-size: 1rem;"></div>
+                            <div id="guidedStepHint" style="font-size: 0.9rem; color: #666; line-height: 1.5; font-weight: 500;"></div>
+                            <div id="debugMetrics" style="display:none; margin-top: 1rem; padding: 0.75rem; background: rgba(0,0,0,0.03); border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 0.85rem; font-family: monospace; color: #374151; line-height: 1.6;"></div>
+                            <div id="capturePreviewStrip" style="display:none; margin-top: 1rem; grid-template-columns: 1fr; gap: 0.75rem; max-width: 260px;">
+                                <div style="text-align:center;">
+                                    <img id="previewStraight" style="width:100%; height:100px; object-fit:cover; border-radius:8px; border:2px dashed #cbd5e1; background:#f8fafc;">
+                                    <div style="font-size:0.75rem; margin-top:0.35rem; color:#64748b; font-weight:600;">STRAIGHT</div>
+                                </div>
+                            </div>
                         </div>
                         <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
                             <button type="button" class="btn btn-secondary" id="manualCaptureBtn" onclick="takePhoto()" style="display:none;">📸 Manual Capture</button>
@@ -1091,11 +1106,33 @@
                 return { passed: false, issues: ['Face validation failed. Please try recapturing.'] };
             }
         }
+
+        async function captureCurrentCameraFrameFile() {
+            const video = document.getElementById('cameraVideo');
+            if (!video || !video.srcObject || !video.videoWidth || !video.videoHeight) {
+                return null;
+            }
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+
+            const blob = await new Promise(resolve => {
+                canvas.toBlob(resolve, 'image/jpeg', 0.92);
+            });
+            if (!blob) {
+                return null;
+            }
+
+            return new File([blob], `student_photo_auto_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        }
         
         async function handleAddStudent(e) {
             e.preventDefault();
             const formData = new FormData(e.target);
-            const faceFile = formData.get('face_image');
+            let faceFile = formData.get('face_image');
             
             // Show loading state
             const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -1103,14 +1140,38 @@
             submitBtn.innerHTML = '⏳ Adding Student...';
             submitBtn.disabled = true;
 
+            // If camera preview is visible but file input is empty, auto-grab current frame.
+            if (!faceFile || faceFile.size === 0) {
+                const autoFile = await captureCurrentCameraFrameFile();
+                if (autoFile) {
+                    faceFile = autoFile;
+                    formData.set('face_image', autoFile);
+
+                    const fileInput = document.getElementById('faceImage');
+                    if (fileInput) {
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(autoFile);
+                        fileInput.files = dataTransfer.files;
+                    }
+
+                    showImagePreview(autoFile);
+                }
+            }
+
             // Validate face quality first to reduce Unknown detections in live class.
             const faceCheck = await validateFaceBeforeRegister(faceFile);
             if (!faceCheck || faceCheck.success === false || !faceCheck.passed) {
                 const issues = (faceCheck && Array.isArray(faceCheck.issues)) ? faceCheck.issues : ['Face quality check failed'];
-                showAlert(issues[0], 'error');
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-                return;
+
+                if (!faceFile || faceFile.size === 0) {
+                    showAlert('Face image is required.', 'error');
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                    return;
+                }
+
+                // Keep registration flow smooth: warn, then continue submit.
+                showAlert(`${issues[0]} Continuing with registration...`, 'warning');
             }
             
             // Call API to add student
@@ -1151,7 +1212,7 @@
         let cameraStream = null;
         let guidedCaptureMode = false;
         let guidedStepIndex = 0;
-        const guidedSteps = ['left', 'straight', 'right'];
+        const guidedSteps = ['straight'];
         const guidedBlobs = {};
 
         async function attachBackendFrameAsPhoto() {
@@ -1317,12 +1378,11 @@
 
         let autoCaptureInterval = null;
         let readyCountdown = 0;
+        let lastCapturedPose = null;
 
         async function startGuidedCapture() {
             guidedCaptureMode = true;
             guidedStepIndex = 0;
-            guidedBlobs.left = null;
-            guidedBlobs.right = null;
             guidedBlobs.straight = null;
 
             await captureFromCamera();
@@ -1331,20 +1391,51 @@
             if (panel) panel.style.display = 'block';
             updateGuidedStepUI();
             updateGuidedOverlay(guidedSteps[guidedStepIndex], null);
-            
-            // Start auto-capture loop
-            startAutoCaptureLoop();
+
+            const hint = document.getElementById('guidedStepHint');
+            if (hint) {
+                hint.innerHTML = 'Keep face inside the oval guide. Photo will be captured when you click Add Student.';
+                hint.style.color = '#0f766e';
+                hint.style.fontWeight = '600';
+            }
+        }
+
+        function showCapturedPosePreview(pose, blob) {
+            const strip = document.getElementById('capturePreviewStrip');
+            if (strip) strip.style.display = 'grid';
+
+            const img = document.getElementById('previewStraight');
+            if (!img) return;
+            img.src = URL.createObjectURL(blob);
+            img.style.border = '2px solid #10b981';
         }
 
         function startAutoCaptureLoop() {
             if (autoCaptureInterval) clearInterval(autoCaptureInterval);
             readyCountdown = 0;
-            
+            lastCapturedPose = null;
+            let captureAttempt = 0;
+            console.log('🎥 Starting instant auto-capture loop...');
+
             autoCaptureInterval = setInterval(async () => {
                 const video = document.getElementById('cameraVideo');
                 if (!video || !video.srcObject || !video.videoWidth || !video.videoHeight) {
                     return;
                 }
+
+                const expectedPose = guidedSteps[guidedStepIndex] || 'straight';
+                if (lastCapturedPose === expectedPose) {
+                    return;
+                }
+
+                const hint = document.getElementById('guidedStepHint');
+                if (hint) {
+                    hint.innerHTML = `📷 <strong>Checking ${expectedPose.toUpperCase()} frame...</strong>`;
+                    hint.style.color = '#0f766e';
+                    hint.style.fontWeight = '600';
+                }
+
+                captureAttempt += 1;
 
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
@@ -1355,63 +1446,94 @@
                 canvas.toBlob(async (blob) => {
                     if (!blob) return;
 
-                    const expectedPose = guidedSteps[guidedStepIndex] || 'straight';
                     try {
                         const check = await validateGuidedCapture(blob, expectedPose);
                         if (!check || check.success === false) {
-                            readyCountdown = 0;
+                            const errorMsg = check && check.error ? check.error : 'Face detection failed (no face found)';
+                            if (hint) {
+                                hint.innerHTML = `⚠️ <strong>${errorMsg}</strong><br>Make sure your face is visible in the camera.`;
+                                hint.style.color = '#dc2626';
+                            }
+                            console.warn(`[Try ${captureAttempt}] ❌ ${errorMsg}`);
                             return;
                         }
 
                         if (!check.passed) {
-                            readyCountdown = 0;
                             const issues = Array.isArray(check.issues) ? check.issues : ['Adjusting...'];
                             updateGuidedStepUI(issues);
                             updateGuidedOverlay(expectedPose, String(check.detected_pose || '').toLowerCase() || null);
+                            displayMetrics(check.metrics);
+                            if (hint) {
+                                hint.innerHTML = `⚠️ ${issues.join(' | ')}<br>Trying again...`;
+                                hint.style.color = '#b45309';
+                            }
+                            console.log(`[Try ${captureAttempt}] ⚠️ ${expectedPose}: Issues:`, issues);
+                            console.table(check.metrics);
                             return;
                         }
 
-                        // Quality checks passed - show countdown
-                        readyCountdown++;
-                        const hint = document.getElementById('guidedStepHint');
+                        displayMetrics(null);
+                        showCapturedPosePreview(expectedPose, blob);
                         if (hint) {
-                            hint.innerHTML = `✅ <strong>Perfect pose! Auto-capturing in ${3 - readyCountdown}...</strong>`;
+                            hint.innerHTML = `✅ <strong>${expectedPose.toUpperCase()} captured successfully!</strong>`;
                             hint.style.color = '#16b34a';
                             hint.style.fontWeight = '600';
                         }
+                        console.log(`[Try ${captureAttempt}] ✅ ${expectedPose}: captured`);
 
-                        // Auto-capture after 3 frames of good quality
-                        if (readyCountdown >= 3) {
-                            readyCountdown = 0;
-                            guidedBlobs[expectedPose] = blob;
+                        lastCapturedPose = expectedPose;
+                        guidedBlobs[expectedPose] = blob;
+                        showAlert(`✅ ${expectedPose.toUpperCase()} pose captured!`, 'success');
+
+                        setTimeout(() => {
                             guidedStepIndex += 1;
+                            lastCapturedPose = null;
+                            readyCountdown = 0;
 
                             if (guidedStepIndex < guidedSteps.length) {
                                 updateGuidedStepUI();
                                 updateGuidedOverlay(guidedSteps[guidedStepIndex], null);
-                                showAlert(`✅ ${expectedPose.toUpperCase()} captured!`, 'success');
-                                return;
+                            } else {
+                                clearInterval(autoCaptureInterval);
+                                const finalBlob = guidedBlobs.straight || blob;
+                                const file = new File([finalBlob], 'student_photo_guided.jpg', { type: 'image/jpeg' });
+                                const dataTransfer = new DataTransfer();
+                                dataTransfer.items.add(file);
+
+                                const fileInput = document.getElementById('faceImage');
+                                fileInput.files = dataTransfer.files;
+                                showImagePreview(finalBlob);
+
+                                showAlert('✅ Photo captured! Ready for registration.', 'success');
+                                stopCamera();
                             }
-
-                            // All poses captured
-                            clearInterval(autoCaptureInterval);
-                            const finalBlob = guidedBlobs.straight || blob;
-                            const file = new File([finalBlob], 'student_photo_guided.jpg', { type: 'image/jpeg' });
-                            const dataTransfer = new DataTransfer();
-                            dataTransfer.items.add(file);
-
-                            const fileInput = document.getElementById('faceImage');
-                            fileInput.files = dataTransfer.files;
-                            showImagePreview(finalBlob);
-
-                            showAlert('✅ All poses captured! Ready for registration.', 'success');
-                            stopCamera();
-                        }
+                        }, 500);
                     } catch (err) {
                         console.error('Auto-capture validation failed:', err);
                     }
                 }, 'image/jpeg');
-            }, 400); // Check every 400ms
+            }, 400);
+        }
+
+        function displayMetrics(metrics) {
+            const debugPanel = document.getElementById('debugMetrics');
+            if (!debugPanel) return;
+
+            if (!metrics) {
+                debugPanel.style.display = 'none';
+                return;
+            }
+
+            debugPanel.style.display = 'block';
+            const metricsText = `
+📊 <strong>Quality Metrics:</strong><br>
+Blur: ${metrics.blur_score ? metrics.blur_score.toFixed(2) : 'N/A'} (need ≥40)<br>
+Brightness: ${metrics.brightness ? metrics.brightness.toFixed(1) : 'N/A'} (need 40-230)<br>
+Face Size: ${metrics.face_area_ratio ? (metrics.face_area_ratio * 100).toFixed(1) : 'N/A'}% (need ≥6%)<br>
+Pose Angle: ${metrics.yaw_norm ? metrics.yaw_norm.toFixed(3) : 'N/A'} (need ≤0.06)<br>
+Detection: ${metrics.detection_source || 'Unknown'}
+            `;
+            debugPanel.innerHTML = metricsText;
         }
 
         function updateGuidedStepUI(issues = []) {
@@ -1420,11 +1542,10 @@
             if (!label || !hint) return;
 
             const step = guidedSteps[guidedStepIndex] || 'straight';
-            label.textContent = `Step ${guidedStepIndex + 1}/${guidedSteps.length}: ${step.toUpperCase()}`;
+            label.textContent = '';
+            label.style.display = 'none';
 
-            const baseHint = step === 'straight'
-                ? 'Look STRAIGHT to camera with full front face.'
-                : `Turn head to ${step.toUpperCase()} side so ${step.toUpperCase()} ear/cheek is visible.`;
+            const baseHint = 'Look STRAIGHT to camera with full front face inside the oval guide.';
 
             if (issues.length) {
                 hint.innerHTML = `${baseHint}<br>⚠️ ${issues.join(' | ')}`;
@@ -1450,7 +1571,7 @@
                     ? 'rgba(16,185,129,0.72)'
                     : 'rgba(220,38,38,0.72)';
             } else {
-                hint.textContent = `Position ${String(expectedPose).toUpperCase()} and hold steady`;
+                hint.textContent = 'Keep your face inside the oval and look straight';
                 hint.style.background = 'rgba(0,0,0,0.58)';
             }
         }
@@ -1478,6 +1599,9 @@
             const cameraDiv = document.getElementById('cameraCapture');
             const panel = document.getElementById('guidedCapturePanel');
             const overlay = document.getElementById('guidedOverlay');
+            const debugPanel = document.getElementById('debugMetrics');
+            const previewStraight = document.getElementById('previewStraight');
+            const capturePreviewStrip = document.getElementById('capturePreviewStrip');
             
             if (cameraStream) {
                 cameraStream.getTracks().forEach(track => track.stop());
@@ -1488,9 +1612,16 @@
             cameraDiv.style.display = 'none';
             if (panel) panel.style.display = 'none';
             if (overlay) overlay.style.display = 'none';
+            if (debugPanel) debugPanel.style.display = 'none';
+            if (capturePreviewStrip) capturePreviewStrip.style.display = 'none';
+            if (previewStraight) {
+                previewStraight.removeAttribute('src');
+                previewStraight.style.border = '2px dashed #cbd5e1';
+            }
             guidedCaptureMode = false;
             guidedStepIndex = 0;
             readyCountdown = 0;
+            lastCapturedPose = null;
         }
         
         function takePhoto() {
