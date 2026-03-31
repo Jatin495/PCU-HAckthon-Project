@@ -94,7 +94,7 @@ class FaceRecognitionSystem:
             logger.error(f"Error loading known faces: {e}")
             return False
     
-    def identify_student(self, face_roi, confidence_threshold=0.86):
+    def identify_student(self, face_roi, confidence_threshold=0.62):
         """
         Identify a student from face ROI with improved accuracy
         Returns: (student_id, student_name, confidence) or (None, None, 0)
@@ -160,9 +160,9 @@ class FaceRecognitionSystem:
 
             confidence_margin = best_confidence - second_best_confidence
             has_single_candidate = len(all_similarities) <= 1
-            strict_margin_ok = confidence_margin >= 0.05
-            high_conf_relaxed_margin_ok = (best_confidence >= 0.93 and confidence_margin >= 0.025)
-            very_high_confidence_ok = best_confidence >= 0.985
+            strict_margin_ok = confidence_margin >= 0.03
+            high_conf_relaxed_margin_ok = (best_confidence >= 0.85 and confidence_margin >= 0.015)
+            very_high_confidence_ok = best_confidence >= 0.94
 
             if best_match and best_confidence >= confidence_threshold and (
                 has_single_candidate or strict_margin_ok or high_conf_relaxed_margin_ok or very_high_confidence_ok

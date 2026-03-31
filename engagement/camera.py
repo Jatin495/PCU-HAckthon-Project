@@ -785,9 +785,9 @@ class CameraProcessor:
             bright_ratio = float(np.mean(gray >= 245))
             dark_ratio = float(np.mean(gray <= 10))
 
-            min_texture = float(os.getenv('LIVENESS_MIN_LAPLACIAN_VAR', '45'))
-            min_std = float(os.getenv('LIVENESS_MIN_STDDEV', '20'))
-            max_bright_ratio = float(os.getenv('LIVENESS_MAX_BRIGHT_RATIO', '0.22'))
+            min_texture = float(os.getenv('LIVENESS_MIN_LAPLACIAN_VAR', '20'))
+            min_std = float(os.getenv('LIVENESS_MIN_STDDEV', '10'))
+            max_bright_ratio = float(os.getenv('LIVENESS_MAX_BRIGHT_RATIO', '0.30'))
 
             score = (
                 min(55.0, lap_var / 2.0)
@@ -824,11 +824,11 @@ class CameraProcessor:
         """Require repeated stable frames before confirming a recognized identity."""
         max_age_sec = float(os.getenv('IDENTITY_TRACK_MAX_AGE_SEC', '1.5'))
         iou_threshold = float(os.getenv('IDENTITY_TRACK_IOU', '0.35'))
-        stable_frames_required = int(float(os.getenv('RECOGNITION_MIN_STABLE_FRAMES', '8')))
-        min_liveness_score = float(os.getenv('MIN_LIVENESS_SCORE', '45'))
-        min_signature_variation = float(os.getenv('MIN_SIGNATURE_VARIATION', '0.02'))
-        require_blink = str(os.getenv('REQUIRE_BLINK_FOR_RECOGNITION', '1')).strip().lower() not in {'0', 'false', 'no', 'off'}
-        min_blinks = int(float(os.getenv('MIN_BLINKS_FOR_RECOGNITION', '1')))
+        stable_frames_required = int(float(os.getenv('RECOGNITION_MIN_STABLE_FRAMES', '4')))
+        min_liveness_score = float(os.getenv('MIN_LIVENESS_SCORE', '25'))
+        min_signature_variation = float(os.getenv('MIN_SIGNATURE_VARIATION', '0.01'))
+        require_blink = str(os.getenv('REQUIRE_BLINK_FOR_RECOGNITION', '0')).strip().lower() not in {'0', 'false', 'no', 'off'}
+        min_blinks = int(float(os.getenv('MIN_BLINKS_FOR_RECOGNITION', '0')))
 
         self._identity_tracks = [
             t for t in self._identity_tracks
