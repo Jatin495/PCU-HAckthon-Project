@@ -325,7 +325,7 @@
                 <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
                     <h3 style="margin-bottom: 1rem; color: var(--text-primary);">📸 Face Registration</h3>
                     <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
-                        Upload a clear photo of the student's face for automatic identification during live monitoring.
+                        Click "🎯 Guided Capture" for <strong>automatic</strong> registration. Position your face and hold steady - it auto-captures when quality is perfect. No manual clicking needed!
                     </p>
                     
                     <div class="form-group">
@@ -364,7 +364,7 @@
                             <div id="guidedStepHint" style="font-size: 0.875rem; color: var(--text-secondary);"></div>
                         </div>
                         <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                            <button type="button" class="btn btn-primary" onclick="takePhoto()">📸 Capture Photo</button>
+                            <button type="button" class="btn btn-secondary" id="manualCaptureBtn" onclick="takePhoto()" style="display:none;">📸 Manual Capture</button>
                             <button type="button" class="btn btn-secondary" onclick="stopCamera()">Cancel</button>
                         </div>
                     </div>
@@ -1315,6 +1315,9 @@
             cameraDiv.style.display = 'none';
         }
 
+        let autoCaptureInterval = null;
+        let readyCountdown = 0;
+
         async function startGuidedCapture() {
             guidedCaptureMode = true;
             guidedStepIndex = 0;
@@ -1328,6 +1331,87 @@
             if (panel) panel.style.display = 'block';
             updateGuidedStepUI();
             updateGuidedOverlay(guidedSteps[guidedStepIndex], null);
+            
+            // Start auto-capture loop
+            startAutoCaptureLoop();
+        }
+
+        function startAutoCaptureLoop() {
+            if (autoCaptureInterval) clearInterval(autoCaptureInterval);
+            readyCountdown = 0;
+            
+            autoCaptureInterval = setInterval(async () => {
+                const video = document.getElementById('cameraVideo');
+                if (!video || !video.srcObject || !video.videoWidth || !video.videoHeight) {
+                    return;
+                }
+
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0);
+
+                canvas.toBlob(async (blob) => {
+                    if (!blob) return;
+
+                    const expectedPose = guidedSteps[guidedStepIndex] || 'straight';
+                    try {
+                        const check = await validateGuidedCapture(blob, expectedPose);
+                        if (!check || check.success === false) {
+                            readyCountdown = 0;
+                            return;
+                        }
+
+                        if (!check.passed) {
+                            readyCountdown = 0;
+                            const issues = Array.isArray(check.issues) ? check.issues : ['Adjusting...'];
+                            updateGuidedStepUI(issues);
+                            updateGuidedOverlay(expectedPose, String(check.detected_pose || '').toLowerCase() || null);
+                            return;
+                        }
+
+                        // Quality checks passed - show countdown
+                        readyCountdown++;
+                        const hint = document.getElementById('guidedStepHint');
+                        if (hint) {
+                            hint.innerHTML = `✅ <strong>Perfect pose! Auto-capturing in ${3 - readyCountdown}...</strong>`;
+                            hint.style.color = '#16b34a';
+                            hint.style.fontWeight = '600';
+                        }
+
+                        // Auto-capture after 3 frames of good quality
+                        if (readyCountdown >= 3) {
+                            readyCountdown = 0;
+                            guidedBlobs[expectedPose] = blob;
+                            guidedStepIndex += 1;
+
+                            if (guidedStepIndex < guidedSteps.length) {
+                                updateGuidedStepUI();
+                                updateGuidedOverlay(guidedSteps[guidedStepIndex], null);
+                                showAlert(`✅ ${expectedPose.toUpperCase()} captured!`, 'success');
+                                return;
+                            }
+
+                            // All poses captured
+                            clearInterval(autoCaptureInterval);
+                            const finalBlob = guidedBlobs.straight || blob;
+                            const file = new File([finalBlob], 'student_photo_guided.jpg', { type: 'image/jpeg' });
+                            const dataTransfer = new DataTransfer();
+                            dataTransfer.items.add(file);
+
+                            const fileInput = document.getElementById('faceImage');
+                            fileInput.files = dataTransfer.files;
+                            showImagePreview(finalBlob);
+
+                            showAlert('✅ All poses captured! Ready for registration.', 'success');
+                            stopCamera();
+                        }
+                    } catch (err) {
+                        console.error('Auto-capture validation failed:', err);
+                    }
+                }, 'image/jpeg');
+            }, 400); // Check every 400ms
         }
 
         function updateGuidedStepUI(issues = []) {
@@ -1340,14 +1424,16 @@
 
             const baseHint = step === 'straight'
                 ? 'Look STRAIGHT to camera with full front face.'
-                : `Turn head to ${step.toUpperCase()} side so ${step.toUpperCase()} ear/cheek is visible. Do not just shift face position.`;
+                : `Turn head to ${step.toUpperCase()} side so ${step.toUpperCase()} ear/cheek is visible.`;
 
             if (issues.length) {
                 hint.innerHTML = `${baseHint}<br>⚠️ ${issues.join(' | ')}`;
                 hint.style.color = '#b45309';
+                hint.style.fontWeight = '400';
             } else {
-                hint.textContent = baseHint;
-                hint.style.color = 'var(--text-secondary)';
+                hint.textContent = `${baseHint} (Auto-captures when ready)`;
+                hint.style.color = '#666';
+                hint.style.fontWeight = '400';
             }
         }
 
@@ -1364,7 +1450,7 @@
                     ? 'rgba(16,185,129,0.72)'
                     : 'rgba(220,38,38,0.72)';
             } else {
-                hint.textContent = `Show ${String(expectedPose).toUpperCase()} pose and capture`;
+                hint.textContent = `Position ${String(expectedPose).toUpperCase()} and hold steady`;
                 hint.style.background = 'rgba(0,0,0,0.58)';
             }
         }
@@ -1383,6 +1469,11 @@
         }
         
         function stopCamera() {
+            if (autoCaptureInterval) {
+                clearInterval(autoCaptureInterval);
+                autoCaptureInterval = null;
+            }
+            
             const video = document.getElementById('cameraVideo');
             const cameraDiv = document.getElementById('cameraCapture');
             const panel = document.getElementById('guidedCapturePanel');
@@ -1399,9 +1490,12 @@
             if (overlay) overlay.style.display = 'none';
             guidedCaptureMode = false;
             guidedStepIndex = 0;
+            readyCountdown = 0;
         }
         
         function takePhoto() {
+            // This is kept for backward compatibility but auto-capture is now preferred
+            // Manual capture can still be used by clicking the button
             const video = document.getElementById('cameraVideo');
 
             if (!video || !video.srcObject || !video.videoWidth || !video.videoHeight) {

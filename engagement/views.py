@@ -961,9 +961,9 @@ def face_capture_check(request):
         if expected_pose == 'straight':
             pose_ok = abs(yaw_norm) <= 0.06 if pose_method == 'face_mesh_yaw' else (detected_pose == 'straight')
 
-        size_ok = face_area_ratio >= 0.08
-        blur_ok = blur_score >= 70.0
-        light_ok = 45.0 <= brightness <= 220.0
+        size_ok = face_area_ratio >= 0.06
+        blur_ok = blur_score >= 40.0
+        light_ok = 40.0 <= brightness <= 230.0
 
         issues = []
         if not pose_ok:
