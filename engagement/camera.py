@@ -61,6 +61,16 @@ class CameraProcessor:
         self._last_confusion_notification_at = None
         # Track unknown detections across frames to suppress short-lived false positives.
         self._unknown_tracks = []
+        # Track candidate identities across frames before confirming recognition.
+        self._identity_tracks = []
+        # Eye detector for blink-gated recognition.
+        self._eye_cascade = None
+        try:
+            eye_cascade_path = cv2.data.haarcascades + 'haarcascade_eye_tree_eyeglasses.xml'
+            if os.path.exists(eye_cascade_path):
+                self._eye_cascade = cv2.CascadeClassifier(eye_cascade_path)
+        except Exception:
+            self._eye_cascade = None
 
         # FER + DAiSEE-inspired fusion controls.
         # NOTE: daisee component here is a proxy scorer unless you plug in a trained DAiSEE model.
@@ -173,6 +183,8 @@ class CameraProcessor:
         # Clear frames
         self.current_frame = None
         self.annotated_frame = None
+        self._unknown_tracks = []
+        self._identity_tracks = []
         self.last_analysis_result = None
         
         # Avoid destroyAllWindows in server mode; on some builds it can crash when no GUI backend exists.
@@ -529,6 +541,10 @@ class CameraProcessor:
                 detected_student_id = None
                 detected_student_name = None
                 match_confidence = 0.0
+                liveness_ok = False
+                liveness_score = 0.0
+                liveness_reason = "not_checked"
+                face_signature = None
                 if self.face_recognition_system is not None:
                     try:
                         h, w = analysis_frame.shape[:2]
@@ -539,12 +555,35 @@ class CameraProcessor:
                         face_roi = analysis_frame[y1:y2, x1:x2]
 
                         if face_roi is not None and face_roi.size > 0:
+                            liveness_ok, liveness_score, liveness_reason = self._estimate_liveness(face_roi)
+                            face_signature = self._compute_face_signature(face_roi)
                             detected_student_id, detected_student_name, match_confidence = self.face_recognition_system.identify_student(
                                 face_roi,
                                 confidence_threshold=float(os.getenv('FACE_MATCH_THRESHOLD', '0.62')),
                             )
                     except Exception as e:
                         logger.debug(f"Face identify failed for one face: {e}")
+
+                confirmed_student_id, confirmed_student_name, confirmed_confidence = self._update_identity_confirmation(
+                    box=box,
+                    candidate_id=detected_student_id,
+                    candidate_name=detected_student_name,
+                    confidence=match_confidence,
+                    liveness_ok=liveness_ok,
+                    liveness_score=liveness_score,
+                    face_signature=face_signature,
+                    face_roi=face_roi if 'face_roi' in locals() else None,
+                    now_ts=now_ts,
+                )
+
+                if confirmed_student_id:
+                    detected_student_id = confirmed_student_id
+                    detected_student_name = confirmed_student_name
+                    match_confidence = confirmed_confidence
+                else:
+                    detected_student_id = None
+                    detected_student_name = None
+                    match_confidence = 0.0
 
                 # Suppress short-lived unknown detections (common on windows/posters).
                 # Registered students remain visible immediately.
@@ -563,16 +602,25 @@ class CameraProcessor:
                     engagement_status_label = "Status: MODERATE"
                 else:
                     engagement_status_label = "Status: HIGH"
+                emotion_colors = {
+                    'happy': (0, 220, 0),
+                    'focused': (255, 200, 0),
+                    'neutral': (0, 200, 255),
+                    'confused': (0, 165, 255),
+                    'bored': (0, 0, 255),
+                    'sad': (180, 105, 255),
+                }
+                color = emotion_colors.get(mapped_emotion, (255, 255, 255))
+
                 if detected_student_id:
                     student_label = f"Student: {detected_student_id}"
                     if detected_student_name:
                         student_label = f"{student_label} ({detected_student_name})"
-                    # Registered students are green.
-                    color = (0, 255, 0)
                 else:
                     student_label = "Student: Unregistered"
-                    # Unregistered but valid faces are orange.
-                    color = (0, 165, 255)
+
+                if not liveness_ok and liveness_reason != "not_checked":
+                    student_label = "Student: Liveness check failed"
 
                 # Draw bounding box and label on frame
                 cv2.rectangle(analysis_frame, (x, y), (x+bw, y+bh), color, 2)
@@ -627,6 +675,9 @@ class CameraProcessor:
                     'name': detected_student_name or 'Unknown Person',
                     'face_registered': bool(detected_student_id),
                     'confidence': round(float(match_confidence or 0.0), 3),
+                    'liveness_ok': bool(liveness_ok),
+                    'liveness_score': round(float(liveness_score), 2),
+                    'liveness_reason': liveness_reason,
                     'emotion': mapped_emotion,
                     'emotion_confidence': round(confidence, 2),
                     'engagement_score': round(engagement_score, 1),
@@ -639,7 +690,7 @@ class CameraProcessor:
                     'eye_contact_score': round(eye_contact_score, 1),
                     'vertical_offset': round(float(vertical_offset), 3),
                     'horizontal_offset': round(float(horizontal_offset), 3),
-                    'is_looking_forward': head_direction_score >= 60 and mapped_emotion not in ['bored', 'confused'],
+                    'is_looking_forward': head_direction_score >= 60,
                     'face_bbox': box,
                 })
 
@@ -655,16 +706,18 @@ class CameraProcessor:
                         'daisee_engagement': round(daisee_engagement, 1),
                         'emotion_confidence': round(confidence, 2),
                         'confidence': round(float(match_confidence or confidence or 0.0), 3),
+                        'liveness_ok': True,
+                        'liveness_score': round(float(liveness_score), 2),
                         'head_direction_score': round(head_direction_score, 1),
                         'eye_contact_score': round(eye_contact_score, 1),
                         'vertical_offset': round(float(vertical_offset), 3),
                         'horizontal_offset': round(float(horizontal_offset), 3),
-                        'is_looking_forward': head_direction_score >= 60 and mapped_emotion not in ['bored', 'confused'],
+                        'is_looking_forward': head_direction_score >= 60,
                         'posture_score': round(posture_score, 1),
                         'face_registered': True,
                     })
             
-            face_count = len(fer_results)
+            face_count = len(students_data)
             avg_engagement = (total_engagement / face_count) if face_count > 0 else 0
             
             # Store results for display
@@ -718,6 +771,178 @@ class CameraProcessor:
         area_b = max(1, bw * bh)
         union = max(1, area_a + area_b - inter)
         return float(inter) / float(union)
+
+    def _estimate_liveness(self, face_roi):
+        """Passive liveness heuristic to reduce photo-on-phone spoofing."""
+        if face_roi is None or getattr(face_roi, 'size', 0) == 0:
+            return False, 0.0, 'empty_face'
+
+        try:
+            gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+            lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+            intensity_std = float(np.std(gray))
+
+            bright_ratio = float(np.mean(gray >= 245))
+            dark_ratio = float(np.mean(gray <= 10))
+
+            min_texture = float(os.getenv('LIVENESS_MIN_LAPLACIAN_VAR', '45'))
+            min_std = float(os.getenv('LIVENESS_MIN_STDDEV', '20'))
+            max_bright_ratio = float(os.getenv('LIVENESS_MAX_BRIGHT_RATIO', '0.22'))
+
+            score = (
+                min(55.0, lap_var / 2.0)
+                + min(35.0, intensity_std)
+                + max(0.0, 10.0 - (bright_ratio * 35.0))
+            )
+
+            if lap_var < min_texture:
+                return False, score, 'low_texture'
+            if intensity_std < min_std:
+                return False, score, 'flat_tone'
+            if bright_ratio > max_bright_ratio and dark_ratio < 0.02:
+                return False, score, 'screen_glare'
+
+            return True, score, 'ok'
+        except Exception as e:
+            logger.debug(f"Liveness estimation failed: {e}")
+            return False, 0.0, 'liveness_error'
+
+    def _compute_face_signature(self, face_roi):
+        """Compute compact normalized signature for temporal liveness variation checks."""
+        try:
+            gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+            gray = cv2.equalizeHist(gray)
+            sig = cv2.resize(gray, (20, 20), interpolation=cv2.INTER_AREA).astype(np.float32).flatten()
+            norm = float(np.linalg.norm(sig))
+            if norm > 0:
+                sig = sig / norm
+            return sig
+        except Exception:
+            return None
+
+    def _update_identity_confirmation(self, box, candidate_id, candidate_name, confidence, liveness_ok, liveness_score, face_signature, face_roi, now_ts):
+        """Require repeated stable frames before confirming a recognized identity."""
+        max_age_sec = float(os.getenv('IDENTITY_TRACK_MAX_AGE_SEC', '1.5'))
+        iou_threshold = float(os.getenv('IDENTITY_TRACK_IOU', '0.35'))
+        stable_frames_required = int(float(os.getenv('RECOGNITION_MIN_STABLE_FRAMES', '8')))
+        min_liveness_score = float(os.getenv('MIN_LIVENESS_SCORE', '45'))
+        min_signature_variation = float(os.getenv('MIN_SIGNATURE_VARIATION', '0.02'))
+        require_blink = str(os.getenv('REQUIRE_BLINK_FOR_RECOGNITION', '1')).strip().lower() not in {'0', 'false', 'no', 'off'}
+        min_blinks = int(float(os.getenv('MIN_BLINKS_FOR_RECOGNITION', '1')))
+
+        self._identity_tracks = [
+            t for t in self._identity_tracks
+            if (now_ts - t.get('last_seen', 0.0)) <= max_age_sec
+        ]
+
+        best_idx = -1
+        best_iou = 0.0
+        for idx, track in enumerate(self._identity_tracks):
+            iou = self._compute_iou(box, track.get('box', [0, 0, 0, 0]))
+            if iou > best_iou:
+                best_iou = iou
+                best_idx = idx
+
+        if best_idx >= 0 and best_iou >= iou_threshold:
+            track = self._identity_tracks[best_idx]
+            track['box'] = box
+            track['last_seen'] = now_ts
+        else:
+            track = {
+                'box': box,
+                'last_seen': now_ts,
+                'candidate_id': None,
+                'candidate_name': None,
+                'streak': 0,
+                'best_confidence': 0.0,
+                'prev_signature': None,
+                'variation_accum': 0.0,
+                'variation_count': 0,
+                'prev_eyes_open': None,
+                'closed_frames': 0,
+                'blink_count': 0,
+                'last_blink_at': 0.0,
+            }
+            self._identity_tracks.append(track)
+
+        if face_signature is not None and track.get('prev_signature') is not None:
+            try:
+                delta = float(np.mean(np.abs(face_signature - track['prev_signature'])))
+                track['variation_accum'] = float(track.get('variation_accum', 0.0)) + delta
+                track['variation_count'] = int(track.get('variation_count', 0)) + 1
+            except Exception:
+                pass
+        track['prev_signature'] = face_signature
+
+        if not candidate_id or not liveness_ok or float(liveness_score or 0.0) < min_liveness_score:
+            track['candidate_id'] = None
+            track['candidate_name'] = None
+            track['streak'] = 0
+            track['best_confidence'] = 0.0
+            return None, None, 0.0
+
+        eyes_open = self._detect_eyes_open(face_roi)
+        self._update_blink_state(track, eyes_open, now_ts)
+
+        if track.get('candidate_id') == candidate_id:
+            track['streak'] = int(track.get('streak', 0)) + 1
+            track['best_confidence'] = max(float(track.get('best_confidence', 0.0)), float(confidence or 0.0))
+        else:
+            track['candidate_id'] = candidate_id
+            track['candidate_name'] = candidate_name
+            track['streak'] = 1
+            track['best_confidence'] = float(confidence or 0.0)
+
+        avg_variation = 0.0
+        if int(track.get('variation_count', 0)) > 0:
+            avg_variation = float(track.get('variation_accum', 0.0)) / float(track.get('variation_count', 1))
+
+        # Block static-photo spoofing: even with high match confidence, require natural temporal variation.
+        if avg_variation < min_signature_variation:
+            return None, None, 0.0
+
+        if require_blink and int(track.get('blink_count', 0)) < min_blinks:
+            return None, None, 0.0
+
+        if int(track.get('streak', 0)) >= stable_frames_required:
+            return track.get('candidate_id'), track.get('candidate_name'), float(track.get('best_confidence', 0.0))
+
+        return None, None, 0.0
+
+    def _detect_eyes_open(self, face_roi):
+        """Estimate whether eyes are open using Haar eye detector on face ROI."""
+        if self._eye_cascade is None:
+            return None
+        if face_roi is None or getattr(face_roi, 'size', 0) == 0:
+            return None
+        try:
+            gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+            eyes = self._eye_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(12, 12))
+            return len(eyes) >= 1
+        except Exception:
+            return None
+
+    def _update_blink_state(self, track, eyes_open, now_ts):
+        """Track blink transitions per identity track."""
+        if eyes_open is None:
+            return
+
+        prev = track.get('prev_eyes_open')
+        if prev is None:
+            track['prev_eyes_open'] = bool(eyes_open)
+            return
+
+        if eyes_open:
+            if int(track.get('closed_frames', 0)) >= 1 and prev is False:
+                min_blink_gap = float(os.getenv('MIN_BLINK_GAP_SEC', '0.18'))
+                if (now_ts - float(track.get('last_blink_at', 0.0))) >= min_blink_gap:
+                    track['blink_count'] = int(track.get('blink_count', 0)) + 1
+                    track['last_blink_at'] = now_ts
+            track['closed_frames'] = 0
+        else:
+            track['closed_frames'] = int(track.get('closed_frames', 0)) + 1
+
+        track['prev_eyes_open'] = bool(eyes_open)
 
     def _update_unknown_streak(self, box, now_ts):
         """Update and return stability streak for unknown face candidates."""

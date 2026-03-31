@@ -383,10 +383,11 @@ def logout_view(request):
 def dashboard_stats(request):
     try:
         today = timezone.now().date()
+        engagement_today = timezone.localdate()
         total_students = Student.objects.filter(is_active=True).count()
         present_today = Attendance.objects.filter(date=today, is_present=True).values('student').distinct().count()
         active_session = ClassSession.objects.filter(status='active').first()
-        today_records = EngagementRecord.objects.filter(timestamp__date=today)
+        today_records = EngagementRecord.objects.filter(timestamp__date=engagement_today)
         avg_engagement = today_records.aggregate(avg=Avg('engagement_score'))['avg'] or 0
         active_alerts = Alert.objects.filter(is_resolved=False).count()
 
@@ -615,16 +616,15 @@ def add_student(request):
         seat_row = data.get('seat_row', 1)
         seat_col = data.get('seat_col', 1)
         face_image = request.FILES.get('face_image')  # Face image for registration
-        
         if not name:
             return Response({'error': 'Name is required'}, status=400)
 
         if not face_image:
             return Response({'error': 'Face image is required for student registration'}, status=400)
-        
+
         count = Student.objects.count() + 1
         student_id = f"STU{count:03d}"
-        
+
         # Process face encoding if image provided
         face_encoding = None
         if face_image:
@@ -1017,10 +1017,13 @@ def list_sessions(request):
 
 
 @csrf_exempt
-@api_view(['POST'])
 def start_session(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
     try:
-        data = request.data
+        import json
+        data = json.loads(request.body) if request.body else {}
         class_name = data.get('class_name', 'CS101')
         subject = data.get('subject', 'Computer Science')
         unit = str(data.get('unit') or '').strip()
@@ -1129,7 +1132,7 @@ def start_session(request):
             'topic_name': topic_name,
         }
 
-        return Response({'success': True, 'session': {
+        return JsonResponse({'success': True, 'session': {
             'id': session.id, 'class_name': session.class_name,
             'subject': subject,
             'unit': unit,
@@ -1142,7 +1145,7 @@ def start_session(request):
         }})
     except Exception as e:
         logger.error(f"Start session error: {e}")
-        return Response({'error': str(e)}, status=500)
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @csrf_exempt
@@ -3595,6 +3598,7 @@ def api_dashboard_summary(request):
     """Get summary data for all dashboard stat cards"""
     try:
         today = timezone.now().date()
+        engagement_today = timezone.localdate()
         session_id = request.query_params.get('session_id')
         
         # Get today's session if not specified
@@ -3608,7 +3612,7 @@ def api_dashboard_summary(request):
         
         # Average Class Engagement Today
         today_records = EngagementRecord.objects.filter(
-            timestamp__date=today
+            timestamp__date=engagement_today
         )
         avg_engagement_today = 0
         if today_records:

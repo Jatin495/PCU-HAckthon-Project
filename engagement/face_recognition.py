@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import json
 import logging
+import os
 from django.db import transaction
 from django.utils import timezone
 from engagement.models import Student, ClassSession, Attendance
@@ -20,85 +21,80 @@ class FaceRecognitionSystem:
     
     def __init__(self):
         self.student_encodings = {}
+        self._deepface_checked = False
+        self._deepface_enabled = str(os.getenv('ENABLE_DEEPFACE', '1')).strip().lower() not in {'0', 'false', 'no', 'off'}
+        self._deepface_backend = None
         self.load_student_encodings()
         logger.info("✅ FaceRecognitionSystem initialized")
+
+    def _ensure_deepface(self):
+        """Initialize DeepFace lazily only once to avoid repeated heavy startup cost."""
+        if self._deepface_checked:
+            return self._deepface_backend
+
+        self._deepface_checked = True
+        if not self._deepface_enabled:
+            logger.info("DeepFace disabled by ENABLE_DEEPFACE env var; using fallback face encoding")
+            return None
+
+        try:
+            from deepface import DeepFace 
+            self._deepface_backend = DeepFace
+            logger.info("DeepFace backend initialized for face encoding")
+        except ImportError:
+            logger.warning("DeepFace not installed; using fallback face encoding")
+            self._deepface_backend = None
+        except Exception as e:
+            logger.warning(f"DeepFace init failed; using fallback face encoding: {e}")
+            self._deepface_backend = None
+
+        return self._deepface_backend
     
     def load_student_encodings(self):
         """Load all active student face encodings from database."""
         try:
-            logger.info(f"🔍 Loading registered students from database...")
+            logger.info("Loading registered students from database...")
             self.student_encodings.clear()
-            
-            # Load every active student with a stored encoding
+
             students = Student.objects.filter(is_active=True, face_encoding__isnull=False).exclude(face_encoding='')
-            
+
             for student in students:
                 try:
-                    # Decode JSON face encoding from database
                     face_encoding_data = json.loads(student.face_encoding)
-                    
-                    # Convert back to numpy array
-                    if isinstance(face_encoding_data, list):
-                        face_encoding = np.array(face_encoding_data, dtype=np.float32)
+
+                    if isinstance(face_encoding_data, list) and face_encoding_data and isinstance(face_encoding_data[0], list):
+                        encodings = [np.array(item, dtype=np.float32) for item in face_encoding_data if item]
+                    elif isinstance(face_encoding_data, list):
+                        encodings = [np.array(face_encoding_data, dtype=np.float32)]
                     else:
-                        logger.warning(f"⚠️ Invalid encoding format for {student.name}")
+                        logger.warning(f"Invalid encoding format for {student.name}")
                         continue
-                        
+
+                    encodings = [enc for enc in encodings if enc.size > 0]
+                    if not encodings:
+                        continue
+
                     self.student_encodings[student.student_id] = {
                         'student_id': student.student_id,
                         'name': student.name,
-                        'encoding': face_encoding,
+                        'encodings': encodings,
                         'email': student.email,
                         'seat_row': student.seat_row,
-                        'seat_col': student.seat_col
+                        'seat_col': student.seat_col,
                     }
-                    
-                    logger.info(f"✅ Loaded student: {student.name} ({student.student_id})")
-                    
+
+                    logger.info(f"Loaded student: {student.name} ({student.student_id}) with {len(encodings)} encoding(s)")
                 except Exception as e:
-                    logger.error(f"❌ Error loading face encoding for {student.name}: {e}")
+                    logger.error(f"Error loading face encoding for {student.name}: {e}")
                     continue
-            
-            logger.info(f"📊 Total students loaded: {len(self.student_encodings)}")
+
+            logger.info(f"Total students loaded: {len(self.student_encodings)}")
             return True
-            
         except Exception as e:
-            logger.error(f"❌ Error loading known faces: {e}")
+            logger.error(f"Error loading known faces: {e}")
             return False
-            students = Student.objects.filter(
-                is_active=True, 
-                face_encoding__isnull=False
-            )
-            
-            for student in students:
-                if student.face_encoding:
-                    encoding = None
-
-                    if isinstance(student.face_encoding, str):
-                        try:
-                            encoding = np.array(json.loads(student.face_encoding), dtype=np.float32)
-                        except Exception:
-                            # Backward-compatibility for legacy non-JSON stringified lists.
-                            encoding = np.array(ast.literal_eval(student.face_encoding), dtype=np.float32)
-                    else:
-                        encoding = np.array(student.face_encoding, dtype=np.float32)
-
-                    if encoding is None or encoding.size == 0:
-                        continue
-
-                    self.student_encodings[student.student_id] = {
-                        'encoding': encoding,
-                        'name': student.name,
-                        'id': student.id,
-                        'student_id': student.student_id,
-                    }
-            
-            logger.info(f"✅ Loaded {len(self.student_encodings)} student face encodings")
-            
-        except Exception as e:
-            logger.error(f"❌ Error loading student encodings: {e}")
     
-    def identify_student(self, face_roi, confidence_threshold=0.62):
+    def identify_student(self, face_roi, confidence_threshold=0.86):
         """
         Identify a student from face ROI with improved accuracy
         Returns: (student_id, student_name, confidence) or (None, None, 0)
@@ -115,58 +111,61 @@ class FaceRecognitionSystem:
                 return None, None, 0
             
             face_encoding = np.array(face_encoding)
-            logger.info(f"🔍 Analyzing detected face with encoding length: {len(face_encoding)}")
-            
-            # Compare with all stored encodings
+            logger.info(f"Analyzing detected face with encoding length: {len(face_encoding)}")
+
             best_match = None
             best_match_student_id = None
             best_confidence = 0
             second_best_confidence = 0
             all_similarities = []
-            
+
             for student_id, student_data in self.student_encodings.items():
                 try:
-                    stored_encoding = np.array(student_data['encoding'])
+                    stored_encodings = student_data.get('encodings', [])
+                    best_student_confidence = 0.0
 
-                    if stored_encoding.shape != face_encoding.shape:
-                        logger.debug(
-                            "Skipping %s due to encoding shape mismatch (detected=%s, stored=%s)",
-                            student_id,
-                            face_encoding.shape,
-                            stored_encoding.shape,
-                        )
+                    for stored_encoding in stored_encodings:
+                        stored_encoding = np.array(stored_encoding, dtype=np.float32)
+                        if stored_encoding.shape != face_encoding.shape:
+                            logger.debug(
+                                "Skipping %s due to encoding shape mismatch (detected=%s, stored=%s)",
+                                student_id,
+                                face_encoding.shape,
+                                stored_encoding.shape,
+                            )
+                            continue
+
+                        similarity = self.calculate_similarity(face_encoding, stored_encoding)
+                        if similarity > best_student_confidence:
+                            best_student_confidence = similarity
+
+                    if best_student_confidence <= 0:
                         continue
-                    
-                    # Calculate similarity (cosine similarity)
-                    similarity = self.calculate_similarity(face_encoding, stored_encoding)
-                    all_similarities.append((student_id, student_data['name'], similarity))
-                    
-                    if similarity > best_confidence:
+
+                    all_similarities.append((student_id, student_data['name'], best_student_confidence))
+
+                    if best_student_confidence > best_confidence:
                         second_best_confidence = best_confidence
-                        best_confidence = similarity
+                        best_confidence = best_student_confidence
                         best_match = student_data
                         best_match_student_id = student_id
-                    elif similarity > second_best_confidence:
-                        second_best_confidence = similarity
-                        
+                    elif best_student_confidence > second_best_confidence:
+                        second_best_confidence = best_student_confidence
                 except Exception as e:
-                    logger.error(f"❌ Error comparing with student {student_id}: {e}")
+                    logger.error(f"Error comparing with student {student_id}: {e}")
                     continue
-            
-            # Log top 3 matches for debugging
+
             all_similarities.sort(key=lambda x: x[2], reverse=True)
-            logger.info(f"🎯 Top 3 matches: {all_similarities[:3]}")
-            
-            # Accept match only if confidence passes threshold and is sufficiently separated from runner-up.
-            # Fallback encodings can produce near-ties for visually similar students; allow a small
-            # relaxed margin only when absolute confidence is very high.
+            logger.info(f"Top 3 matches: {all_similarities[:3]}")
+
             confidence_margin = best_confidence - second_best_confidence
             has_single_candidate = len(all_similarities) <= 1
-            strict_margin_ok = confidence_margin >= 0.03
-            high_conf_relaxed_margin_ok = (best_confidence >= 0.92 and confidence_margin >= 0.015)
+            strict_margin_ok = confidence_margin >= 0.05
+            high_conf_relaxed_margin_ok = (best_confidence >= 0.93 and confidence_margin >= 0.025)
+            very_high_confidence_ok = best_confidence >= 0.985
 
             if best_match and best_confidence >= confidence_threshold and (
-                has_single_candidate or strict_margin_ok or high_conf_relaxed_margin_ok
+                has_single_candidate or strict_margin_ok or high_conf_relaxed_margin_ok or very_high_confidence_ok
             ):
                 return best_match_student_id, best_match['name'], float(best_confidence)
 
@@ -188,25 +187,22 @@ class FaceRecognitionSystem:
         if face_roi is None or getattr(face_roi, 'size', 0) == 0:
             return None
 
-        try:
-            # FIXED: Use DeepFace for face embeddings
-            from deepface import DeepFace
-            
-            # Generate 128-dim embedding
-            embedding = DeepFace.represent(
-                face_roi, 
-                model_name='Facenet',
-                enforce_detection=False
-            )
-            
-            if embedding and len(embedding) > 0:
-                # Return the embedding vector as a list
-                return embedding[0]['embedding']
+        deepface_backend = self._ensure_deepface()
+        if deepface_backend is not None:
+            try:
+                # Generate embedding using DeepFace when available.
+                embedding = deepface_backend.represent(
+                    face_roi,
+                    model_name='Facenet',
+                    enforce_detection=False,
+                )
 
-        except ImportError:
-            logger.warning("DeepFace not available, using fallback face encoding")
-        except Exception as e:
-            logger.warning(f"DeepFace embedding failed, using fallback encoding: {e}")
+                if embedding and len(embedding) > 0 and 'embedding' in embedding[0]:
+                    return embedding[0]['embedding']
+            except Exception as e:
+                # Disable DeepFace after a runtime failure to keep live stream responsive.
+                logger.warning(f"DeepFace embedding failed; switching to fallback encoding: {e}")
+                self._deepface_backend = None
 
         try:
             # Fallback encoding: same 128-dim signature used during registration.

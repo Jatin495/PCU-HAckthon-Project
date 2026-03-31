@@ -116,19 +116,19 @@
                     <div class="stat-card success">
                         <div class="stat-label">Total Students</div>
                         <div class="stat-value" id="totalStudents">24</div>
-                        <div class="stat-change positive">?' 2 from last week</div>
+                        <div class="stat-change" id="totalStudentsMeta">Active roster</div>
                     </div>
                     
                     <div class="stat-card info">
                         <div class="stat-label">Present Today</div>
                         <div class="stat-value" id="presentStudents">22</div>
-                        <div class="stat-change positive">?' 91.7% attendance</div>
+                        <div class="stat-change" id="presentStudentsMeta">Attendance: 0%</div>
                     </div>
                     
                     <div class="stat-card warning">
                         <div class="stat-label">Avg Engagement</div>
                         <div class="stat-value" id="averageEngagement">78%</div>
-                        <div class="stat-change positive">?' 5% improvement</div>
+                        <div class="stat-change" id="averageEngagementMeta">From today's records</div>
                     </div>
 
                     <div class="stat-card">
@@ -155,7 +155,7 @@
                         <div class="stat-card" style="background: #fef3c7; border-color: #fcd34d;">
                             <div class="stat-label" style="color: #92400e;">Students At Risk</div>
                             <div class="stat-value" id="atRiskCard" style="color: #dc2626;">0</div>
-                            <div class="stat-change" style="color: #92400e;" id="atRiskChange">Risk Level ? High</div>
+                            <div class="stat-change" style="color: #92400e;" id="atRiskChange">Risk Level: High</div>
                         </div>
                     
                         <div class="stat-card">
@@ -631,9 +631,20 @@
         
         function updateDashboardStats(data) {
             // Update main statistics
-            updateStat('totalStudents', data.total_students || 0);
-            updateStat('presentStudents', data.present_today || 0);
-            updateStat('averageEngagement', (data.avg_engagement || 0) + '%');
+            const totalStudents = Number(data.total_students || 0);
+            const presentToday = Number(data.present_today || 0);
+            const avgEngagement = Number(data.avg_engagement || 0);
+
+            updateStat('totalStudents', totalStudents);
+            updateStat('presentStudents', presentToday);
+            updateStat('averageEngagement', avgEngagement + '%');
+
+            const attendancePct = totalStudents > 0
+                ? ((presentToday / totalStudents) * 100).toFixed(1)
+                : '0.0';
+            updateStat('presentStudentsMeta', `Attendance: ${attendancePct}%`);
+            updateStat('totalStudentsMeta', 'Active roster');
+            updateStat('averageEngagementMeta', "From today's records");
             // Dashboard intentionally does not render alert widgets.
             
             // Update emotion distribution if chart is available
